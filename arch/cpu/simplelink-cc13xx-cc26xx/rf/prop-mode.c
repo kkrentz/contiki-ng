@@ -48,6 +48,7 @@
 #include "sys/clock.h"
 #include "sys/rtimer.h"
 #include "sys/cc.h"
+#include "dev/radio.h"
 #include "dev/watchdog.h"
 /*---------------------------------------------------------------------------*/
 /* RF Core Mailbox API */
