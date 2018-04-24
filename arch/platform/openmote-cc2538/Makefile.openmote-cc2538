@@ -29,6 +29,16 @@ MODULES += os/storage/cfs
 PYTHON = python
 BSL_FLAGS += -e --bootloader-invert-lines -w -v -b 450000
 
+ifndef USBDEVPREFIX
+  USBDEVPREFIX=/dev/ttyUSB
+endif
+
+ifndef MOTE
+  MOTE=0
+endif
+
+PORT := $(USBDEVPREFIX)$(MOTE)
+
 ifdef PORT
   BSL_FLAGS += -p $(PORT)
 endif
@@ -45,3 +55,13 @@ else
 	                               sort -g | head -1))
 	$(PYTHON) $(BSL) $(BSL_FLAGS) $(BSL_ADDRESS_ARG) $<
 endif
+
+reboot:
+ifeq ($(wildcard $(BSL)), )
+	@echo "ERROR: Could not find the cc2538-bsl script. Did you run 'git submodule update --init' ?"
+else
+	$(PYTHON) $(BSL) -p $(PORT) --bootloader-invert-lines -b 450000 $<
+endif
+
+grabserial:
+	grabserial -t -d "$(PORT)"
