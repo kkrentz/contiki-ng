@@ -81,9 +81,24 @@ struct ccm_star_driver {
       const uint8_t* a, uint16_t a_len,
       uint8_t *result, uint8_t mic_len,
       bool forward);
+
+  /**
+   * \brief Reserves exclusive access
+   */
+  bool (* get_lock)(void);
+
+  /**
+   * \brief Unblocks access
+   */
+  void (* release_lock)(void);
 };
 
 extern const struct ccm_star_driver ccm_star_driver;
 extern const struct ccm_star_driver CCM_STAR;
+
+/**
+ * \brief Tells if the CCM* is in use
+ */
+bool ccm_star_can_use_asynchronously(void);
 
 #endif /* CCM_STAR_H_ */
