@@ -60,6 +60,18 @@ typedef enum {
 #define NBR_TABLE_MAX_NEIGHBORS 8
 #endif /* NBR_TABLE_CONF_MAX_NEIGHBORS */
 
+#ifndef NBR_TABLE_CONF_WITH_LOCKING
+#define NBR_TABLE_CONF_WITH_LOCKING 0
+#endif /* NBR_TABLE_CONF_WITH_LOCKING */
+#if NBR_TABLE_CONF_WITH_LOCKING
+volatile int nbr_table_locked;
+#define NBR_TABLE_GET_LOCK()        nbr_table_locked++
+#define NBR_TABLE_RELEASE_LOCK()    nbr_table_locked--
+#else /* NBR_TABLE_CONF_WITH_LOCKING */
+#define NBR_TABLE_GET_LOCK()
+#define NBR_TABLE_RELEASE_LOCK()
+#endif /* NBR_TABLE_CONF_WITH_LOCKING */
+
 #ifdef NBR_TABLE_CONF_GC_GET_WORST
 #define NBR_TABLE_GC_GET_WORST NBR_TABLE_CONF_GC_GET_WORST
 #else /* NBR_TABLE_CONF_GC_GET_WORST */

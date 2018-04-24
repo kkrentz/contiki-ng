@@ -398,6 +398,8 @@ nbr_table_add_lladdr(nbr_table_t *table, const linkaddr_t *lladdr, nbr_table_rea
     return NULL;
   }
 
+  NBR_TABLE_GET_LOCK();
+
   /* Allow lladdr-free insertion, useful e.g. for IPv6 ND.
    * Only one such entry is possible at a time, indexed by linkaddr_null. */
   if(lladdr == NULL) {
@@ -405,6 +407,7 @@ nbr_table_add_lladdr(nbr_table_t *table, const linkaddr_t *lladdr, nbr_table_rea
   }
 
   if(!entry_is_allowed(table, lladdr, reason, data, &to_be_removed)) {
+    NBR_TABLE_RELEASE_LOCK();
     return NULL;
   }
 
@@ -415,6 +418,7 @@ nbr_table_add_lladdr(nbr_table_t *table, const linkaddr_t *lladdr, nbr_table_rea
     /* No space available for new entry. Should never happen as entry_is_allowed
      * already checks we can add. */
     if(key == NULL) {
+      NBR_TABLE_RELEASE_LOCK();
       return NULL;
     }
 
@@ -435,6 +439,8 @@ nbr_table_add_lladdr(nbr_table_t *table, const linkaddr_t *lladdr, nbr_table_rea
   memset(item, 0, table->item_size);
   nbr_set_bit(used_map, table, item, 1);
 
+  NBR_TABLE_RELEASE_LOCK();
+
 #if DEBUG
   print_table();
 #endif
@@ -453,8 +459,11 @@ nbr_table_get_from_lladdr(nbr_table_t *table, const linkaddr_t *lladdr)
 int
 nbr_table_remove(nbr_table_t *table, void *item)
 {
-  int ret = nbr_set_bit(used_map, table, item, 0);
+  int ret;
+  NBR_TABLE_GET_LOCK();
+  ret = nbr_set_bit(used_map, table, item, 0);
   nbr_set_bit(locked_map, table, item, 0);
+  NBR_TABLE_RELEASE_LOCK();
   return ret;
 }
 /*---------------------------------------------------------------------------*/
