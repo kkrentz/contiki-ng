@@ -41,6 +41,7 @@
 #include <string.h>
 #include "contiki.h"
 #include "coap-engine.h"
+#include "lib/sensors.h"
 
 #if PLATFORM_SUPPORTS_BUTTON_HAL
 #include "dev/button-hal.h"
@@ -80,6 +81,14 @@ extern coap_resource_t res_battery;
 #include "dev/temperature-sensor.h"
 extern coap_resource_t res_temperature;
 #endif
+#if PLATFORM_HAS_SHT21
+#include "dev/sht21.h"
+extern coap_resource_t res_sht21;
+#endif
+#if PLATFORM_HAS_MAX44009
+#include "dev/max44009.h"
+extern coap_resource_t res_max44009;
+#endif
 
 PROCESS(er_example_server, "Erbium Example Server");
 AUTOSTART_PROCESSES(&er_example_server);
@@ -97,31 +106,39 @@ PROCESS_THREAD(er_example_server, ev, data)
    * WARNING: Activating twice only means alternate path, not two instances!
    * All static variables are the same for each URI path.
    */
-  coap_activate_resource(&res_hello, "test/hello");
+  /*coap_activate_resource(&res_hello, "test/hello");
   coap_activate_resource(&res_mirror, "debug/mirror");
   coap_activate_resource(&res_chunks, "test/chunks");
   coap_activate_resource(&res_separate, "test/separate");
-  coap_activate_resource(&res_push, "test/push");
+  coap_activate_resource(&res_push, "test/push");*/
 #if PLATFORM_HAS_BUTTON
-  coap_activate_resource(&res_event, "sensors/button");
+  /*coap_activate_resource(&res_event, "sensors/button");*/
 #endif /* PLATFORM_HAS_BUTTON */
-  coap_activate_resource(&res_sub, "test/sub");
-  coap_activate_resource(&res_b1_sep_b2, "test/b1sepb2");
+  /*coap_activate_resource(&res_sub, "test/sub");
+  coap_activate_resource(&res_b1_sep_b2, "test/b1sepb2");*/
 #if PLATFORM_HAS_LEDS
-/*  coap_activate_resource(&res_leds, "actuators/leds"); */
-  coap_activate_resource(&res_toggle, "actuators/toggle");
+  coap_activate_resource(&res_leds, "actuators/leds");
+  /*coap_activate_resource(&res_toggle, "actuators/toggle");*/
 #endif
 #if PLATFORM_HAS_LIGHT
-  coap_activate_resource(&res_light, "sensors/light");
-  SENSORS_ACTIVATE(light_sensor);
+  /*coap_activate_resource(&res_light, "sensors/light");
+  SENSORS_ACTIVATE(light_sensor);*/
 #endif
 #if PLATFORM_HAS_BATTERY
-  coap_activate_resource(&res_battery, "sensors/battery");
-  SENSORS_ACTIVATE(battery_sensor);
+  /*coap_activate_resource(&res_battery, "sensors/battery");
+  SENSORS_ACTIVATE(battery_sensor);*/
 #endif
 #if PLATFORM_HAS_TEMPERATURE
-  coap_activate_resource(&res_temperature, "sensors/temperature");
-  SENSORS_ACTIVATE(temperature_sensor);
+  /*coap_activate_resource(&res_temperature, "sensors/temperature");
+  SENSORS_ACTIVATE(temperature_sensor);*/
+#endif
+#ifdef PLATFORM_HAS_SHT21
+  coap_activate_resource(&res_sht21, "sensors/sht21");
+  SENSORS_ACTIVATE(sht21);
+#endif
+#ifdef PLATFORM_HAS_MAX44009
+  coap_activate_resource(&res_max44009, "sensors/max44009");
+  SENSORS_ACTIVATE(max44009);
 #endif
 
   /* Define application-specific events here. */

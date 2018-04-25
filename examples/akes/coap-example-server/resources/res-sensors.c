@@ -29,20 +29,56 @@
  * This file is part of the Contiki operating system.
  */
 
-/**
- * \file
- *      Erbium (Er) example project configuration.
- * \author
- *      Matthias Kovatsch <kovatsch@inf.ethz.ch>
- */
+#include <stdio.h>
+#include <string.h>
+#include "coap-engine.h"
+#include "coap.h"
+#include "lib/sensors.h"
+#include "dev/sht21.h"
+#include "dev/max44009.h"
 
-#ifndef PROJECT_CONF_H_
-#define PROJECT_CONF_H_
+static void res_get_handler(coap_message_t *request,
+    coap_message_t *response,
+    uint8_t *buffer,
+    uint16_t preferred_size,
+    int32_t *offset);
+static void res_event_handler(void);
 
-#define LOG_LEVEL_APP LOG_LEVEL_NONE
+EVENT_RESOURCE(res_sensors,
+    "title=\"res_sensors\";obs",
+    res_get_handler,
+    NULL,
+    NULL,
+    NULL,
+    res_event_handler);
 
-/* configure MAC layer */
-#define CSL_CONF_COMPLIANT 0
-#include "net/mac/csl/csl-autoconf.h"
+/*---------------------------------------------------------------------------*/
+static void
+res_get_handler(coap_message_t *request,
+    coap_message_t *response,
+    uint8_t *buffer,
+    uint16_t preferred_size,
+    int32_t *offset)
+{
+  int temperature;
+  int humidity;
+  int light;
+  int length;
 
-#endif /* PROJECT_CONF_H_ */
+  temperature = sht21.value(SHT21_READ_TEMP);
+  humidity = sht21.value(SHT21_READ_RHUM);
+  light = max44009.value(MAX44009_READ_LIGHT);
+
+  coap_set_header_content_format(response, TEXT_PLAIN);
+  length = snprintf((char *)buffer,
+      preferred_size,
+      "%i;%i;%i", temperature, humidity, light);
+  coap_set_payload(response, buffer, length);
+}
+/*---------------------------------------------------------------------------*/
+static void
+res_event_handler(void)
+{
+  coap_notify_observers(&res_sensors);
+}
+/*---------------------------------------------------------------------------*/

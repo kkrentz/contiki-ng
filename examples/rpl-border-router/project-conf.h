@@ -43,4 +43,14 @@
 #define UIP_CONF_TCP 1
 #endif
 
+/* SLIP does not work otherwise */
+#undef LPM_CONF_MAX_PM
+#define LPM_CONF_MAX_PM 0
+#undef LPM_CONF_ENABLE
+#define LPM_CONF_ENABLE 0
+
+/* configure MAC layer */
+#define CSL_CONF_COMPLIANT 0
+#include "net/mac/csl/csl-autoconf.h"
+
 #endif /* PROJECT_CONF_H_ */

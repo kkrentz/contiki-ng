@@ -130,6 +130,9 @@
 #define PLATFORM_HAS_BUTTON    1
 #define PLATFORM_SUPPORTS_BUTTON_HAL 1
 /** @} */
+#define PLATFORM_HAS_SHT21 1
+#define PLATFORM_HAS_MAX44009 1
+#define PLATFORM_HAS_LEDS 1
 /*---------------------------------------------------------------------------*/
 /**
  * \name SPI (SSI0) configuration

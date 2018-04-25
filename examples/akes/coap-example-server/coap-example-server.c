@@ -29,20 +29,37 @@
  * This file is part of the Contiki operating system.
  */
 
-/**
- * \file
- *      Erbium (Er) example project configuration.
- * \author
- *      Matthias Kovatsch <kovatsch@inf.ethz.ch>
- */
+#include "contiki.h"
+#include "coap-engine.h"
+#include "lib/sensors.h"
+#include "dev/sht21.h"
+#include "dev/max44009.h"
 
-#ifndef PROJECT_CONF_H_
-#define PROJECT_CONF_H_
+extern coap_resource_t res_leds;
+extern coap_resource_t res_sensors;
 
-#define LOG_LEVEL_APP LOG_LEVEL_NONE
+PROCESS(er_example_server, "er_example_server");
+AUTOSTART_PROCESSES(&er_example_server);
+static struct etimer periodic_timer;
 
-/* configure MAC layer */
-#define CSL_CONF_COMPLIANT 0
-#include "net/mac/csl/csl-autoconf.h"
+/*---------------------------------------------------------------------------*/
+PROCESS_THREAD(er_example_server, ev, data)
+{
+  PROCESS_BEGIN();
 
-#endif /* PROJECT_CONF_H_ */
+  coap_activate_resource(&res_leds, "leds");
+
+  SENSORS_ACTIVATE(sht21);
+  SENSORS_ACTIVATE(max44009);
+  coap_activate_resource(&res_sensors, "sensors");
+
+  etimer_set(&periodic_timer, CLOCK_SECOND * 60);
+  while(1) {
+    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&periodic_timer));
+    res_sensors.trigger();
+    etimer_restart(&periodic_timer);
+  }
+
+  PROCESS_END();
+}
+/*---------------------------------------------------------------------------*/

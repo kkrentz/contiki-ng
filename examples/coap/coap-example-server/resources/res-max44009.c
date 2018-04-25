@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, Institute for Pervasive Computing, ETH Zurich
+ * Copyright (c) 2014, Nimbus Centre for Embedded Systems Research, Cork Institute of Technology.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,18 +31,52 @@
 
 /**
  * \file
- *      Erbium (Er) example project configuration.
+ *      SHT21 Sensor Resource
  * \author
- *      Matthias Kovatsch <kovatsch@inf.ethz.ch>
+ *      Pablo Corbalan <paul.corbalan@gmail.com>
+ *      Konrad Krentz <konrad.krentz@gmail.com>
  */
 
-#ifndef PROJECT_CONF_H_
-#define PROJECT_CONF_H_
+#include "contiki.h"
 
-#define LOG_LEVEL_APP LOG_LEVEL_NONE
+#ifdef PLATFORM_HAS_MAX44009
 
-/* configure MAC layer */
-#define CSL_CONF_COMPLIANT 0
-#include "net/mac/csl/csl-autoconf.h"
+#include <string.h>
+#include "coap-engine.h"
+#include "lib/sensors.h"
+#include "dev/max44009.h"
 
-#endif /* PROJECT_CONF_H_ */
+/*---------------------------------------------------------------------------*/
+static void res_get_handler(coap_message_t *request,
+    coap_message_t *response,
+    uint8_t *buffer,
+    uint16_t preferred_size,
+    int32_t *offset)
+{
+  int light;
+  unsigned int accept;
+  const char *msg = "Supporting content-types text/plain, application/xml, and application/json";
+
+  light = max44009.value(MAX44009_READ_LIGHT);
+
+  accept = -1;
+  coap_get_header_accept(request, &accept);
+
+  if(accept == -1 || accept == TEXT_PLAIN) {
+    coap_set_header_content_format(response, TEXT_PLAIN);
+    snprintf((char *)buffer, COAP_MAX_CHUNK_SIZE, "%i", light);
+    coap_set_payload(response, (uint8_t *)buffer, strlen((char *)buffer));
+  } else {
+    coap_set_status_code(response, NOT_ACCEPTABLE_4_06);
+    coap_set_payload(response, msg, strlen(msg));
+  }
+}
+/*---------------------------------------------------------------------------*/
+RESOURCE(res_max44009,
+    "title=\"Light\";rt=\"max44009\"",
+    res_get_handler,
+    NULL,
+    NULL,
+    NULL);
+/*---------------------------------------------------------------------------*/
+#endif /* PLATFORM_HAS_SHT21 */
