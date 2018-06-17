@@ -90,5 +90,11 @@ rtimer_run_next(void)
   t->func(t, t->ptr);
 }
 /*---------------------------------------------------------------------------*/
+bool
+rtimer_has_timed_out(rtimer_clock_t timeout)
+{
+  return RTIMER_CLOCK_LT(timeout, RTIMER_NOW());
+}
+/*---------------------------------------------------------------------------*/
 
 /** @}*/
