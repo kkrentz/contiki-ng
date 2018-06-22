@@ -49,6 +49,12 @@
 #include "net/mac/tsch/tsch-types.h"
 #include "net/mac/tsch/tsch-asn.h"
 
+#ifdef FRAME802154E_CONF_WITH_RENDEZVOUS_TIME_IE
+#define FRAME802154E_WITH_RENDEZVOUS_TIME_IE FRAME802154E_CONF_WITH_RENDEZVOUS_TIME_IE
+#else /* FRAME802154E_CONF_WITH_RENDEZVOUS_TIME_IE */
+#define FRAME802154E_WITH_RENDEZVOUS_TIME_IE 0
+#endif /* FRAME802154E_CONF_WITH_RENDEZVOUS_TIME_IE */
+
 #define FRAME802154E_IE_MAX_LINKS       4
 
 /* Structures used for the Slotframe and Links information element */
@@ -68,6 +74,9 @@ struct tsch_slotframe_and_links {
 /* The information elements that we currently support */
 struct ieee802154_ies {
   /* Header IEs */
+#if FRAME802154E_WITH_RENDEZVOUS_TIME_IE
+  uint16_t rendezvous_time;
+#endif /* FRAME802154E_WITH_RENDEZVOUS_TIME_IE */
   int16_t ie_time_correction;
   uint8_t ie_is_nack;
   /* Payload MLME */
@@ -93,6 +102,11 @@ struct ieee802154_ies {
 };
 
 /** Insert various Information Elements **/
+#if FRAME802154E_WITH_RENDEZVOUS_TIME_IE
+/* Header IE. Time until the transmission of a payload frame. Used in wake-up frames */
+int frame802154e_create_ie_rendezvous_time(uint8_t *buf, int len,
+    struct ieee802154_ies *ies);
+#endif /* FRAME802154E_WITH_RENDEZVOUS_TIME_IE */
 /* Header IE. ACK/NACK time correction. Used in enhanced ACKs */
 int frame80215e_create_ie_header_ack_nack_time_correction(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
