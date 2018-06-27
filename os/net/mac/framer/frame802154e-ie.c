@@ -56,6 +56,9 @@ enum ieee802154e_header_ie_id {
   HEADER_IE_LOW_LATENCY_NETWORK_INFO,
   HEADER_IE_LIST_TERMINATION_1 = 0x7e,
   HEADER_IE_LIST_TERMINATION_2 = 0x7f,
+#if FRAME802154E_WITH_PADDING_IE
+  HEADER_IE_PADDING = 0x19,
+#endif /* FRAME802154E_WITH_PADDING_IE */
 };
 
 /* c.f. IEEE 802.15.4e Table 4c */
@@ -133,6 +136,21 @@ create_mlme_long_ie_descriptor(uint8_t *buf, uint8_t sub_id, int ie_len)
   ie_desc = (ie_len & 0x07ff) + ((sub_id & 0x0f) << 11) + (1 << 15);
   WRITE16(buf, ie_desc);
 }
+
+#if FRAME802154E_WITH_PADDING_IE
+int
+frame802154e_create_ie_padding(uint8_t *buf, int len,
+    struct ieee802154_ies *ies)
+{
+  if(!ies || len < (2 + ies->padding_bytes)) {
+    return -1;
+  }
+
+  memset(buf + 2, 0, ies->padding_bytes);
+  create_header_ie_descriptor(buf, HEADER_IE_PADDING, ies->padding_bytes);
+  return 2 + ies->padding_bytes;
+}
+#endif /* FRAME802154E_WITH_PADDING_IE */
 
 #if FRAME802154E_WITH_RENDEZVOUS_TIME_IE
 int
@@ -402,6 +420,14 @@ frame802154e_parse_header_ie(const uint8_t *buf, int len,
         return len;
       }
       break;
+#if FRAME802154E_WITH_PADDING_IE
+    case HEADER_IE_PADDING:
+      if(ies) {
+        ies->padding_bytes = len;
+        return len;
+      }
+      break;
+#endif /* FRAME802154E_WITH_PADDING_IE */
 #if FRAME802154E_WITH_RENDEZVOUS_TIME_IE
     case HEADER_IE_RZ_TIME:
       if((len == 2) && ies) {

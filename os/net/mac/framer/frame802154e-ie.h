@@ -49,6 +49,12 @@
 #include "net/mac/tsch/tsch-types.h"
 #include "net/mac/tsch/tsch-asn.h"
 
+#ifdef FRAME802154E_CONF_WITH_PADDING_IE
+#define FRAME802154E_WITH_PADDING_IE FRAME802154E_CONF_WITH_PADDING_IE
+#else /* FRAME802154E_CONF_WITH_PADDING_IE */
+#define FRAME802154E_WITH_PADDING_IE 0
+#endif /* FRAME802154E_CONF_WITH_PADDING_IE */
+
 #ifdef FRAME802154E_CONF_WITH_RENDEZVOUS_TIME_IE
 #define FRAME802154E_WITH_RENDEZVOUS_TIME_IE FRAME802154E_CONF_WITH_RENDEZVOUS_TIME_IE
 #else /* FRAME802154E_CONF_WITH_RENDEZVOUS_TIME_IE */
@@ -80,6 +86,9 @@ struct tsch_slotframe_and_links {
 /* The information elements that we currently support */
 struct ieee802154_ies {
   /* Header IEs */
+#if FRAME802154E_WITH_PADDING_IE
+  uint8_t padding_bytes;
+#endif /* FRAME802154E_WITH_PADDING_IE */
 #if FRAME802154E_WITH_RENDEZVOUS_TIME_IE
   uint16_t rendezvous_time;
 #endif /* FRAME802154E_WITH_RENDEZVOUS_TIME_IE */
@@ -112,6 +121,11 @@ struct ieee802154_ies {
 };
 
 /** Insert various Information Elements **/
+#if FRAME802154E_WITH_PADDING_IE
+/* Header IE. Inserts padding bytes. Used by ContikiMAC */
+int frame802154e_create_ie_padding(uint8_t *buf, int len,
+    struct ieee802154_ies *ies);
+#endif /* FRAME802154E_WITH_PADDING_IE */
 #if FRAME802154E_WITH_RENDEZVOUS_TIME_IE
 /* Header IE. Time until the transmission of a payload frame. Used in wake-up frames */
 int frame802154e_create_ie_rendezvous_time(uint8_t *buf, int len,
