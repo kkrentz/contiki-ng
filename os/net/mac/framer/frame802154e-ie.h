@@ -68,6 +68,7 @@ struct tsch_slotframe_and_links {
 /* The information elements that we currently support */
 struct ieee802154_ies {
   /* Header IEs */
+  uint8_t padding_bytes;
   uint16_t rendezvous_time;
   uint16_t csl_period;
   uint16_t csl_phase;
@@ -96,6 +97,9 @@ struct ieee802154_ies {
 };
 
 /** Insert various Information Elements **/
+/* Header IE. Inserts padding bytes. Used by ContikiMAC */
+int frame802154e_create_ie_padding(uint8_t *buf, int len,
+    struct ieee802154_ies *ies);
 /* Header IE. Time until the transmission of a payload frame. Used in wake-up frames */
 int frame802154e_create_ie_rendezvous_time(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
