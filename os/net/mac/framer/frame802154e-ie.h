@@ -55,6 +55,12 @@
 #define FRAME802154E_WITH_RENDEZVOUS_TIME_IE 0
 #endif /* FRAME802154E_CONF_WITH_RENDEZVOUS_TIME_IE */
 
+#ifdef FRAME802154E_CONF_WITH_CSL_IE
+#define FRAME802154E_WITH_CSL_IE FRAME802154E_CONF_WITH_CSL_IE
+#else /* FRAME802154E_CONF_WITH_CSL_IE */
+#define FRAME802154E_WITH_CSL_IE 0
+#endif /* FRAME802154E_CONF_WITH_CSL_IE */
+
 #define FRAME802154E_IE_MAX_LINKS       4
 
 /* Structures used for the Slotframe and Links information element */
@@ -77,6 +83,10 @@ struct ieee802154_ies {
 #if FRAME802154E_WITH_RENDEZVOUS_TIME_IE
   uint16_t rendezvous_time;
 #endif /* FRAME802154E_WITH_RENDEZVOUS_TIME_IE */
+#if FRAME802154E_WITH_CSL_IE
+  uint16_t csl_period;
+  uint16_t csl_phase;
+#endif /* FRAME802154E_WITH_CSL_IE */
   int16_t ie_time_correction;
   uint8_t ie_is_nack;
   /* Payload MLME */
@@ -107,6 +117,12 @@ struct ieee802154_ies {
 int frame802154e_create_ie_rendezvous_time(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
 #endif /* FRAME802154E_WITH_RENDEZVOUS_TIME_IE */
+#if FRAME802154E_WITH_CSL_IE
+/* Header IE. Carries the time from the first symbol of the frame containing the CSL IE
+ * until the next duty cycle. Used in Enh-Acks. */
+int frame802154e_create_ie_csl(uint8_t *buf, int len,
+    struct ieee802154_ies *ies);
+#endif /* FRAME802154E_WITH_CSL_IE */
 /* Header IE. ACK/NACK time correction. Used in enhanced ACKs */
 int frame80215e_create_ie_header_ack_nack_time_correction(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
