@@ -5,6 +5,7 @@
 
 void nullradio_enter_async_mode(void);
 void nullradio_async_prepare(uint8_t *length_then_payload);
+void nullradio_async_reprepare(uint8_t offset, uint8_t *patch, uint8_t patch_len);
 void nullradio_async_transmit(int shall_enter_rx_after_tx);
 void nullradio_async_on(void);
 void nullradio_async_off(void);

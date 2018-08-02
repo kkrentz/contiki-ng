@@ -98,7 +98,12 @@ nullradio_async_prepare(uint8_t *length_then_payload)
 }
 /*---------------------------------------------------------------------------*/
 void
-nullradio_async_transmit(int shall_enter_rx_after_tx)
+nullradio_async_reprepare(uint8_t offset, uint8_t *patch, uint8_t patch_len)
+{
+}
+/*---------------------------------------------------------------------------*/
+void
+async_transmit(int shall_enter_rx_after_tx)
 {
 }
 /*---------------------------------------------------------------------------*/
@@ -195,6 +200,7 @@ const struct radio_driver nullradio_driver =
     set_object,
     nullradio_enter_async_mode,
     nullradio_async_prepare,
+    nullradio_async_reprepare,
     nullradio_async_transmit,
     nullradio_async_on,
     nullradio_async_off,
