@@ -488,6 +488,7 @@ const struct radio_driver cc1200_driver = {
   set_object,
   nullradio_enter_async_mode,
   nullradio_async_prepare,
+  nullradio_async_reprepare,
   nullradio_async_transmit,
   nullradio_async_on,
   nullradio_async_off,

@@ -1164,6 +1164,16 @@ async_prepare(uint8_t *length_then_payload)
 }
 /*---------------------------------------------------------------------------*/
 static void
+async_reprepare(uint8_t offset, uint8_t *patch, uint8_t patch_len)
+{
+  uint8_t i;
+
+  for(i = 0; i < patch_len; i++) {
+    REG(RFCORE_FFSM_TX_FIFO + 4 * (offset + 1 /* Frame Length */ + i)) = patch[i];
+  }
+}
+/*---------------------------------------------------------------------------*/
+static void
 async_transmit(int shall_enter_rx_after_tx)
 {
   if(rf_flags.in_tx_mode) {
@@ -1338,6 +1348,7 @@ const struct radio_driver cc2538_rf_driver = {
   set_object,
   enter_async_mode,
   async_prepare,
+  async_reprepare,
   async_transmit,
   async_on,
   async_off,

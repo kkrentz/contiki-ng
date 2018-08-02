@@ -849,6 +849,11 @@ struct radio_driver {
   void (* async_prepare)(uint8_t *length_then_payload);
 
   /**
+   * \brief Overwrites parts of a prepared frame
+   */
+  void (* async_reprepare)(uint8_t offset, uint8_t *patch, uint8_t patch_len);
+
+  /**
    * \brief                         Transmits the prepared frame
    * \param shall_enter_rx_after_tx Non-zero if the receive mode shall be enabled
    *                                after the transmission has ended
