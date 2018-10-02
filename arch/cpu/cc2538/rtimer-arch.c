@@ -72,6 +72,8 @@ rtimer_arch_schedule(rtimer_clock_t t)
 {
   rtimer_clock_t now;
 
+  printf("rtimer_arch_schedule\n");
+
   /* STLOAD must be 1 */
   while((REG(SMWDTHROSC_STLOAD) & SMWDTHROSC_STLOAD_STLOAD) != 1);
 
