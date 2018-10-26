@@ -79,11 +79,6 @@ struct mic {
 static struct mic mics[MAX_BUFFERED_MICS];
 static uint8_t next_mic_index;
 static struct cmd_broker_subscription subscription;
-#if ENERGEST_CONF_ON
-rtimer_clock_t last_announce_txtime;
-rtimer_clock_t last_announce_rxtime;
-rtimer_clock_t last_announce_cputime;
-#endif /* ENERGEST_CONF_ON */
 
 /*---------------------------------------------------------------------------*/
 /**
@@ -127,32 +122,10 @@ prepare_announce(void)
 }
 /*---------------------------------------------------------------------------*/
 static void
-on_announce_sent(void *ptr, int status, int transmissions)
-{
-  last_announce_txtime = packetbuf_get_rtimer_attr(PACKETBUF_ATTR_TXTIME);
-  last_announce_rxtime = packetbuf_get_rtimer_attr(PACKETBUF_ATTR_RXTIME);
-  last_announce_cputime = packetbuf_get_rtimer_attr(PACKETBUF_ATTR_CPUTIME);
-}
-/*---------------------------------------------------------------------------*/
-static void
-on_broadcast_sent(void *ptr, int status, int transmissions)
-{
-  packetbuf_set_rtimer_attr(PACKETBUF_ATTR_TXTIME, packetbuf_get_rtimer_attr(PACKETBUF_ATTR_TXTIME) + last_announce_txtime);
-  packetbuf_set_rtimer_attr(PACKETBUF_ATTR_RXTIME, packetbuf_get_rtimer_attr(PACKETBUF_ATTR_RXTIME) + last_announce_rxtime);
-  packetbuf_set_rtimer_attr(PACKETBUF_ATTR_CPUTIME, packetbuf_get_rtimer_attr(PACKETBUF_ATTR_CPUTIME) + last_announce_cputime);
-
-  mac_call_sent_callback(ptr, NULL, status, transmissions);
-}
-/*---------------------------------------------------------------------------*/
-static void
 send_broadcast(mac_callback_t sent, void *ptr)
 {
   struct queuebuf *qb;
 
-#if ENERGEST_CONF_ON
-  energest_flush();
-  energest_type_set(ENERGEST_TYPE_CPU, 0);
-#endif /* ENERGEST_CONF_ON */
   qb = queuebuf_new_from_packetbuf();
   packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &linkaddr_node_addr);
   if(!qb || (NETSTACK_FRAMER.create() < 0)) {
@@ -168,12 +141,7 @@ send_broadcast(mac_callback_t sent, void *ptr)
   packetbuf_set_datalen(packetbuf_datalen() - CRC16_FRAMER_CHECKSUM_LEN);
 #endif /* CUT_CHECKSUM */
   prepare_announce();
-#if ENERGEST_CONF_ON
-  packetbuf_set_rtimer_attr(PACKETBUF_ATTR_CPUTIME, energest_type_time(ENERGEST_TYPE_CPU));
-  AKES_MAC_DECORATED_MAC.send(on_announce_sent, NULL);
-#else /* ENERGEST_CONF_ON */
   akes_mac_send_command_frame();
-#endif /* ENERGEST_CONF_ON */
   watchdog_periodic();
 
   queuebuf_to_packetbuf(qb);
@@ -187,11 +155,7 @@ send_broadcast(mac_callback_t sent, void *ptr)
     }
   }
 #endif /* WITH_BROADCAST_ENCRYPTION */
-#if ENERGEST_CONF_ON
-  AKES_MAC_DECORATED_MAC.send(on_broadcast_sent, sent);
-#else /* ENERGEST_CONF_ON */
   AKES_MAC_DECORATED_MAC.send(sent, ptr);
-#endif /* ENERGEST_CONF_ON */
 }
 /*---------------------------------------------------------------------------*/
 static void
