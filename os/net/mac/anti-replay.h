@@ -48,10 +48,24 @@
 #include "net/mac/framer/frame802154.h"
 #include "net/mac/llsec802154.h"
 
+#ifdef ANTI_REPLAY_CONF_WITH_SUPPRESSION
+#define ANTI_REPLAY_WITH_SUPPRESSION ANTI_REPLAY_CONF_WITH_SUPPRESSION
+#else /* ANTI_REPLAY_CONF_WITH_SUPPRESSION */
+#define ANTI_REPLAY_WITH_SUPPRESSION 0
+#endif /* ANTI_REPLAY_CONF_WITH_SUPPRESSION */
+
 struct anti_replay_info {
   frame802154_frame_counter_t his_broadcast_counter;
   frame802154_frame_counter_t his_unicast_counter;
+#if ANTI_REPLAY_WITH_SUPPRESSION
+  frame802154_frame_counter_t my_unicast_counter;
+#endif /* ANTI_REPLAY_WITH_SUPPRESSION */
 };
+
+#if ANTI_REPLAY_WITH_SUPPRESSION
+extern uint32_t anti_replay_my_broadcast_counter;
+extern uint32_t anti_replay_my_unicast_counter;
+#endif /* ANTI_REPLAY_WITH_SUPPRESSION */
 
 /**
  * \brief Parses the frame counter to packetbuf attributes
@@ -64,21 +78,44 @@ void anti_replay_parse_counter(uint8_t *p);
 void anti_replay_write_counter(uint8_t *dst);
 
 /**
+ * \brief Reads the frame counter from the specified destination.
+ */
+uint32_t anti_replay_read_counter(uint8_t *src);
+
+#if ANTI_REPLAY_WITH_SUPPRESSION
+/**
+ * \brief Writes my broadcast frame counter to the specified destination.
+ */
+void anti_replay_write_my_broadcast_counter(uint8_t *dst);
+#endif /* ANTI_REPLAY_WITH_SUPPRESSION */
+
+/**
  * \brief                Copies a new frame counter value to the packetbuf attributes
+ * \param  receiver_info Anti-replay information about the receiver (NULL if broadcast)
  * \retval 0             Frame counter is exhausted
  */
-int anti_replay_set_counter(void);
+int anti_replay_set_counter(struct anti_replay_info *receiver_info);
 
+#if !ANTI_REPLAY_WITH_SUPPRESSION
 /**
  * \brief                Copies a new frame counter value to the specified location
  * \retval 0             Frame counter is exhausted
  */
 int anti_replay_set_counter_to(frame802154_frame_counter_t *counter);
+#endif /* !ANTI_REPLAY_WITH_SUPPRESSION */
 
 /**
  * \brief Gets the frame counter from packetbuf
  */
 uint32_t anti_replay_get_counter(void);
+
+#if ANTI_REPLAY_WITH_SUPPRESSION
+/**
+ * \brief             Restores suppressed frame counter
+ * \param sender_info Anti-replay information about the sender
+ */
+void anti_replay_restore_counter(struct anti_replay_info *sender_info);
+#endif /* ANTI_REPLAY_WITH_SUPPRESSION */
 
 /**
  * \brief             Initializes the anti-replay information about the sender
