@@ -204,7 +204,7 @@ akes_mac_get_sec_lvl(void)
 void
 akes_mac_add_security_header(struct akes_nbr *receiver)
 {
-  if(!anti_replay_set_counter()) {
+  if(!anti_replay_set_counter(receiver ? &receiver->anti_replay_info : NULL)) {
     watchdog_reboot();
   }
 #if LLSEC802154_USES_AUX_HEADER
