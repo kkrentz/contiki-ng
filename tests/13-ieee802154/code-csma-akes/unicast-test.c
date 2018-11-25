@@ -31,87 +31,81 @@
  */
 
 #include "contiki.h"
-#include "contiki-net.h"
-#include "net/ipv6/simple-udp.h"
-#include "net/ipv6/uip.h"
-#include "sys/node-id.h"
+#include "services/akes/akes-nbr.h"
+#include "services/akes/akes-mac.h"
+#include "net/netstack.h"
+#include "net/packetbuf.h"
 #include <stdio.h>
+#include <string.h>
 
-#define UDP_SERVER_PORT 5678
-#define UDP_CLIENT_PORT 8765
-#define SEND_INTERVAL (10 * CLOCK_SECOND)
-
-PROCESS(broadcast_test_process, "broadcast_test_process");
-AUTOSTART_PROCESSES(&broadcast_test_process);
-static uip_ipaddr_t ipaddr;
-static struct simple_udp_connection server_connection;
-static struct simple_udp_connection client_connection;
+PROCESS(unicast_test_process, "unicast_test_process");
+AUTOSTART_PROCESSES(&unicast_test_process);
 static struct etimer timer;
+struct akes_nbr_entry *entry;
+static linkaddr_t receivers_address;
 static uint8_t counter;
-static uint8_t bitmap;
 
 /*---------------------------------------------------------------------------*/
 static void
-server_callback(struct simple_udp_connection *c,
-         const uip_ipaddr_t *sender_addr,
-         uint16_t sender_port,
-         const uip_ipaddr_t *receiver_addr,
-         uint16_t receiver_port,
-         const uint8_t *data,
-         uint16_t datalen)
+on_sent(void *ptr, int status, int transmissions)
 {
-  if((datalen != 1) || (data[0] > 7)) {
-    printf("=check-me= FAILED - invalid\n");
-    return;
+  switch(status) {
+  case MAC_TX_OK:
+    printf("unicast %i/8 was acknowledged\n", counter + 1);
+    break;
+  case MAC_TX_COLLISION:
+    printf("=check-me= FAILED - MAC_TX_COLLISION\n");
+    break;
+  case MAC_TX_NOACK:
+    printf("=check-me= FAILED - MAC_TX_NOACK\n");
+    break;
+  case MAC_TX_DEFERRED:
+    break;
+  case MAC_TX_ERR:
+    printf("=check-me= FAILED - MAC_TX_ERR\n");
+    break;
+  case MAC_TX_ERR_FATAL:
+    printf("=check-me= FAILED - MAC_TX_ERR_FATAL\n");
+    break;
+  default:
+    printf("=check-me= FAILED - invalid status\n");
+    break;
   }
-
-  printf("received broadcast %"PRIu8"/8\n", data[0] + 1);
-
-  bitmap |= (1 << data[0]);
-
-  if(bitmap == 0xFF) {
-    printf("=check-me= DONE\n");
+  if(status != MAC_TX_DEFERRED) {
+    process_poll(&unicast_test_process);
   }
 }
 /*---------------------------------------------------------------------------*/
-static void
-client_callback(struct simple_udp_connection *c,
-         const uip_ipaddr_t *sender_addr,
-         uint16_t sender_port,
-         const uip_ipaddr_t *receiver_addr,
-         uint16_t receiver_port,
-         const uint8_t *data,
-         uint16_t datalen)
-{
-  printf("=check-me= FAILED - client_callback should not be called\n");
-}
-/*---------------------------------------------------------------------------*/
-PROCESS_THREAD(broadcast_test_process, ev, data)
+PROCESS_THREAD(unicast_test_process, ev, data)
 {
   PROCESS_BEGIN();
 
-  uip_create_linklocal_allnodes_mcast(&ipaddr);
-
-  simple_udp_register(&server_connection,
-      UDP_SERVER_PORT,
-      NULL,
-      UDP_CLIENT_PORT,
-      server_callback);
-  simple_udp_register(&client_connection,
-      UDP_CLIENT_PORT,
-      NULL,
-      UDP_SERVER_PORT,
-      client_callback);
-
-  if(node_id == 1) {
-    for(; counter < 8; counter++) {
-      etimer_set(&timer, CLOCK_SECOND);
-      PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
-      simple_udp_sendto(&client_connection, &counter, 1, &ipaddr);
+  /* wait for session key establishment */
+  etimer_set(&timer, CLOCK_SECOND);
+  while(1) {
+    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
+    entry = akes_nbr_head(AKES_NBR_PERMANENT);
+    if(entry) {
+      linkaddr_copy(&receivers_address, akes_nbr_get_addr(entry));
+      break;
     }
-  } else {
-    printf("=check-me= DONE\n");
+    etimer_reset(&timer);
   }
+
+  /* send 8 maximum-length unicast frames to our neighbor */
+  for(; counter < 8; counter++) {
+    packetbuf_clear();
+    packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &receivers_address);
+    packetbuf_set_attr(PACKETBUF_ATTR_FRAME_TYPE, FRAME802154_DATAFRAME);
+    memset(packetbuf_dataptr(), 0xFF, NETSTACK_MAC.max_payload());
+    packetbuf_set_datalen(NETSTACK_MAC.max_payload());
+    NETSTACK_MAC.send(on_sent, NULL);
+    PROCESS_YIELD();
+    etimer_set(&timer, CLOCK_SECOND + clock_random(CLOCK_SECOND));
+    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
+  }
+
+  printf("=check-me= DONE\n");
 
   PROCESS_END();
 }
