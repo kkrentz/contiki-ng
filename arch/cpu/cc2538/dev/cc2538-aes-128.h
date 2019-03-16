@@ -28,6 +28,7 @@
  *
  * This file is part of the Contiki operating system.
  */
+
 /**
  * \addtogroup cc2538-aes
  * @{
@@ -42,17 +43,18 @@
  * \author
  *         Konrad Krentz <konrad.krentz@gmail.com>
  */
+
 #ifndef CC2538_AES_128_H_
 #define CC2538_AES_128_H_
 
 #include "lib/aes-128.h"
-/*---------------------------------------------------------------------------*/
+
 #ifdef CC2538_AES_128_CONF_KEY_AREA
 #define CC2538_AES_128_KEY_AREA         CC2538_AES_128_CONF_KEY_AREA
 #else
 #define CC2538_AES_128_KEY_AREA         0
 #endif
-/*---------------------------------------------------------------------------*/
+
 extern const struct aes_128_driver cc2538_aes_128_driver;
 
 #endif /* CC2538_AES_128_H_ */
