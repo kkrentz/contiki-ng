@@ -28,6 +28,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
 /**
  * \addtogroup cc2538-aes
  * @{
@@ -40,11 +41,12 @@
  * \file
  * Header file of the AES-CCM* driver for the CC2538 SoC
  */
+
 #ifndef CC2538_CCM_STAR_H_
 #define CC2538_CCM_STAR_H_
 
 #include "lib/ccm-star.h"
-/*---------------------------------------------------------------------------*/
+
 extern const struct ccm_star_driver cc2538_ccm_star_driver;
 
 #endif /* CC2538_CCM_STAR_H_ */
