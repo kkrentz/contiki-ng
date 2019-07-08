@@ -42,6 +42,7 @@
 #define LOG_LEVEL_APP LOG_LEVEL_NONE
 
 /* configure MAC layer */
+#define CSL_CONF_CHANNELS { 26 }
 #define CSL_CONF_COMPLIANT 0
 #include "net/mac/csl/csl-autoconf.h"
 

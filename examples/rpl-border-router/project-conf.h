@@ -50,6 +50,7 @@
 #define LPM_CONF_ENABLE 0
 
 /* configure MAC layer */
+#define CSL_CONF_CHANNELS { 26 }
 #define CSL_CONF_COMPLIANT 0
 #include "net/mac/csl/csl-autoconf.h"
 
