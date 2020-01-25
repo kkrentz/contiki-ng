@@ -103,7 +103,7 @@ nullradio_async_reprepare(uint8_t offset, uint8_t *patch, uint8_t patch_len)
 }
 /*---------------------------------------------------------------------------*/
 void
-async_transmit(int shall_enter_rx_after_tx)
+nullradio_async_transmit(int shall_enter_rx_after_tx)
 {
 }
 /*---------------------------------------------------------------------------*/
