@@ -46,3 +46,6 @@
 [submodule "os/net/app-layer/libcoap"]
 	path = os/net/app-layer/libcoap
 	url = https://github.com/kkrentz/libcoap.git
+[submodule "os/net/security/micro-ecc"]
+	path = os/net/security/micro-ecc
+	url = https://github.com/kkrentz/micro-ecc.git
