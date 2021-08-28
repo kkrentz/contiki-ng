@@ -49,7 +49,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-static volatile struct process *notification_process = NULL;
+static volatile struct process *notification_process;
 /*---------------------------------------------------------------------------*/
 /** \brief The PKA engine ISR
  *
@@ -115,9 +115,80 @@ pka_check_status(void)
 {
   return (REG(PKA_FUNCTION) & PKA_FUNCTION_RUN) == 0;
 }
+/*---------------------------------------------------------------------------*/
 void
 pka_register_process_notification(struct process *p)
 {
   notification_process = p;
 }
+/*---------------------------------------------------------------------------*/
+void
+pka_run_function(uint32_t function)
+{
+  pka_register_process_notification(process_current);
+  REG(PKA_FUNCTION) = PKA_FUNCTION_RUN | function;
+  NVIC_ClearPendingIRQ(PKA_IRQn);
+  NVIC_EnableIRQ(PKA_IRQn);
+}
+/*---------------------------------------------------------------------------*/
+void
+pka_words_to_pka_ram(const uint32_t *words, size_t num_words, uintptr_t offset)
+{
+  offset *= sizeof(uint32_t);
+  offset += PKA_RAM_BASE;
+  for(size_t i = 0; i < num_words; i++) {
+    REG(offset + sizeof(uint32_t) * i) = words[i];
+  }
+}
+/*---------------------------------------------------------------------------*/
+void
+pka_word_to_pka_ram(uint32_t word, uintptr_t offset)
+{
+  offset *= sizeof(uint32_t);
+  offset += PKA_RAM_BASE;
+  REG(offset) = word;
+}
+/*---------------------------------------------------------------------------*/
+uint32_t
+pka_word_from_pka_ram(uintptr_t offset)
+{
+  offset *= sizeof(uint32_t);
+  offset += PKA_RAM_BASE;
+  return REG(offset);
+}
+/*---------------------------------------------------------------------------*/
+void
+pka_network_bytes_to_pka_ram(const uint8_t *network_bytes,
+    size_t num_bytes,
+    uintptr_t offset)
+{
+  offset *= sizeof(uint32_t);
+  offset += PKA_RAM_BASE;
+  for(size_t i = 0; num_bytes; i += sizeof(uint32_t)) {
+    uint32_t word = network_bytes[--num_bytes];
+    word |= network_bytes[--num_bytes] << 8;
+    word |= network_bytes[--num_bytes] << 16;
+    word |= network_bytes[--num_bytes] << 24;
+    REG(offset + i) = word;
+  }
+}
+/*---------------------------------------------------------------------------*/
+void
+pka_network_bytes_from_pka_ram(uint8_t *network_bytes,
+    size_t num_words,
+    uintptr_t offset)
+{
+  offset *= sizeof(uint32_t);
+  offset += PKA_RAM_BASE;
+  size_t remaining_bytes = num_words * sizeof(uint32_t);
+  for(size_t i = 0; remaining_bytes; i += sizeof(uint32_t)) {
+    uint32_t word = REG(offset + i);
+    network_bytes[--remaining_bytes] = word;
+    network_bytes[--remaining_bytes] = word >> 8;
+    network_bytes[--remaining_bytes] = word >> 16;
+    network_bytes[--remaining_bytes] = word >> 24;
+  }
+}
+/*---------------------------------------------------------------------------*/
+
 /** @} */

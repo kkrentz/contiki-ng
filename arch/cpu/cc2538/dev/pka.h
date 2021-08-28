@@ -49,6 +49,7 @@
 
 #include "contiki.h"
 #include <stdint.h>
+#include <stdbool.h>
 
 /*---------------------------------------------------------------------------*/
 /** \name PKA memory
@@ -530,6 +531,10 @@
 #define PKA_FUNCTION_MULTIPLY   0x00000001 /**< Perform multiply operation */
 #define PKA_FUNCTION_MULTIPLY_M 0x00000001
 #define PKA_FUNCTION_MULTIPLY_S 0
+#define PKA_FUNCTION_ECCADD     0x00003000
+#define PKA_FUNCTION_ECCMUL     0x00005000
+#define PKA_FUNCTION_INVMOD     0x00007000
+
 /** @} */
 /*---------------------------------------------------------------------------*/
 /** \name PKA_COMPARE register registers bit fields
@@ -553,6 +558,10 @@
                                 0x00000001
 #define PKA_COMPARE_A_EQUALS_B_S 0
 /** @} */
+/*---------------------------------------------------------------------------*/
+#define PKA_SHIFT_SUCCESS           0
+#define PKA_SHIFT_POINT_AT_INFINITY 7
+#define PKA_SHIFT_ERROR             31
 /*---------------------------------------------------------------------------*/
 /** \name PKA_MSW register registers bit fields
  * @{
@@ -828,7 +837,44 @@
 #define PKA_STATUS_OPERATION_INPRG     7 /**< PKA operation is in progress. */
 #define PKA_STATUS_OPERATION_NOT_INPRG 8 /**< No PKA operation is in progress. */
 #define PKA_STATUS_SIGNATURE_INVALID   9 /**< Signature is invalid. */
-
+#define PKA_STATUS_A_EQ_B              10
+#define PKA_STATUS_POINT_AT_INFINITY   11
+/** @} */
+/*---------------------------------------------------------------------------*/
+/** \name Required scratchpad space.
+ * @{
+ */
+#define PKA_NEXT_OFFSET(offset, words) \
+    (offset + ((words & 7) ? 8 /* ensure 64-bit boundary */ : 0) + (words & ~7))
+/** Table 22-4 */
+#define PKA_MULTIPLY_SCRATCHPAD_SPACE(alen, blen) \
+    (alen + blen + 6)
+#define PKA_ADD_SCRATCHPAD_SPACE(alen, blen) \
+    (MAX(alen, blen) + 1)
+#define PKA_SUBTRACT_SCRATCHPAD_SPACE(alen, blen) \
+    (MAX(alen, blen))
+#define PKA_LSHIFT_SPACE(scalar_space) \
+    (scalar_space + 1)
+#define PKA_DIVIDE_SCRATCHPAD_SPACE(blen) \
+    (blen + 1)
+#define PKA_QUOTIENT_SPACE(alen, blen) \
+    (alen - blen + 1)
+#define PKA_REMAINDER_SPACE(blen) \
+    (blen + 1)
+/** Table 22-16 */
+#define PKA_MOD_INV_SCRATCHPAD_SPACE(alen, blen) \
+    (5 * PKA_BUFFERED_LEN(MAX(alen, blen)))
+/** Table 22-21 */
+#define PKA_EPSILON(len) \
+    (2 + (len % 2))
+#define PKA_BUFFERED_LEN(len) \
+    (len + PKA_EPSILON(len))
+#define PKA_ECC_ADD_SCRATCHPAD_SPACE(blen) \
+    (2 * PKA_BUFFERED_LEN(blen) + 5 * PKA_BUFFERED_LEN(blen + 1))
+#define PKA_ECC_MUL_SCRATCHPAD_SPACE(blen) \
+    (18 * PKA_BUFFERED_LEN(blen) + MAX(8, PKA_BUFFERED_LEN(blen)))
+#define PKA_POINT_SPACE(scalar_space) \
+    (2 * PKA_BUFFERED_LEN(scalar_space))
 /** @} */
 /*---------------------------------------------------------------------------*/
 /** \name PKA functions
@@ -860,6 +906,42 @@ uint8_t pka_check_status(void);
  * \note This function is only supposed to be called by the PKA drivers.
  */
 void pka_register_process_notification(struct process *p);
+
+/**
+ * \brief Initiates the given PKA function.
+ */
+void pka_run_function(uint32_t pka_function);
+
+/**
+ * \brief Copies words to the PKA RAM.
+ */
+void pka_words_to_pka_ram(const uint32_t *words,
+    size_t num_words,
+    uintptr_t offset);
+
+/**
+ * \brief Copies a word to the PKA RAM.
+ */
+void pka_word_to_pka_ram(uint32_t word, uintptr_t offset);
+
+/**
+ * \brief Retrieves a word from the PKA RAM.
+ */
+uint32_t pka_word_from_pka_ram(uintptr_t offset);
+
+/**
+ * \brief Copies network-byte-ordered bytes to the PKA RAM.
+ */
+void pka_network_bytes_to_pka_ram(const uint8_t *network_bytes,
+    size_t num_bytes,
+    uintptr_t offset);
+
+/**
+ * \brief Retrieves words from the PKA RAM and stores them in network byte order.
+ */
+void pka_network_bytes_from_pka_ram(uint8_t *network_bytes,
+    size_t num_words,
+    uintptr_t offset);
 
 /** @} */
 
