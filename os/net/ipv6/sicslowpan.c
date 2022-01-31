@@ -76,6 +76,10 @@
 
 #include "net/routing/routing.h"
 
+#ifdef AGGREGATOR
+extern void aggregator_update_attributes(void);
+#endif /* AGGREGATOR */
+
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "6LoWPAN"
@@ -1646,6 +1650,9 @@ output(const linkaddr_t *localdest)
   /* copy over the retransmission count from uipbuf attributes */
   packetbuf_set_attr(PACKETBUF_ATTR_MAX_MAC_TRANSMISSIONS,
                      uipbuf_get_attr(UIPBUF_ATTR_MAX_MAC_TRANSMISSIONS));
+#ifdef AGGREGATOR
+  aggregator_update_attributes();
+#endif /* AGGREGATOR */
 
   /* Copy destination address to packetbuf */
   packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER,
