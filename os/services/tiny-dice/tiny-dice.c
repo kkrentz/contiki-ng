@@ -49,7 +49,11 @@
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "TinyDICE"
+#ifdef ATTESTATION_BENCHMARK
+#define LOG_LEVEL LOG_LEVEL_ERR
+#else /* ATTESTATION_BENCHMARK */
 #define LOG_LEVEL LOG_LEVEL_DBG
+#endif /* ATTESTATION_BENCHMARK */
 
 static const uint8_t uds[TINY_DICE_UDS_SIZE];
 static const uint8_t tci_l0[TINY_DICE_TCI_SIZE];
@@ -88,6 +92,10 @@ static uint8_t cert_chain_bytes[TINY_DICE_MAX_CERT_CHAIN_SIZE];
 coap_bin_const_t tiny_dice_cert_chain;
 uint8_t tiny_dice_public_key[2 * ECC_CURVE_P_256_SIZE];
 uint8_t tiny_dice_private_key[ECC_CURVE_P_256_SIZE];
+#ifdef ATTESTATION_BENCHMARK
+static rtimer_clock_t t1, t2;
+extern uint32_t wait_sum;
+#endif /* ATTESTATION_BENCHMARK */
 
 /*---------------------------------------------------------------------------*/
 void
@@ -289,6 +297,14 @@ PT_THREAD(tiny_dice_boot(int *const result))
     goto error;
   }
 
+#ifdef ATTESTATION_BENCHMARK
+static unsigned sample;
+for(sample = 0; sample < 30; sample++) {
+  wait_sum = 0;
+  memset(&deterministic_rng_info, 0, sizeof(deterministic_rng_info));
+  t1 = RTIMER_NOW();
+#endif /* ATTESTATION_BENCHMARK */
+
   /* deterministically generate (proto-)DeviceID */
   {
     uint8_t proto_device_id_public_key[2 * ECC_CURVE_P_256_SIZE];
@@ -368,6 +384,16 @@ PT_THREAD(tiny_dice_boot(int *const result))
     LOG_ERR("ecc_generate_ecqv_key_pair failed\n");
     goto error;
   }
+
+#ifdef ATTESTATION_BENCHMARK
+  t2 = RTIMER_NOW();
+  printf("%s,tiny-%s,%" RTIMER_PRI ",%" RTIMER_PRI "\n",
+         WATCHDOG_CONF_ENABLE ? "yes" : "no",
+         has_cert_l0 ? "with" : "without",
+         t2 - t1,
+         wait_sum);
+}
+#endif /* ATTESTATION_BENCHMARK */
 
   *result = 0;
 error:

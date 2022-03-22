@@ -49,6 +49,9 @@ static struct pt protothread;
 static const ecc_curve_t *ecc_curve;
 static uECC_Curve uecc_curve;
 static process_mutex_t mutex;
+#ifdef ATTESTATION_BENCHMARK
+uint32_t wait_sum;
+#endif /* ATTESTATION_BENCHMARK */
 
 /*---------------------------------------------------------------------------*/
 static int

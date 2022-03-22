@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021, Uppsala universitet.
+ * Copyright (c) 2025, Siemens AG.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,5 +42,13 @@
 #define ECC_CONF_ENABLED 1
 #define CSPRNG_CONF_ENABLED 1
 #define LPM_CONF_MAX_PM 2
+
+#undef ATTESTATION_BENCHMARK
+#define ATTESTATION_CONF_USE_HARDWARE_ACCELERATION 0
+#if !ATTESTATION_CONF_USE_HARDWARE_ACCELERATION
+#define SHA_256_CONF sha_256_driver
+#define ECC_CONF ecc_driver
+#define WATCHDOG_CONF_ENABLE 0
+#endif
 
 #endif /* PROJECT_CONF_H_ */
