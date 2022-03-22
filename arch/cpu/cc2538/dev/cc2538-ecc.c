@@ -96,6 +96,10 @@ static struct pt helper_protothread;
 static const ecc_curve_t *curve;
 static ecc_csprng_t csprng;
 static process_mutex_t mutex;
+#ifdef ATTESTATION_BENCHMARK
+static rtimer_clock_t moments[2];
+uint32_t wait_sum;
+#endif /* ATTESTATION_BENCHMARK */
 
 /*---------------------------------------------------------------------------*/
 /**
@@ -159,7 +163,14 @@ PT_THREAD(compare_a_and_b(uintptr_t a_offset,
   REG(PKA_ALENGTH) = curve->words;
   REG(PKA_BPTR) = b_offset;
   pka_run_function(PKA_FUNCTION_COMPARE);
+#ifdef ATTESTATION_BENCHMARK
+  moments[0] = RTIMER_NOW();
+#endif /* ATTESTATION_BENCHMARK */
   PT_YIELD_UNTIL(&helper_protothread, pka_check_status());
+#ifdef ATTESTATION_BENCHMARK
+  moments[1] = RTIMER_NOW();
+  wait_sum += moments[1] - moments[0];
+#endif /* ATTESTATION_BENCHMARK */
   if(REG(PKA_COMPARE) == PKA_COMPARE_A_GREATER_THAN_B) {
     *result = PKA_STATUS_A_GR_B;
   } else if(REG(PKA_COMPARE) == PKA_COMPARE_A_LESS_THAN_B) {
@@ -184,7 +195,14 @@ PT_THREAD(check_bounds(uintptr_t x_offset,
   REG(PKA_ALENGTH) = curve->words;
   REG(PKA_BPTR) = a_offset;
   pka_run_function(PKA_FUNCTION_COMPARE);
+#ifdef ATTESTATION_BENCHMARK
+  moments[0] = RTIMER_NOW();
+#endif /* ATTESTATION_BENCHMARK */
   PT_YIELD_UNTIL(&helper_protothread, pka_check_status());
+#ifdef ATTESTATION_BENCHMARK
+  moments[1] = RTIMER_NOW();
+  wait_sum += moments[1] - moments[0];
+#endif /* ATTESTATION_BENCHMARK */
   if(REG(PKA_COMPARE) != PKA_COMPARE_A_GREATER_THAN_B) {
     *result = PKA_STATUS_FAILURE;
     PT_EXIT(&helper_protothread);
@@ -193,7 +211,14 @@ PT_THREAD(check_bounds(uintptr_t x_offset,
   /* check whether x < b */
   REG(PKA_BPTR) = b_offset;
   pka_run_function(PKA_FUNCTION_COMPARE);
+#ifdef ATTESTATION_BENCHMARK
+  moments[0] = RTIMER_NOW();
+#endif /* ATTESTATION_BENCHMARK */
   PT_YIELD_UNTIL(&helper_protothread, pka_check_status());
+#ifdef ATTESTATION_BENCHMARK
+  moments[1] = RTIMER_NOW();
+  wait_sum += moments[1] - moments[0];
+#endif /* ATTESTATION_BENCHMARK */
   if(REG(PKA_COMPARE) != PKA_COMPARE_A_LESS_THAN_B) {
     *result = PKA_STATUS_FAILURE;
     PT_EXIT(&helper_protothread);
@@ -219,7 +244,14 @@ PT_THREAD(invert_modulo(uintptr_t number_offset,
   REG(PKA_BLENGTH) = curve->words;
   REG(PKA_DPTR) = scratchpad_offset;
   pka_run_function(PKA_FUNCTION_INVMOD);
+#ifdef ATTESTATION_BENCHMARK
+  moments[0] = RTIMER_NOW();
+#endif /* ATTESTATION_BENCHMARK */
   PT_YIELD_UNTIL(&helper_protothread, pka_check_status());
+#ifdef ATTESTATION_BENCHMARK
+  moments[1] = RTIMER_NOW();
+  wait_sum += moments[1] - moments[0];
+#endif /* ATTESTATION_BENCHMARK */
 
   /* check result */
   if(REG(PKA_MSW) & PKA_MSW_RESULT_IS_ZERO) {
@@ -232,7 +264,14 @@ PT_THREAD(invert_modulo(uintptr_t number_offset,
   REG(PKA_ALENGTH) = curve->words;
   REG(PKA_CPTR) = result_offset;
   pka_run_function(PKA_FUNCTION_COPY);
+#ifdef ATTESTATION_BENCHMARK
+  moments[0] = RTIMER_NOW();
+#endif /* ATTESTATION_BENCHMARK */
   PT_YIELD_UNTIL(&helper_protothread, pka_check_status());
+#ifdef ATTESTATION_BENCHMARK
+  moments[1] = RTIMER_NOW();
+  wait_sum += moments[1] - moments[0];
+#endif /* ATTESTATION_BENCHMARK */
 
   *result = PKA_STATUS_SUCCESS;
 
@@ -256,7 +295,14 @@ PT_THREAD(add_or_multiply_modulo(uint32_t function,
   REG(PKA_BLENGTH) = curve->words;
   REG(PKA_CPTR) = scratchpad_offset;
   pka_run_function(function);
+#ifdef ATTESTATION_BENCHMARK
+  moments[0] = RTIMER_NOW();
+#endif /* ATTESTATION_BENCHMARK */
   PT_YIELD_UNTIL(&helper_protothread, pka_check_status());
+#ifdef ATTESTATION_BENCHMARK
+  moments[1] = RTIMER_NOW();
+  wait_sum += moments[1] - moments[0];
+#endif /* ATTESTATION_BENCHMARK */
 
   /* check result */
   if(REG(PKA_MSW) & PKA_MSW_RESULT_IS_ZERO) {
@@ -272,7 +318,14 @@ PT_THREAD(add_or_multiply_modulo(uint32_t function,
   REG(PKA_BPTR) = modulus_offset;
   REG(PKA_CPTR) = result_offset;
   pka_run_function(PKA_FUNCTION_MODULO);
+#ifdef ATTESTATION_BENCHMARK
+  moments[0] = RTIMER_NOW();
+#endif /* ATTESTATION_BENCHMARK */
   PT_YIELD_UNTIL(&helper_protothread, pka_check_status());
+#ifdef ATTESTATION_BENCHMARK
+  moments[1] = RTIMER_NOW();
+  wait_sum += moments[1] - moments[0];
+#endif /* ATTESTATION_BENCHMARK */
 
   *result = PKA_STATUS_SUCCESS;
 
@@ -293,14 +346,28 @@ PT_THREAD(subtract(uintptr_t a_offset,
   REG(PKA_BLENGTH) = curve->words;
   REG(PKA_CPTR) = scratchpad_offset;
   pka_run_function(PKA_FUNCTION_SUBTRACT);
+#ifdef ATTESTATION_BENCHMARK
+  moments[0] = RTIMER_NOW();
+#endif /* ATTESTATION_BENCHMARK */
   PT_YIELD_UNTIL(&helper_protothread, pka_check_status());
+#ifdef ATTESTATION_BENCHMARK
+  moments[1] = RTIMER_NOW();
+  wait_sum += moments[1] - moments[0];
+#endif /* ATTESTATION_BENCHMARK */
 
   /* copy result */
   REG(PKA_APTR) = scratchpad_offset;
   REG(PKA_ALENGTH) = curve->words;
   REG(PKA_CPTR) = result_offset;
   pka_run_function(PKA_FUNCTION_COPY);
+#ifdef ATTESTATION_BENCHMARK
+  moments[0] = RTIMER_NOW();
+#endif /* ATTESTATION_BENCHMARK */
   PT_YIELD_UNTIL(&helper_protothread, pka_check_status());
+#ifdef ATTESTATION_BENCHMARK
+  moments[1] = RTIMER_NOW();
+  wait_sum += moments[1] - moments[0];
+#endif /* ATTESTATION_BENCHMARK */
 
   PT_END(&helper_protothread);
 }
@@ -323,13 +390,27 @@ PT_THREAD(reduce_to_element(uintptr_t hash_offset,
   REG(PKA_CPTR) = scratchpad_offset;
   REG(PKA_SHIFT) = (curve->bytes * 8) - curve->binary_length_of_n;
   pka_run_function(PKA_FUNCTION_RSHIFT);
+#ifdef ATTESTATION_BENCHMARK
+  moments[0] = RTIMER_NOW();
+#endif /* ATTESTATION_BENCHMARK */
   PT_YIELD_UNTIL(&helper_protothread, pka_check_status());
+#ifdef ATTESTATION_BENCHMARK
+  moments[1] = RTIMER_NOW();
+  wait_sum += moments[1] - moments[0];
+#endif /* ATTESTATION_BENCHMARK */
 
   /* check whether hash < n */
   REG(PKA_APTR) = scratchpad_offset;
   REG(PKA_BPTR) = curve_n_offset;
   pka_run_function(PKA_FUNCTION_COMPARE);
+#ifdef ATTESTATION_BENCHMARK
+  moments[0] = RTIMER_NOW();
+#endif /* ATTESTATION_BENCHMARK */
   PT_YIELD_UNTIL(&helper_protothread, pka_check_status());
+#ifdef ATTESTATION_BENCHMARK
+  moments[1] = RTIMER_NOW();
+  wait_sum += moments[1] - moments[0];
+#endif /* ATTESTATION_BENCHMARK */
 
   if(REG(PKA_COMPARE) != PKA_COMPARE_A_LESS_THAN_B) {
     if(uniformly) {
@@ -348,7 +429,14 @@ PT_THREAD(reduce_to_element(uintptr_t hash_offset,
     REG(PKA_CPTR) = hash_offset;
     pka_run_function(PKA_FUNCTION_COPY);
   }
+#ifdef ATTESTATION_BENCHMARK
+  moments[0] = RTIMER_NOW();
+#endif /* ATTESTATION_BENCHMARK */
   PT_YIELD_UNTIL(&helper_protothread, pka_check_status());
+#ifdef ATTESTATION_BENCHMARK
+  moments[1] = RTIMER_NOW();
+  wait_sum += moments[1] - moments[0];
+#endif /* ATTESTATION_BENCHMARK */
 
   *result = PKA_STATUS_SUCCESS;
 
@@ -372,7 +460,14 @@ PT_THREAD(add_or_multiply_point(uint32_t function,
   REG(PKA_CPTR) = c_offset;
   REG(PKA_DPTR) = scratchpad_offset;
   pka_run_function(function);
+#ifdef ATTESTATION_BENCHMARK
+  moments[0] = RTIMER_NOW();
+#endif /* ATTESTATION_BENCHMARK */
   PT_YIELD_UNTIL(&helper_protothread, pka_check_status());
+#ifdef ATTESTATION_BENCHMARK
+  moments[1] = RTIMER_NOW();
+  wait_sum += moments[1] - moments[0];
+#endif /* ATTESTATION_BENCHMARK */
 
   /* check result */
   if(REG(PKA_SHIFT) == PKA_SHIFT_POINT_AT_INFINITY) {
@@ -389,7 +484,14 @@ PT_THREAD(add_or_multiply_point(uint32_t function,
   REG(PKA_ALENGTH) = PKA_POINT_WORDS(curve->words);
   REG(PKA_CPTR) = result_offset;
   pka_run_function(PKA_FUNCTION_COPY);
+#ifdef ATTESTATION_BENCHMARK
+  moments[0] = RTIMER_NOW();
+#endif /* ATTESTATION_BENCHMARK */
   PT_YIELD_UNTIL(&helper_protothread, pka_check_status());
+#ifdef ATTESTATION_BENCHMARK
+  moments[1] = RTIMER_NOW();
+  wait_sum += moments[1] - moments[0];
+#endif /* ATTESTATION_BENCHMARK */
 
   *result = PKA_STATUS_SUCCESS;
 
@@ -665,7 +767,14 @@ PT_THREAD(ecc_decompress_public_key(const uint8_t *compressed_public_key,
   REG(PKA_ALENGTH) = curve->words;
   REG(PKA_CPTR) = mod_sqrt_offset;
   pka_run_function(PKA_FUNCTION_COPY);
+#ifdef ATTESTATION_BENCHMARK
+  moments[0] = RTIMER_NOW();
+#endif /* ATTESTATION_BENCHMARK */
   PT_YIELD_UNTIL(&main_protothread, pka_check_status());
+#ifdef ATTESTATION_BENCHMARK
+  moments[1] = RTIMER_NOW();
+  wait_sum += moments[1] - moments[0];
+#endif /* ATTESTATION_BENCHMARK */
 
   for(i = curve->binary_length_of_p_plus_one - 1; i > 1; i--) {
     PT_SPAWN(&main_protothread,

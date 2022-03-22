@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2023, Uppsala universitet.
+ * Copyright (c) 2025, Siemens AG.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -59,5 +60,20 @@
 #define CSL_CONF_COMPLIANT 0 /* enable denial-of-sleep defenses */
 #include "net/mac/csl/csl-autoconf.inc" /* auto-configure the rest */
 #define LOG_CONF_LEVEL_MAC 4 /* enable logging */
+
+/* configure attestation benchmark */
+#undef ATTESTATION_BENCHMARK
+#define ATTESTATION_CONF_USE_HARDWARE_ACCELERATION 1
+#if !ATTESTATION_CONF_USE_HARDWARE_ACCELERATION
+#define SHA_256_CONF sha_256_driver
+#define ECC_CONF ecc_driver
+#define WATCHDOG_CONF_ENABLE 0
+#endif
+#ifdef ATTESTATION_BENCHMARK
+#undef LOG_CONF_LEVEL_COAP
+#define LOG_CONF_LEVEL_COAP 0
+#undef LOG_CONF_LEVEL_MAC
+#define LOG_CONF_LEVEL_MAC 0
+#endif
 
 #endif /* PROJECT_CONF_H_ */
