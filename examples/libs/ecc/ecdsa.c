@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021, Uppsala universitet.
+ * Copyright (c) 2025, Siemens AG.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,14 +50,19 @@
 PROCESS(ecdsa_process, "ecdsa_process");
 AUTOSTART_PROCESSES(&ecdsa_process);
 static rtimer_clock_t t1, t2;
+#ifdef ATTESTATION_BENCHMARK
+extern uint32_t wait_sum;
+#endif /* ATTESTATION_BENCHMARK */
 
 /*---------------------------------------------------------------------------*/
+#ifndef ATTESTATION_BENCHMARK
 static uint64_t
 get_milliseconds(void)
 {
   uint64_t difference = t2 - t1;
   return (difference * 1000) / RTIMER_SECOND;
 }
+#endif /* !ATTESTATION_BENCHMARK */
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(ecdsa_process, ev, data)
 {
@@ -75,6 +81,11 @@ PROCESS_THREAD(ecdsa_process, ev, data)
     PROCESS_EXIT();
   }
 
+#ifdef ATTESTATION_BENCHMARK
+static unsigned sample;
+for(sample = 0; sample < 30; sample++) {
+#endif /* ATTESTATION_BENCHMARK */
+
   t1 = RTIMER_NOW();
   PROCESS_PT_SPAWN(ecc_get_protothread(),
                    ecc_generate_key_pair(public_key, private_key, &result));
@@ -83,7 +94,9 @@ PROCESS_THREAD(ecdsa_process, ev, data)
     LOG_ERR("generate_key_pair failed\n");
     goto exit;
   }
+#ifndef ATTESTATION_BENCHMARK
   LOG_INFO("key generation took %" PRIu64 "ms\n", get_milliseconds());
+#endif /* !ATTESTATION_BENCHMARK */
   t1 = RTIMER_NOW();
   PROCESS_PT_SPAWN(ecc_get_protothread(),
                    ecc_validate_public_key(public_key, &result));
@@ -92,7 +105,9 @@ PROCESS_THREAD(ecdsa_process, ev, data)
     LOG_ERR("validate_public_key failed\n");
     goto exit;
   }
+#ifndef ATTESTATION_BENCHMARK
   LOG_INFO("validation took %" PRIu64 "ms\n", get_milliseconds());
+#endif /* !ATTESTATION_BENCHMARK */
   t1 = RTIMER_NOW();
   PROCESS_PT_SPAWN(ecc_get_protothread(),
                    ecc_sign(hash, private_key, signature, &result));
@@ -101,7 +116,11 @@ PROCESS_THREAD(ecdsa_process, ev, data)
     LOG_ERR("sign failed\n");
     goto exit;
   }
+#ifndef ATTESTATION_BENCHMARK
   LOG_INFO("signature generation took %" PRIu64 "ms\n", get_milliseconds());
+#else /* !ATTESTATION_BENCHMARK */
+  wait_sum = 0;
+#endif /* !ATTESTATION_BENCHMARK */
   t1 = RTIMER_NOW();
   PROCESS_PT_SPAWN(ecc_get_protothread(),
                    ecc_verify(signature, hash, public_key, &result));
@@ -110,7 +129,12 @@ PROCESS_THREAD(ecdsa_process, ev, data)
     LOG_ERR("verify failed\n");
     goto exit;
   }
+#ifndef ATTESTATION_BENCHMARK
   LOG_INFO("signature verification took %" PRIu64 "ms\n", get_milliseconds());
+#else /* !ATTESTATION_BENCHMARK */
+  printf("%s,explicit,%lu,%lu\n", WATCHDOG_CONF_ENABLE ? "yes" : "no", t2 - t1, wait_sum);
+}
+#endif /* !ATTESTATION_BENCHMARK */
 
 exit:
   ecc_disable();

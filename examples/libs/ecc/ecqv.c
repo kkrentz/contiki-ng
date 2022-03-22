@@ -48,14 +48,19 @@ struct cert_info {
 PROCESS(ecqv_process, "ecqv_process");
 AUTOSTART_PROCESSES(&ecqv_process);
 static rtimer_clock_t t1, t2;
+#ifdef ATTESTATION_BENCHMARK
+extern uint32_t wait_sum;
+#endif /* ATTESTATION_BENCHMARK */
 
 /*---------------------------------------------------------------------------*/
+#ifndef ATTESTATION_BENCHMARK
 static uint64_t
 get_milliseconds(void)
 {
   uint64_t difference = t2 - t1;
   return (difference * 1000) / RTIMER_SECOND;
 }
+#endif /* !ATTESTATION_BENCHMARK */
 /*---------------------------------------------------------------------------*/
 static int
 encode_and_hash(const uint8_t *public_key_reconstruction_data,
@@ -94,6 +99,11 @@ PROCESS_THREAD(ecqv_process, ev, data)
     LOG_ERR("enable failed\n");
     PROCESS_EXIT();
   }
+
+#ifdef ATTESTATION_BENCHMARK
+static unsigned sample;
+for(sample = 0; sample < 30; sample++) {
+#endif /* ATTESTATION_BENCHMARK */
 
   /* CA: generate public/private key pair*/
   PROCESS_PT_SPAWN(ecc_get_protothread(),
@@ -151,6 +161,9 @@ PROCESS_THREAD(ecqv_process, ev, data)
 
   /* Alice: reconstruct Bob's public key */
   t1 = RTIMER_NOW();
+#ifdef ATTESTATION_BENCHMARK
+  wait_sum = 0;
+#endif /* ATTESTATION_BENCHMARK */
   PROCESS_PT_SPAWN(ecc_get_protothread(),
                    ecc_validate_public_key(cert_info.reconstruction_data,
                                            &result));
@@ -170,6 +183,7 @@ PROCESS_THREAD(ecqv_process, ev, data)
     goto exit;
   }
   t2 = RTIMER_NOW();
+#ifndef ATTESTATION_BENCHMARK
   LOG_INFO("reconstruction took %" PRIu64 "ms\n", get_milliseconds());
 
   if(!memcmp(bobs_public_key,
@@ -179,6 +193,10 @@ PROCESS_THREAD(ecqv_process, ev, data)
   } else {
     LOG_ERR("FAILURE\n");
   }
+#else /* !ATTESTATION_BENCHMARK */
+  printf("%s,implicit,%lu,%lu\n", WATCHDOG_CONF_ENABLE ? "yes" : "no", t2 - t1, wait_sum);
+}
+#endif /* !ATTESTATION_BENCHMARK */
 
 exit:
   ecc_disable();
