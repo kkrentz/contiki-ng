@@ -44,6 +44,10 @@
 #include "filtering-client.h"
 #endif /* FILTERING_CLIENT */
 #include "lib/assert.h"
+#ifdef SMOR
+#include "smor-metric.h"
+#include "net/ipv6/sicslowpan.h"
+#endif /* SMOR */
 #include "net/mac/csl/csl-ccm-inputs.h"
 #include "net/mac/csl/csl-framer.h"
 #include "net/packetbuf.h"
@@ -88,6 +92,11 @@
     | (0x6 << 3) /* unused extended frame type 110 */)
 #define EXTENDED_FRAME_TYPE_MASK (0x3F)
 #define FILTERING_OTP_FLAG (1 << 7)
+#ifdef SMOR
+#define REWARD_LEN reward_len
+#else /* SMOR */
+#define REWARD_LEN (0)
+#endif /* SMOR */
 
 /* Log configuration */
 #include "sys/log.h"
@@ -353,6 +362,47 @@ filter(void)
             csl_get_phase(acknowledgment_sfd_timestamp));
         csl_state.duty_cycle.acknowledgment_len += phase_len;
       }
+#ifdef SMOR
+      if(!is_command) {
+        /* read dispatch byte */
+        if(radio_read_payload_to_packetbuf(1)) {
+          LOG_ERR("could not read at line %i\n", __LINE__);
+          return FRAMER_FAILED;
+        }
+
+        /* check Mesh Addressing Type */
+        if((p[0] & (SICSLOWPAN_DISPATCH_MESH_MASK
+                | SICSLOWPAN_MESH_VERY_FIRST
+                | SICSLOWPAN_MESH_FINAL_DESTINATION))
+            == (SICSLOWPAN_DISPATCH_MESH
+                | (LINKADDR_SIZE == 2 ? SICSLOWPAN_MESH_VERY_FIRST : 0)
+                | (LINKADDR_SIZE == 2 ? SICSLOWPAN_MESH_FINAL_DESTINATION : 0))) {
+          p++;
+          /* read originator and final destination */
+          if(radio_read_payload_to_packetbuf(LINKADDR_SIZE * 2)) {
+            LOG_ERR("could not read at line %i\n", __LINE__);
+            return FRAMER_FAILED;
+          }
+          p += LINKADDR_SIZE;
+          linkaddr_t destination_address;
+          linkaddr_read(&destination_address, p);
+          p += LINKADDR_SIZE;
+          if(!linkaddr_cmp(&destination_address, &linkaddr_node_addr)) {
+            smor_metric_t reward = SMOR_METRIC.judge_link_to(
+                &destination_address);
+            if(reward == SMOR_METRIC.get_min()) {
+              LOG_WARN("canceling burst reception\n");
+              packetbuf_set_attr(PACKETBUF_ATTR_PENDING, 0);
+            }
+            memcpy(csl_state.duty_cycle.acknowledgment
+                + csl_state.duty_cycle.acknowledgment_len,
+                &reward,
+                SMOR_METRIC_LEN);
+            csl_state.duty_cycle.acknowledgment_len += SMOR_METRIC_LEN;
+          }
+        }
+      }
+#endif /* SMOR */
       uint8_t nonce[CCM_STAR_NONCE_LENGTH];
       csl_ccm_inputs_generate_acknowledgment_nonce(nonce, true);
       struct akes_nbr_entry *entry = akes_nbr_get_sender_entry();
@@ -788,11 +838,19 @@ parse_acknowledgment(void)
 {
   uint_fast8_t phase_len =
       csl_state.transmit.burst_index ? 0 : CSL_FRAMER_POTR_PHASE_LEN;
+#ifdef SMOR
+  uint_fast8_t reward_len =
+      csl_state.transmit.has_mesh_header[csl_state.transmit.burst_index]
+          && !csl_state.transmit.on_last_hop[csl_state.transmit.burst_index]
+      ? SMOR_METRIC_LEN
+      : 0;
+#endif /* SMOR */
   uint_fast8_t expected_len =
       (csl_state.transmit.subtype == CSL_SUBTYPE_HELLOACK)
       ? CSL_FRAMER_POTR_EXTENDED_FRAME_TYPE_LEN
       : (CSL_FRAMER_POTR_EXTENDED_FRAME_TYPE_LEN
           + phase_len
+          + REWARD_LEN
           + AKES_MAC_UNICAST_MIC_LEN);
 
   /* frame length */
@@ -823,6 +881,19 @@ parse_acknowledgment(void)
           csl_framer_potr_parse_phase(acknowledgment + 1);
     }
 
+#ifdef SMOR
+    if(reward_len) {
+      if(NETSTACK_RADIO.async_read_payload(acknowledgment + 1 + phase_len,
+          reward_len)) {
+        LOG_ERR("could not read at line %i\n", __LINE__);
+        return FRAMER_FAILED;
+      }
+      memcpy(&csl_state.transmit.reward[csl_state.transmit.burst_index],
+          acknowledgment + 1 + phase_len,
+          reward_len);
+    }
+#endif /* SMOR */
+
     /* CCM* MIC */
     csl_state.transmit.acknowledgment_nonce[LINKADDR_SIZE] &= ~(0x3F);
     csl_state.transmit.acknowledgment_nonce[LINKADDR_SIZE] |=
@@ -843,13 +914,14 @@ parse_acknowledgment(void)
       return FRAMER_FAILED;
     }
     CCM_STAR.release_lock();
-    if(NETSTACK_RADIO.async_read_payload(acknowledgment + 1 + phase_len,
+    if(NETSTACK_RADIO.async_read_payload(
+        acknowledgment + 1 + phase_len + REWARD_LEN,
         AKES_MAC_UNICAST_MIC_LEN)) {
       LOG_ERR("could not read at line %i\n", __LINE__);
       return FRAMER_FAILED;
     }
     if(memcmp(expected_mic,
-        acknowledgment + 1 + phase_len,
+        acknowledgment + 1 + phase_len + REWARD_LEN,
         AKES_MAC_UNICAST_MIC_LEN)) {
       LOG_ERR("inauthentic acknowledgment frame\n");
       return FRAMER_FAILED;
