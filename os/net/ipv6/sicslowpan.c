@@ -1817,6 +1817,10 @@ output(const linkaddr_t *localdest)
   mac_max_payload -= get_mesh_addressing_len();
 #endif /* WITH_MESH_ADDRESSING */
 
+#ifdef SMOR_BENCHMARK
+  packetbuf_set_attr(PACKETBUF_ATTR_PROTOCOL, UIP_IP_BUF->proto);
+#endif /* SMOR_BENCHMARK */
+
   /* Try to compress the headers */
 #if SICSLOWPAN_COMPRESSION == SICSLOWPAN_COMPRESSION_IPV6
   compress_hdr_ipv6();
@@ -2098,6 +2102,9 @@ input(void)
       packetbuf_set_datalen(datalen);
       memmove(packetbuf_dataptr(), dataptr, datalen);
       packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &final_destination);
+#ifdef SMOR_BENCHMARK
+      packetbuf_set_attr(PACKETBUF_ATTR_PROTOCOL, UIP_PROTO_UDP);
+#endif /* SMOR_BENCHMARK */
       send_packet();
       return;
     }
