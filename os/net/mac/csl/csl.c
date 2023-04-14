@@ -171,6 +171,9 @@ const uint_fast16_t csl_hello_wake_up_sequence_length =
 const rtimer_clock_t csl_hello_wake_up_sequence_tx_time =
     CSL_HELLO_WAKE_UP_SEQUENCE_TX_TIME;
 #endif /* !CSL_COMPLIANT */
+#ifdef SMOR_BENCHMARK
+linkaddr_t llsender;
+#endif /* SMOR_BENCHMARK */
 
 /*---------------------------------------------------------------------------*/
 #if !CSL_COMPLIANT
@@ -777,6 +780,9 @@ PROCESS_THREAD(post_processing, ev, data)
           burst_index++) {
         enable_local_packetbuf(burst_index);
 #if AKES_MAC_ENABLED
+#ifdef SMOR_BENCHMARK
+        linkaddr_copy(&llsender, packetbuf_addr(PACKETBUF_ADDR_SENDER));
+#endif /* SMOR_BENCHMARK */
         NETSTACK_MAC.input();
 #else /* AKES_MAC_ENABLED */
         if(!packetbuf_holds_broadcast() && mac_sequence_is_duplicate()) {
@@ -1343,6 +1349,25 @@ on_transmitted(void)
     packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER,
                        &csl_state.transmit.next_hop_address);
 #endif /* SMOR */
+#ifdef SMOR_BENCHMARK
+    switch(csl_state.transmit.result[i]) {
+    case MAC_TX_OK:
+    case MAC_TX_COLLISION:
+    case MAC_TX_NOACK:
+    case MAC_TX_FORWARDER_DECLINED:
+      printf("T,%" RTIMER_PRI ",%u,%u,%u,%" PRIuFAST16 "\n",
+             RTIMER_NOW(),
+             linkaddr_node_addr.u8[1],
+             packetbuf_attr(PACKETBUF_ATTR_FRAME_TYPE),
+             packetbuf_holds_data_frame()
+             ? packetbuf_attr(PACKETBUF_ATTR_PROTOCOL)
+             : packetbuf_get_dispatch_byte(),
+             csl_state.transmit.payload_frame_lens[i]);
+      break;
+    default:
+      break;
+    }
+#endif /* SMOR_BENCHMARK */
 
     if(!csl_state.transmit.is_broadcast) {
       if(!i) {

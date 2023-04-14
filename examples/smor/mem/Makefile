@@ -1,0 +1,16 @@
+CONTIKI_PROJECT = client
+all: $(CONTIKI_PROJECT)
+
+CONTIKI = ../../..
+include $(CONTIKI)/Makefile.identify-target
+
+CFLAGS += -DNDEBUG=0
+
+MODULES += os/services/akes
+MAKE_MAC = MAKE_MAC_CSL
+MODULES += os/services/smor
+MAKE_ROUTING = MAKE_ROUTING_SMOR
+#MAKE_ROUTING = MAKE_ROUTING_RPL_CLASSIC
+#MAKE_ROUTING = MAKE_ROUTING_NULLROUTING
+
+include $(CONTIKI)/Makefile.include
