@@ -1,0 +1,12 @@
+CONTIKI_PROJECT = client server forwarder
+all: $(CONTIKI_PROJECT)
+
+CONTIKI = ../../..
+include $(CONTIKI)/Makefile.identify-target
+
+MODULES += os/services/akes
+MAKE_MAC = MAKE_MAC_CSL
+MAKE_NET = MAKE_NET_NULLNET
+MAKE_ROUTING = MAKE_ROUTING_NULLROUTING
+
+include $(CONTIKI)/Makefile.include
