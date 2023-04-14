@@ -247,6 +247,9 @@ enum {
   PACKETBUF_ATTR_INBOUND_OSCORE,
   PACKETBUF_ATTR_COAP_MESSAGE_ID,
 #endif /* AGGREGATOR */
+#ifdef SMOR_BENCHMARK
+  PACKETBUF_ATTR_PROTOCOL,
+#endif /* SMOR_BENCHMARK */
 
   /* Scope 1 attributes: used between two neighbors only. */
   PACKETBUF_ATTR_FRAME_TYPE,
