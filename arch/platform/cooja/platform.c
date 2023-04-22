@@ -50,7 +50,7 @@
 
 #include "lib/random.h"
 #include "lib/simEnvChange.h"
-
+#include "net/linkaddr.h"
 #include "net/netstack.h"
 #include "net/queuebuf.h"
 
@@ -62,11 +62,6 @@
 #include "dev/moteid.h"
 #include "dev/button-hal.h"
 #include "dev/gpio-hal.h"
-
-#if NETSTACK_CONF_WITH_IPV6
-#include "net/ipv6/uip.h"
-#include "net/ipv6/uip-ds6.h"
-#endif /* NETSTACK_CONF_WITH_IPV6 */
 
 /* Sensors */
 SENSORS(&pir_sensor, &vib_sensor);
@@ -87,15 +82,10 @@ set_lladdr(void)
   linkaddr_t addr;
 
   memset(&addr, 0, sizeof(linkaddr_t));
-#if NETSTACK_CONF_WITH_IPV6
-  for(size_t i = 0; i < sizeof(uip_lladdr.addr); i += 2) {
+  for(size_t i = 0; i < sizeof(addr.u8); i += 2) {
     addr.u8[i + 1] = simMoteID & 0xff;
     addr.u8[i + 0] = simMoteID >> 8;
   }
-#else /* NETSTACK_CONF_WITH_IPV6 */
-  addr.u8[0] = simMoteID & 0xff;
-  addr.u8[1] = simMoteID >> 8;
-#endif /* NETSTACK_CONF_WITH_IPV6 */
   linkaddr_set_node_addr(&addr);
 }
 /*---------------------------------------------------------------------------*/
