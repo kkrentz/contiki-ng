@@ -82,12 +82,13 @@
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "Radio"
-#define LOG_LEVEL LOG_LEVEL_NONE
+#define LOG_LEVEL LOG_LEVEL_DBG
 /*---------------------------------------------------------------------------*/
 #undef CLAMP
 #define CLAMP(v, vmin, vmax)  (MAX(MIN(v, vmax), vmin))
 /*---------------------------------------------------------------------------*/
 /* Configuration parameters */
+#define PROP_MODE_BITREV_PAYLOAD      PROP_MODE_CONF_BITREV_PAYLOAD
 #define PROP_MODE_DYN_WHITENER        PROP_MODE_CONF_DW
 #define PROP_MODE_USE_CRC16           PROP_MODE_CONF_USE_CRC16
 #define PROP_MODE_CENTER_FREQ         PROP_MODE_CONF_CENTER_FREQ
@@ -100,6 +101,24 @@ typedef enum {
   CCA_STATE_BUSY = 1,
   CCA_STATE_INVALID = 2
 } cca_state_t;
+/*---------------------------------------------------------------------------*/
+#if PROP_MODE_BITREV_PAYLOAD
+static const unsigned char bitreverse_table256[256] = {
+    #define R2(n)   n    ,   n + 2*64  ,     n + 1*64,    n + 3*64
+    #define R4(n)   R2(n), R2(n + 2*16), R2(n + 1*16), R2(n + 3*16)
+    #define R6(n)   R4(n), R4(n + 2*4) , R4(n + 1*4) , R4(n + 3*4)
+    R6(0), R6(2), R6(1), R6(3)
+};
+
+static void 
+bit_reverse_array(uint8_t *arr, int len)
+{
+    int i;
+    for (i = 0; i < len; i++) {
+        arr[i] = bitreverse_table256[arr[i]];
+    }
+}
+#endif /* PROP_MODE_BITREV_PAYLOAD */
 /*---------------------------------------------------------------------------*/
 #if MAC_CONF_WITH_TSCH
 static volatile uint8_t is_receiving_packet;
@@ -409,6 +428,12 @@ prepare(const void *payload, unsigned short payload_len)
   }
 
   memcpy(prop_radio.tx_buf + TX_BUF_HDR_LEN, payload, payload_len);
+
+
+  /* Test for bit-rev payload only */
+#if PROP_MODE_BITREV_PAYLOAD
+    bit_reverse_array(prop_radio.tx_buf + TX_BUF_HDR_LEN, payload_len);
+#endif
   return 0;
 }
 /*---------------------------------------------------------------------------*/
@@ -533,6 +558,11 @@ read(void *buf, unsigned short buf_len)
   }
 
   memcpy(buf, payload_ptr, payload_len);
+
+  /* Bitreverse payload for compliance with 802.15.4g. */
+#if PROP_MODE_BITREV_PAYLOAD
+  bit_reverse_array(buf, payload_len);
+#endif
 
   /* RSSI stored after payload */
   prop_radio.last.rssi = (int8_t)payload_ptr[payload_len];
