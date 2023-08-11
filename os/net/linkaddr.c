@@ -82,4 +82,24 @@ linkaddr_cmp(const linkaddr_t *addr1, const linkaddr_t *addr2)
 	return (memcmp(addr1, addr2, LINKADDR_SIZE) == 0);
 }
 /*---------------------------------------------------------------------------*/
+bool
+linkaddr_smaller_or_equal(const linkaddr_t *addr1, const linkaddr_t *addr2)
+{
+#if LINKADDR_SIZE == 2
+  return addr1->u16 <= addr2->u16;
+#else /* LINKADDR_SIZE == 2 */
+  size_t i;
+
+  for(i = 0; i < LINKADDR_SIZE / 2; i++) {
+    if(addr1->u16[i] > addr2->u16[i]) {
+      return false;
+    }
+    if(addr1->u16[i] < addr2->u16[i]) {
+      return true;
+    }
+  }
+  return true;
+#endif /* LINKADDR_SIZE == 2 */
+}
+/*---------------------------------------------------------------------------*/
 /** @} */

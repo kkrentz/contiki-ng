@@ -103,6 +103,9 @@ void linkaddr_copy(linkaddr_t *dest, const linkaddr_t *from);
  */
 bool linkaddr_cmp(const linkaddr_t *addr1, const linkaddr_t *addr2);
 
+bool linkaddr_smaller_or_equal(const linkaddr_t *addr1,
+    const linkaddr_t *addr2);
+
 
 /**
  * \brief      The link-layer address of the node
