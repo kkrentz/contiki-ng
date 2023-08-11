@@ -74,6 +74,8 @@ void frame_queue_init(void);
  * \brief Tells if a transmission backoff toward a potential forwarder is ongoing.
  */
 bool frame_queue_is_backing_off(const linkaddr_t *addr);
+
+bool frame_queue_am_retrying(const linkaddr_t *addr);
 #endif /* SMOR */
 
 /**

@@ -44,6 +44,9 @@
 #include "net/mac/csl/csl-nbr.h"
 #include "net/mac/csl/csl-synchronizer.h"
 #include "net/mac/mac.h"
+#ifdef CNCR
+#include "cncr.h"
+#endif /* CNCR */
 #include <stdint.h>
 
 /* Log configuration */
@@ -130,7 +133,10 @@ schedule(void)
           csl_state.receivers_wake_up_counter,
           packetbuf_addr(PACKETBUF_ADDR_RECEIVER)) - csl_get_min_channel();
       if(proposed_channels & (1 << forecasted_channel)) {
-        break;
+#ifdef CNCR
+        if(cncr_can_access())
+#endif /* CNCR */
+          break;
       }
       csl_state.wake_up_sequence_start += WAKE_UP_COUNTER_INTERVAL;
     }

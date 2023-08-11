@@ -179,6 +179,14 @@ frame_queue_is_backing_off(const linkaddr_t *addr)
   return csmaca_status
       && CLOCK_LT(clock_time(), csmaca_status->next_attempt);
 }
+/*---------------------------------------------------------------------------*/
+bool
+frame_queue_am_retrying(const linkaddr_t *addr)
+{
+  struct csmaca_status *csmaca_status = get_csmaca_status(addr);
+  return csmaca_status
+      && (csmaca_status->transmissions || csmaca_status->collisions);
+}
 #endif /* SMOR */
 /*---------------------------------------------------------------------------*/
 static void
