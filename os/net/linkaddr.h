@@ -71,6 +71,20 @@ typedef union {
 } linkaddr_t;
 
 /**
+ * \brief      Serializes a link-layer address.
+ * \param dest The destination
+ * \param src  The source
+ */
+void linkaddr_write(uint8_t dest[static LINKADDR_SIZE], const linkaddr_t *src);
+
+/**
+ * \brief      Parses a link-layer address.
+ * \param dest The destination
+ * \param src  The source
+ */
+void linkaddr_read(linkaddr_t *dest, uint8_t src[static LINKADDR_SIZE]);
+
+/**
  * \brief      Copy a link-layer address
  * \param dest The destination
  * \param from The source
