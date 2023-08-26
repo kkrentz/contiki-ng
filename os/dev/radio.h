@@ -57,7 +57,9 @@
 #ifndef RADIO_H_
 #define RADIO_H_
 
+#include "contiki.h"
 #include <stddef.h>
+#include <stdbool.h>
 
 /*---------------------------------------------------------------------------*/
 /** \name PHY-specific constants and macros
@@ -147,6 +149,12 @@
     RADIO_TIME_TO_TRANSMIT(RADIO_RECEIVE_CALIBRATION_SYMBOL_PERIODS)
 #define RADIO_TRANSMIT_CALIBRATION_TIME \
     RADIO_TIME_TO_TRANSMIT(RADIO_TRANSMIT_CALIBRATION_SYMBOL_PERIODS)
+
+/**
+ * Maximum number of untransmitted bytes in a back-to-back sequence of frames.
+ */
+#define RADIO_MAX_SEQUENCE_LEN (128)
+
 /** @} */
 /*---------------------------------------------------------------------------*/
 
@@ -178,6 +186,10 @@
 
 typedef int radio_value_t;
 typedef unsigned radio_param_t;
+
+typedef void (* radio_shr_callback_t)(void);
+typedef void (* radio_fifop_callback_t)(void);
+typedef void (* radio_txdone_callback_t)(void);
 
 /**
  * \brief Radio parameters and constants
@@ -606,6 +618,17 @@ enum radio_tx_e {
    */
   RADIO_TX_NOACK,
 };
+
+/**
+ * Return values of various async* functions.
+ */
+enum radio_async_e {
+  RADIO_ASYNC_OK = 0,
+  RADIO_ASYNC_REDUNDANT_CALL,
+  RADIO_ASYNC_INVALID_PARAMETER,
+  RADIO_ASYNC_ERROR,
+  RADIO_ASYNC_UNSUPPORTED,
+};
 /*---------------------------------------------------------------------------*/
 /**
  * \name The Contiki-NG RF driver API
@@ -877,6 +900,106 @@ struct radio_driver {
    */
   radio_result_t (* set_object)(radio_param_t param, const void *src,
                                 size_t size);
+
+  /**
+   * \brief Enables the asynchronous mode.
+   *
+   * Once the asynchronous mode is enabled, only functions that are prepended
+   * with "async_" may be called, except for get_value, set_value, get_object,
+   * and set_object.
+   */
+  enum radio_async_e (* async_enter)(void);
+
+  /**
+   * \brief             Sets the next frame that shall be transmitted
+   * \param payload     Pointer to the frame's payload
+   * \param payload_len Length of the frame's payload
+   */
+  enum radio_async_e (* async_prepare)(uint8_t *payload,
+                                         uint_fast16_t payload_len);
+
+  /**
+   * \brief Overwrites parts of a prepared frame
+   */
+  enum radio_async_e (* async_reprepare)(uint_fast16_t offset,
+                                           uint8_t *patch,
+                                           uint_fast16_t patch_len);
+
+  /**
+   * \brief                         Transmits the prepared frame
+   * \param shall_enter_rx_after_tx Non-zero if the receive mode shall be enabled
+   *                                after the transmission has ended
+   */
+  enum radio_async_e (* async_transmit)(bool shall_enter_rx_after_tx);
+
+  /**
+   * \brief Enables the receive mode
+   */
+  enum radio_async_e (* async_on)(void);
+
+  /**
+   * \brief Disables the receive or transmit mode, whichever is active
+   */
+  enum radio_async_e (* async_off)(void);
+
+  /**
+   * \brief              Registers a callback for incoming and outgoing SHRs
+   * \param shr_callback The callback function or NULL
+   */
+  void (* async_set_shr_callback)(radio_shr_callback_t shr_callback);
+
+  /**
+   * \brief              Registers a callback for a certain number of unread bytes
+   * \param shr_callback The callback function or NULL
+   * \param threshold    The number of unread bytes
+   */
+  void (* async_set_fifop_callback)(radio_fifop_callback_t fifop_callback,
+                                    uint_fast16_t threshold);
+
+  /**
+   * \brief              Registers a callback for complete frame transmissions
+   * \param shr_callback The callback function or NULL
+   */
+  void (* async_set_txdone_callback)(radio_txdone_callback_t txdone_callback);
+
+  /**
+   * \brief  Reads the physical layer (PHY) header
+   * \return The frame's length in bytes
+   */
+  uint_fast16_t (* async_read_phy_header)(void);
+
+  /**
+   * \brief        Reads payload bytes to the specified memory location
+   */
+  enum radio_async_e (* async_read_payload)(uint8_t *buf, uint_fast16_t bytes);
+
+  /**
+   * \brief Provides the number of payload bytes that were read already
+   */
+  uint_fast16_t (* async_read_payload_bytes)(void);
+
+  /**
+   * \brief Prepares for transmitting a back-to-back sequence of frames
+   */
+  enum radio_async_e (* async_prepare_sequence)(uint8_t *sequence,
+      uint_fast16_t sequence_len);
+
+  /**
+   * \brief Appends one or more frames that shall be transmitted
+   * \note  All frames except for the first one must contain an SHR.
+   */
+  enum radio_async_e (* async_append_to_sequence)(uint8_t *appendix,
+      uint_fast16_t appendix_len);
+
+  /**
+   * \brief Starts the transmission of a back-to-back sequence of frames
+   */
+  enum radio_async_e (* async_transmit_sequence)(void);
+
+  /**
+   * \brief Busy-waits until all appended frames have been transmitted
+   */
+  enum radio_async_e (* async_finish_sequence)(void);
 };
 /** @} */
 /*---------------------------------------------------------------------------*/
