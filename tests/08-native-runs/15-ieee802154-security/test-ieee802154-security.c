@@ -73,8 +73,8 @@ UNIT_TEST(test_aes_128)
 
   printf("Testing AES-128 ... ");
 
-  AES_128.set_key(key);
-  AES_128.encrypt(data);
+  UNIT_TEST_ASSERT(AES_128.set_key(key));
+  UNIT_TEST_ASSERT(AES_128.encrypt(data));
 
   UNIT_TEST_ASSERT(!memcmp(data, oracle, 16));
 
@@ -118,14 +118,14 @@ UNIT_TEST(test_sec_lvl_2)
   packetbuf_set_attr(PACKETBUF_ATTR_SECURITY_LEVEL, sec_lvl);
   packetbuf_hdrreduce(18);
 
-  CCM_STAR.set_key(key);
+  UNIT_TEST_ASSERT(CCM_STAR.set_key(key));
   ccm_star_packetbuf_set_nonce(nonce, 1);
-  CCM_STAR.aead(nonce,
+  UNIT_TEST_ASSERT(CCM_STAR.aead(nonce,
       NULL, 0,
       packetbuf_hdrptr(), packetbuf_totlen(),
       ((uint8_t *) packetbuf_dataptr()) + packetbuf_datalen(),
           LLSEC802154_MIC_LEN(sec_lvl),
-      1);
+      1));
 
   UNIT_TEST_ASSERT(!memcmp(
       ((uint8_t *) packetbuf_dataptr()) + packetbuf_datalen(),
@@ -175,13 +175,13 @@ UNIT_TEST(test_sec_lvl_6)
   packetbuf_set_attr(PACKETBUF_ATTR_SECURITY_LEVEL, sec_lvl);
   packetbuf_hdrreduce(29);
 
-  CCM_STAR.set_key(key);
+  UNIT_TEST_ASSERT(CCM_STAR.set_key(key));
   ccm_star_packetbuf_set_nonce(nonce, 1);
-  CCM_STAR.aead(nonce,
+  UNIT_TEST_ASSERT(CCM_STAR.aead(nonce,
       packetbuf_dataptr(), packetbuf_datalen(),
       packetbuf_hdrptr(), packetbuf_hdrlen(),
       ((uint8_t *) packetbuf_hdrptr()) + 30, LLSEC802154_MIC_LEN(sec_lvl),
-      1);
+      1));
 
   UNIT_TEST_ASSERT(!memcmp(
       ((uint8_t *) packetbuf_hdrptr()) + 30,
@@ -195,11 +195,11 @@ UNIT_TEST(test_sec_lvl_6)
   printf("Testing decryption ... ");
   packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &source_address);
   ccm_star_packetbuf_set_nonce(nonce, 0);
-  CCM_STAR.aead(nonce,
+  UNIT_TEST_ASSERT(CCM_STAR.aead(nonce,
       packetbuf_dataptr(), packetbuf_datalen(),
       packetbuf_hdrptr(), packetbuf_hdrlen(),
       ((uint8_t *) packetbuf_hdrptr()) + 30, LLSEC802154_MIC_LEN(sec_lvl),
-      0);
+      0));
   UNIT_TEST_ASSERT(((uint8_t *) packetbuf_hdrptr())[29] == 0xCE);
 
   UNIT_TEST_END();
