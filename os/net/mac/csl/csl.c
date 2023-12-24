@@ -1291,6 +1291,25 @@ on_transmitted(void)
 #ifdef SMOR
     packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &csl_state.next_hop_address);
 #endif /* SMOR */
+#ifdef WAMA_BENCHMARK
+  switch(csl_state.transmit.result[i]) {
+  case MAC_TX_OK:
+  case MAC_TX_COLLISION:
+  case MAC_TX_NOACK:
+  case MAC_TX_FORWARDING_DECLINED:
+    printf("T,%"RTIMER_PRI",%u,%u,%u,%"PRIuFAST16"\n",
+        RTIMER_NOW(),
+        linkaddr_node_addr.u8[1],
+        packetbuf_attr(PACKETBUF_ATTR_FRAME_TYPE),
+        packetbuf_holds_data_frame()
+            ? packetbuf_attr(PACKETBUF_ATTR_PROTOCOL)
+            : packetbuf_get_dispatch_byte(),
+        csl_state.transmit.payload_frame_lens[i]);
+    break;
+  default:
+    break;
+  }
+#endif /* WAMA_BENCHMARK */
 
     if(!csl_state.transmit.is_broadcast) {
       if(!i) {

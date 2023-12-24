@@ -1814,6 +1814,10 @@ output(const linkaddr_t *localdest)
   mac_max_payload -= get_mesh_addressing_len();
 #endif /* WITH_MESH_ADDRESSING */
 
+#ifdef WAMA_BENCHMARK
+  packetbuf_set_attr(PACKETBUF_ATTR_PROTOCOL, UIP_IP_BUF->proto);
+#endif /* WAMA_BENCHMARK */
+
   /* Try to compress the headers */
 #if SICSLOWPAN_COMPRESSION == SICSLOWPAN_COMPRESSION_IPV6
   compress_hdr_ipv6();
