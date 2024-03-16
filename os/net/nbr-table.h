@@ -38,6 +38,7 @@
 #include "contiki.h"
 #include "net/linkaddr.h"
 #include "net/netstack.h"
+#include <stdbool.h>
 
 typedef enum {
   NBR_TABLE_REASON_UNDEFINED,
@@ -107,6 +108,9 @@ typedef struct nbr_table_key {
 
 /** \brief Declaration of non-static neighbor tables */
 #define NBR_TABLE_DECLARE(name) extern nbr_table_t *name
+
+/** \brief Tells if internal modifications are ongoing */
+bool nbr_table_can_query_asynchronously(void);
 
 /** \name Neighbor tables: register and loop through table elements */
 /** @{ */
