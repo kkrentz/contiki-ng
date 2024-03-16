@@ -39,6 +39,11 @@
 #include "lib/memb.h"
 #include "lib/list.h"
 #include "net/nbr-table.h"
+#include "sys/mutex.h"
+
+#ifndef NBR_TABLE_CONF_WITH_LOCKING
+#define NBR_TABLE_CONF_WITH_LOCKING 0
+#endif /* NBR_TABLE_CONF_WITH_LOCKING */
 
 #define DEBUG DEBUG_NONE
 #include "net/ipv6/uip-debug.h"
@@ -65,6 +70,9 @@ static uint8_t locked_map[NBR_TABLE_MAX_NEIGHBORS];
 static struct nbr_table *all_tables[MAX_NUM_TABLES];
 /* The current number of tables */
 static unsigned num_tables;
+#if NBR_TABLE_CONF_WITH_LOCKING
+static mutex_t lock;
+#endif /* NBR_TABLE_CONF_WITH_LOCKING */
 
 /* The neighbor address table */
 MEMB(neighbor_addr_mem, nbr_table_key_t, NBR_TABLE_MAX_NEIGHBORS);
@@ -72,6 +80,34 @@ LIST(nbr_table_keys);
 
 /*---------------------------------------------------------------------------*/
 static void remove_key(nbr_table_key_t *key, bool do_free);
+/*---------------------------------------------------------------------------*/
+static bool
+get_lock(void)
+{
+#if NBR_TABLE_CONF_WITH_LOCKING
+  return mutex_try_lock(&lock);
+#else /* NBR_TABLE_CONF_WITH_LOCKING */
+  return true;
+#endif /* NBR_TABLE_CONF_WITH_LOCKING */
+}
+/*---------------------------------------------------------------------------*/
+static void
+release_lock(void)
+{
+#if NBR_TABLE_CONF_WITH_LOCKING
+  mutex_unlock(&lock);
+#endif /* NBR_TABLE_CONF_WITH_LOCKING */
+}
+/*---------------------------------------------------------------------------*/
+bool
+nbr_table_can_query_asynchronously(void)
+{
+  if(!get_lock()) {
+    return false;
+  }
+  release_lock();
+  return true;
+}
 /*---------------------------------------------------------------------------*/
 /* Get a key from a neighbor index */
 static nbr_table_key_t *
@@ -169,6 +205,9 @@ static void
 remove_key(nbr_table_key_t *key, bool do_free)
 {
   int i;
+
+  while(!get_lock());
+
   for(i = 0; i < MAX_NUM_TABLES; i++) {
     if(all_tables[i] != NULL && all_tables[i]->callback != NULL) {
       /* Call table callback for each table that uses this item */
@@ -187,6 +226,8 @@ remove_key(nbr_table_key_t *key, bool do_free)
     /* Release the memory */
     memb_free(&neighbor_addr_mem, key);
   }
+
+  release_lock();
 }
 /*---------------------------------------------------------------------------*/
 int
@@ -402,6 +443,8 @@ nbr_table_add_lladdr(const nbr_table_t *table, const linkaddr_t *lladdr,
     return NULL;
   }
 
+  while(!get_lock());
+
   /* Allow lladdr-free insertion, useful e.g. for IPv6 ND.
    * Only one such entry is possible at a time, indexed by linkaddr_null. */
   if(lladdr == NULL) {
@@ -409,6 +452,7 @@ nbr_table_add_lladdr(const nbr_table_t *table, const linkaddr_t *lladdr,
   }
 
   if(!entry_is_allowed(table, lladdr, reason, data, &to_be_removed)) {
+    release_lock();
     return NULL;
   }
 
@@ -419,6 +463,7 @@ nbr_table_add_lladdr(const nbr_table_t *table, const linkaddr_t *lladdr,
     /* No space available for new entry. Should never happen as entry_is_allowed
      * already checks we can add. */
     if(key == NULL) {
+      release_lock();
       return NULL;
     }
 
@@ -439,6 +484,8 @@ nbr_table_add_lladdr(const nbr_table_t *table, const linkaddr_t *lladdr,
   memset(item, 0, table->item_size);
   nbr_set_bit(used_map, table, item, 1);
 
+  release_lock();
+
 #if DEBUG
   print_table();
 #endif
@@ -457,8 +504,11 @@ nbr_table_get_from_lladdr(const nbr_table_t *table, const linkaddr_t *lladdr)
 int
 nbr_table_remove(const nbr_table_t *table, const void *item)
 {
-  int ret = nbr_set_bit(used_map, table, item, 0);
+  int ret;
+  while(!get_lock());
+  ret = nbr_set_bit(used_map, table, item, 0);
   nbr_set_bit(locked_map, table, item, 0);
+  release_lock();
   return ret;
 }
 /*---------------------------------------------------------------------------*/
@@ -540,3 +590,4 @@ handle_periodic_timer(void *ptr)
   ctimer_reset(&periodic_timer);
 }
 #endif
+/*---------------------------------------------------------------------------*/
