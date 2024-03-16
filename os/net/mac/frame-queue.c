@@ -159,7 +159,9 @@ frame_queue_add(mac_callback_t sent, void *ptr)
 {
   if(!packetbuf_attr(PACKETBUF_ATTR_MAX_MAC_TRANSMISSIONS)) {
     packetbuf_set_attr(PACKETBUF_ATTR_MAX_MAC_TRANSMISSIONS,
-                       MAX_RETRANSMISSIONS + 1);
+                       packetbuf_holds_broadcast()
+                       ? 1
+                       : MAX_RETRANSMISSIONS + 1);
   }
   frame_queue_entry_t *new_fqe = memb_alloc(&frame_queue_memb);
   if(!new_fqe) {
