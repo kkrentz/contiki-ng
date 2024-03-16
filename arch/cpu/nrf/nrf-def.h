@@ -81,7 +81,7 @@
 /*---------------------------------------------------------------------------*/
 #define RADIO_PHY_OVERHEAD            3
 #define RADIO_BYTE_AIR_TIME          32
-#define RADIO_SHR_LEN                 5 /* Synch word + SFD */
+#define RADIO_CONF_SHR_LEN            5 /* Synch word + SFD */
 /*
  * Delay between the moment TSCH releases transmit() and the RMARKER, that is
  * the first symbol of the PHR, on air. Two terms:
@@ -95,7 +95,7 @@
  */
 #define RADIO_TX_LAUNCH_LATENCY_USEC 27
 #define RADIO_DELAY_BEFORE_TX \
-  ((unsigned)US_TO_RTIMERTICKS(RADIO_SHR_LEN * RADIO_BYTE_AIR_TIME + \
+  ((unsigned)US_TO_RTIMERTICKS(RADIO_CONF_SHR_LEN * RADIO_BYTE_AIR_TIME + \
                                RADIO_TX_LAUNCH_LATENCY_USEC))
 #define RADIO_DELAY_BEFORE_RX         ((unsigned)US_TO_RTIMERTICKS(250))
 #define RADIO_DELAY_BEFORE_DETECT     0
