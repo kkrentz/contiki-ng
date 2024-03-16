@@ -156,4 +156,5 @@ typedef unsigned short uip_stats_t;
 #define LEDS_CONF_RED                    2
 #define LEDS_CONF_YELLOW                 4
 /*---------------------------------------------------------------------------*/
+#define CSL_CONF_CCA_THRESHOLD           -95
 #endif /* CONTIKI_CONF_H_ */
