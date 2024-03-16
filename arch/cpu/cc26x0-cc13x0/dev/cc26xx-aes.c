@@ -122,7 +122,9 @@ cc26xx_aes_decrypt(uint8_t cyphertext_and_result[static AES_128_BLOCK_SIZE])
 /*---------------------------------------------------------------------------*/
 const struct aes_128_driver cc26xx_aes_128_driver = {
   cc26xx_aes_set_key,
-  cc26xx_aes_encrypt
+  cc26xx_aes_encrypt,
+  aes_128_get_lock,
+  aes_128_release_lock
 };
 
 /** @} */
