@@ -101,7 +101,7 @@ aead(const uint8_t nonce[static CCM_STAR_NONCE_LENGTH],
   REG(AES_CTRL_ALG_SEL) = AES_CTRL_ALG_SEL_AES;
 
   /* configure the key store to provide pre-loaded AES key */
-  REG(AES_KEY_STORE_READ_AREA) = CC2538_AES_128_KEY_AREA;
+  REG(AES_KEY_STORE_READ_AREA) = cc2538_aes_128_active_key_area;
 
   /* prepare IV while the AES key loads */
   {
