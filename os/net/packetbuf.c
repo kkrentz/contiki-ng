@@ -222,5 +222,23 @@ packetbuf_holds_broadcast(void)
       &linkaddr_null);
 }
 /*---------------------------------------------------------------------------*/
+bool
+packetbuf_holds_data_frame(void)
+{
+  return packetbuf_attr(PACKETBUF_ATTR_FRAME_TYPE) == FRAME802154_DATAFRAME;
+}
+/*---------------------------------------------------------------------------*/
+bool
+packetbuf_holds_cmd_frame(void)
+{
+  return packetbuf_attr(PACKETBUF_ATTR_FRAME_TYPE) == FRAME802154_CMDFRAME;
+}
+/*---------------------------------------------------------------------------*/
+uint8_t
+packetbuf_get_dispatch_byte(void)
+{
+  return ((uint8_t *)packetbuf_dataptr())[0];
+}
+/*---------------------------------------------------------------------------*/
 
 /** @} */
