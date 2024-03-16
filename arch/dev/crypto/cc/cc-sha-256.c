@@ -46,6 +46,7 @@
  */
 
 #include "dev/crypto/cc/cc-sha-256.h"
+#include "dev/crypto/cc/cc-aes-128.h"
 #include "dev/crypto/cc/crypto.h"
 #include "lib/aes-128.h"
 #include "lib/assert.h"
@@ -83,6 +84,7 @@ is_valid_source_address(uintptr_t address)
 static void
 enable_crypto(void)
 {
+  while(!cc_aes_128_driver.get_lock());
   was_crypto_enabled = crypto_is_enabled();
   if(!was_crypto_enabled) {
     crypto_enable();
@@ -99,6 +101,7 @@ disable_crypto(void)
   if(!was_crypto_enabled) {
     crypto_disable();
   }
+  cc_aes_128_driver.release_lock();
 }
 /*---------------------------------------------------------------------------*/
 static void
