@@ -55,6 +55,7 @@
 
 #include "contiki.h"
 #include "dev/watchdog.h"
+#include <inttypes.h>
 #include <stdbool.h>
 
 /*---------------------------------------------------------------------------*/
@@ -71,16 +72,19 @@
 /* 16-bit rtimer */
 typedef uint16_t rtimer_clock_t;
 #define RTIMER_CLOCK_DIFF(a,b)     ((int16_t)((a)-(b)))
+#define RTIMER_PRI PRIu16
 
 #elif RTIMER_CLOCK_SIZE == 4
 /* 32-bit rtimer */
 typedef uint32_t rtimer_clock_t;
 #define RTIMER_CLOCK_DIFF(a, b)    ((int32_t)((a) - (b)))
+#define RTIMER_PRI PRIu32
 
 #elif RTIMER_CLOCK_SIZE == 8
 /* 64-bit rtimer */
 typedef uint64_t rtimer_clock_t;
 #define RTIMER_CLOCK_DIFF(a,b)     ((int64_t)((a)-(b)))
+#define RTIMER_PRI PRIu64
 
 #else
 #error Unsupported rtimer size (check RTIMER_CLOCK_SIZE)
