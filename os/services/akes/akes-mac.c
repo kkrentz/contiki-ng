@@ -100,7 +100,7 @@ akes_mac_set_numbers(struct akes_nbr *receiver)
     /* frame counter is incremented in each transmission and retransmission */
     return;
   }
-  anti_replay_set_counter();
+  anti_replay_set_counter(receiver ? &receiver->anti_replay_info : NULL);
 #endif /* LLSEC802154_USES_FRAME_COUNTER */
 }
 /*---------------------------------------------------------------------------*/
