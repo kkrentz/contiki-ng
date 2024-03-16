@@ -52,7 +52,7 @@
 #include "dev/slip.h"
 #include "dev/cc2538-rf.h"
 #include "dev/udma.h"
-#include "dev/crypto.h"
+#include "dev/crypto/cc/crypto.h"
 #include "dev/rtcc.h"
 #include "dev/button-hal.h"
 #include "usb/usb-serial.h"
