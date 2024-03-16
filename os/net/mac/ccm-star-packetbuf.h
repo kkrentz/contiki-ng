@@ -34,6 +34,7 @@
 #define CCM_STAR_PACKETBUF_H_
 
 #include "lib/ccm-star.h"
+#include <stdint.h>
 
 void ccm_star_packetbuf_set_nonce(uint8_t nonce[static CCM_STAR_NONCE_LENGTH],
                                   bool forward);
