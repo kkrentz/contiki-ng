@@ -457,6 +457,24 @@ queuebuf_attr(struct queuebuf *b, uint8_t type)
   return buframptr->attrs[type].val;
 }
 /*---------------------------------------------------------------------------*/
+bool
+queuebuf_holds_data_frame(struct queuebuf *b)
+{
+  return queuebuf_attr(b, PACKETBUF_ATTR_FRAME_TYPE) == FRAME802154_DATAFRAME;
+}
+/*---------------------------------------------------------------------------*/
+bool
+queuebuf_holds_cmd_frame(struct queuebuf *b)
+{
+  return queuebuf_attr(b, PACKETBUF_ATTR_FRAME_TYPE) == FRAME802154_CMDFRAME;
+}
+/*---------------------------------------------------------------------------*/
+uint8_t
+queuebuf_get_dispatch_byte(struct queuebuf *b)
+{
+  return ((uint8_t *)queuebuf_dataptr(b))[0];
+}
+/*---------------------------------------------------------------------------*/
 void
 queuebuf_debug_print(void)
 {
