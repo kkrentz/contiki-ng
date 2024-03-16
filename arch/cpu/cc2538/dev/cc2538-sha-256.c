@@ -46,6 +46,7 @@
  */
 
 #include "dev/cc2538-sha-256.h"
+#include "dev/cc2538-aes-128.h"
 #include "dev/udma.h"
 #include "dev/aes.h"
 #include "lib/aes-128.h"
@@ -70,6 +71,7 @@ static bool was_crypto_enabled;
 static void
 enable_crypto(void)
 {
+  while(!cc2538_aes_128_driver.get_lock());
   was_crypto_enabled = CRYPTO_IS_ENABLED();
   if(!was_crypto_enabled) {
     crypto_enable();
@@ -86,6 +88,7 @@ disable_crypto(void)
   if(!was_crypto_enabled) {
     crypto_disable();
   }
+  cc2538_aes_128_driver.release_lock();
 }
 /*---------------------------------------------------------------------------*/
 static void
