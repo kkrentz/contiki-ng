@@ -145,12 +145,16 @@ aead(uint8_t hdrlen, bool forward)
   mic = a + totlen;
   result = forward ? mic : generated_mic;
 
-  CCM_STAR.set_key(key->u8);
-  CCM_STAR.aead(nonce,
+  if(!CCM_STAR.set_key(key->u8)) {
+    return 0;
+  }
+  if(!CCM_STAR.aead(nonce,
       m, m_len,
       a, a_len,
       result, MIC_LEN(packetbuf_attr(PACKETBUF_ATTR_SECURITY_LEVEL) & 0x07),
-      forward);
+      forward)) {
+    return 0;
+  }
 
   if(forward) {
     packetbuf_set_datalen(packetbuf_datalen() + MIC_LEN(packetbuf_attr(PACKETBUF_ATTR_SECURITY_LEVEL) & 0x07));
