@@ -50,6 +50,8 @@
 #define LOG_MODULE "cc2538-aes-128"
 #define LOG_LEVEL LOG_LEVEL_NONE
 
+uint_fast8_t cc2538_aes_128_active_key_area = CC2538_AES_128_KEY_AREA;
+
 /*---------------------------------------------------------------------------*/
 static bool
 set_key(const uint8_t key[static AES_128_KEY_LENGTH])
@@ -75,9 +77,9 @@ set_key(const uint8_t key[static AES_128_KEY_LENGTH])
    * because AES_KEY_STORE_SIZE_KEY_SIZE_128 is the reset value. Moreover,
    * writing AES_KEY_STORE_SIZE would clear all other loaded keys. */
   /* clear key to write */
-  REG(AES_KEY_STORE_WRITTEN_AREA) = 1 << CC2538_AES_128_KEY_AREA;
+  REG(AES_KEY_STORE_WRITTEN_AREA) = 1 << cc2538_aes_128_active_key_area;
   /* enable key to write */
-  REG(AES_KEY_STORE_WRITE_AREA) = 1 << CC2538_AES_128_KEY_AREA;
+  REG(AES_KEY_STORE_WRITE_AREA) = 1 << cc2538_aes_128_active_key_area;
 
   /* configure DMAC */
   REG(AES_DMAC_CH0_CTRL) = AES_DMAC_CH_CTRL_EN; /* enable DMA channel 0 */
@@ -106,7 +108,7 @@ set_key(const uint8_t key[static AES_128_KEY_LENGTH])
 
   /* check that key was written */
   if(!(REG(AES_KEY_STORE_WRITTEN_AREA)
-      & (1 << CC2538_AES_128_KEY_AREA))) {
+      & (1 << cc2538_aes_128_active_key_area))) {
     LOG_ERR("error at line %d\n", __LINE__);
     goto exit;
   }
@@ -145,7 +147,7 @@ encrypt(uint8_t plaintext_and_result[static AES_128_BLOCK_SIZE])
   REG(AES_CTRL_ALG_SEL) = AES_CTRL_ALG_SEL_AES;
 
   /* configure the key store to provide pre-loaded AES key */
-  REG(AES_KEY_STORE_READ_AREA) = CC2538_AES_128_KEY_AREA;
+  REG(AES_KEY_STORE_READ_AREA) = cc2538_aes_128_active_key_area;
 
   /* wait until the key is loaded to the AES module */
   while(REG(AES_KEY_STORE_READ_AREA) & AES_KEY_STORE_READ_AREA_BUSY);
