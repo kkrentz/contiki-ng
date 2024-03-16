@@ -367,7 +367,10 @@ PROCESS_THREAD(ccm_test_process, ev, data)
   PROCESS_BEGIN();
 
   for(size_t i = 0; i < sizeof(vectors) / sizeof(vectors[0]); i++) {
-    CCM_STAR.set_key(vectors[i].key);
+    if(!CCM_STAR.set_key(vectors[i].key)) {
+      puts("CCM_STAR.set_key failed");
+      continue;
+    }
 
     printf("-----------------------------------------\n"
            "Test vector #%zu: %s\n"
@@ -379,11 +382,14 @@ PROCESS_THREAD(ccm_test_process, ev, data)
     memcpy(adata, vectors[i].adata, vectors[i].adata_len);
     memcpy(mdata, vectors[i].mdata, vectors[i].mdata_len);
 
-    CCM_STAR.aead(vectors[i].nonce,
-                  mdata, vectors[i].mdata_len,
-                  adata, vectors[i].adata_len,
-                  mic, vectors[i].mic_len,
-                  vectors[i].encrypt);
+    if(!CCM_STAR.aead(vectors[i].nonce,
+                      mdata, vectors[i].mdata_len,
+                      adata, vectors[i].adata_len,
+                      mic, vectors[i].mic_len,
+                      vectors[i].encrypt)) {
+      puts("CCM_STAR.aead failed");
+      continue;
+    }
 
     if(vectors[i].encrypt) {
       if(memcmp(mdata,

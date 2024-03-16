@@ -66,8 +66,12 @@ PROCESS_THREAD(speed_test_process, ev, data)
 
   rtimer_clock_t t1 = RTIMER_NOW();
   for(unsigned i = 0; i < 1000; i++) {
-    AES_128.set_key(key);
-    AES_128.encrypt(block);
+    if(!AES_128.set_key(key)) {
+      LOG_ERR("AES_128.set_key failed\n");
+    }
+    if(!AES_128.encrypt(block)) {
+      LOG_ERR("AES_128.encrypt failed\n");
+    }
   }
   rtimer_clock_t t2 = RTIMER_NOW();
   LOG_INFO("%" PRIu64 "ms\n", (((uint64_t)(t2 - t1)) * 1000) / RTIMER_SECOND);
