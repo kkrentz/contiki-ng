@@ -70,6 +70,7 @@
 #define CLOCK_H_
 
 #include <stdint.h>
+#include <inttypes.h>
 
 /** \brief The clock size (in bytes). */
 #ifdef CLOCK_CONF_SIZE
@@ -84,10 +85,12 @@
 #define CLOCK_MAX UINT32_MAX
 typedef uint32_t clock_time_t;
 #define CLOCK_LT(a, b)  ((int32_t)((a) - (b)) < 0)
+#define CLOCK_PRI PRIu32
 #elif CLOCK_SIZE == 8
 typedef uint64_t clock_time_t;
 #define CLOCK_MAX UINT64_MAX
 #define CLOCK_LT(a, b)  ((int64_t)((a) - (b)) < 0)
+#define CLOCK_PRI PRIu64
 #else
 #error Unsupported clock_time_t size (check CLOCK_CONF_SIZE)
 #endif
