@@ -33,111 +33,35 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
 /**
- * \addtogroup cc2538-crypto
+ * \addtogroup crypto
  * @{
  *
- * \defgroup cc2538-aes cc2538 AES
+ * \defgroup cc-crypto AES/SHA cryptoprocessor
  *
- * Driver for the cc2538 AES modes of the security core
+ * Drivers for the AES/SHA cryptoprocessor of CCXXXX MCUs.
  * @{
  *
  * \file
- * Header file for the cc2538 AES driver
+ *       General definitions for the AES/SHA cryptoprocessor.
  */
-#ifndef AES_H_
-#define AES_H_
+
+#ifndef CRYPTO_H_
+#define CRYPTO_H_
 
 #include "contiki.h"
-#include "dev/crypto.h"
-
 #include <stdbool.h>
 #include <stdint.h>
-/*---------------------------------------------------------------------------*/
-/** \name AES register offsets
- * @{
- */
-#define AES_DMAC_CH0_CTRL       0x4008B000 /**< Channel 0 control */
-#define AES_DMAC_CH0_EXTADDR    0x4008B004 /**< Channel 0 external address */
-#define AES_DMAC_CH0_DMALENGTH  0x4008B00C /**< Channel 0 DMA length */
-#define AES_DMAC_STATUS         0x4008B018 /**< DMAC status */
-#define AES_DMAC_SWRES          0x4008B01C /**< DMAC software reset */
-#define AES_DMAC_CH1_CTRL       0x4008B020 /**< Channel 1 control */
-#define AES_DMAC_CH1_EXTADDR    0x4008B024 /**< Channel 1 external address */
-#define AES_DMAC_CH1_DMALENGTH  0x4008B02C /**< Channel 1 DMA length */
-#define AES_DMAC_MST_RUNPARAMS  0x4008B078 /**< DMAC master run-time parameters */
-#define AES_DMAC_PERSR          0x4008B07C /**< DMAC port error raw status */
-#define AES_DMAC_OPTIONS        0x4008B0F8 /**< DMAC options */
-#define AES_DMAC_VERSION        0x4008B0FC /**< DMAC version */
-#define AES_KEY_STORE_WRITE_AREA \
-                                0x4008B400 /**< Key store write area */
-#define AES_KEY_STORE_WRITTEN_AREA \
-                                0x4008B404 /**< Key store written area */
-#define AES_KEY_STORE_SIZE      0x4008B408 /**< Key store size */
-#define AES_KEY_STORE_READ_AREA 0x4008B40C /**< Key store read area */
-#define AES_AES_KEY2_0          0x4008B500 /**< AES_KEY2_0 / AES_GHASH_H_IN_0 */
-#define AES_AES_KEY2_1          0x4008B504 /**< AES_KEY2_1 / AES_GHASH_H_IN_1 */
-#define AES_AES_KEY2_2          0x4008B508 /**< AES_KEY2_2 / AES_GHASH_H_IN_2 */
-#define AES_AES_KEY2_3          0x4008B50C /**< AES_KEY2_3 / AES_GHASH_H_IN_3 */
-#define AES_AES_KEY3_0          0x4008B510 /**< AES_KEY3_0 / AES_KEY2_4 */
-#define AES_AES_KEY3_1          0x4008B514 /**< AES_KEY3_1 / AES_KEY2_5 */
-#define AES_AES_KEY3_2          0x4008B518 /**< AES_KEY3_2 / AES_KEY2_6 */
-#define AES_AES_KEY3_3          0x4008B51C /**< AES_KEY3_3 / AES_KEY2_7 */
-#define AES_AES_IV_0            0x4008B540 /**< AES initialization vector */
-#define AES_AES_IV_1            0x4008B544 /**< AES initialization vector */
-#define AES_AES_IV_2            0x4008B548 /**< AES initialization vector */
-#define AES_AES_IV_3            0x4008B54C /**< AES initialization vector */
-#define AES_AES_CTRL            0x4008B550 /**< AES input/output buffer control and mode */
-#define AES_AES_C_LENGTH_0      0x4008B554 /**< AES crypto length (LSW) */
-#define AES_AES_C_LENGTH_1      0x4008B558 /**< AES crypto length (MSW) */
-#define AES_AES_AUTH_LENGTH     0x4008B55C /**< Authentication length */
-#define AES_AES_DATA_IN_OUT_0   0x4008B560 /**< Data input/output */
-#define AES_AES_DATA_IN_OUT_1   0x4008B564 /**< Data Input/Output */
-#define AES_AES_DATA_IN_OUT_2   0x4008B568 /**< Data Input/Output */
-#define AES_AES_DATA_IN_OUT_3   0x4008B56C /**< Data Input/Output */
-#define AES_AES_TAG_OUT_0       0x4008B570 /**< TAG */
-#define AES_AES_TAG_OUT_1       0x4008B574 /**< TAG */
-#define AES_AES_TAG_OUT_2       0x4008B578 /**< TAG */
-#define AES_AES_TAG_OUT_3       0x4008B57C /**< TAG */
-#define AES_HASH_DATA_IN_0      0x4008B600 /**< HASH data input */
-#define AES_HASH_DATA_IN_1      0x4008B604 /**< HASH data input */
-#define AES_HASH_DATA_IN_2      0x4008B608 /**< HASH data input */
-#define AES_HASH_DATA_IN_3      0x4008B60C /**< HASH data input */
-#define AES_HASH_DATA_IN_4      0x4008B610 /**< HASH data input */
-#define AES_HASH_DATA_IN_5      0x4008B614 /**< HASH data input */
-#define AES_HASH_DATA_IN_6      0x4008B618 /**< HASH data input */
-#define AES_HASH_DATA_IN_7      0x4008B61C /**< HASH data input */
-#define AES_HASH_DATA_IN_8      0x4008B620 /**< HASH data input */
-#define AES_HASH_DATA_IN_9      0x4008B624 /**< HASH data input */
-#define AES_HASH_DATA_IN_10     0x4008B628 /**< HASH data input */
-#define AES_HASH_DATA_IN_11     0x4008B62C /**< HASH data input */
-#define AES_HASH_DATA_IN_12     0x4008B630 /**< HASH data input */
-#define AES_HASH_DATA_IN_13     0x4008B634 /**< HASH data input */
-#define AES_HASH_DATA_IN_14     0x4008B638 /**< HASH data input */
-#define AES_HASH_DATA_IN_15     0x4008B63C /**< HASH data input */
-#define AES_HASH_IO_BUF_CTRL    0x4008B640 /**< Input/output buffer control and status */
-#define AES_HASH_MODE_IN        0x4008B644 /**< Hash mode */
-#define AES_HASH_LENGTH_IN_L    0x4008B648 /**< Hash length */
-#define AES_HASH_LENGTH_IN_H    0x4008B64C /**< Hash length */
-#define AES_HASH_DIGEST_A       0x4008B650 /**< Hash digest */
-#define AES_HASH_DIGEST_B       0x4008B654 /**< Hash digest */
-#define AES_HASH_DIGEST_C       0x4008B658 /**< Hash digest */
-#define AES_HASH_DIGEST_D       0x4008B65C /**< Hash digest */
-#define AES_HASH_DIGEST_E       0x4008B660 /**< Hash digest */
-#define AES_HASH_DIGEST_F       0x4008B664 /**< Hash digest */
-#define AES_HASH_DIGEST_G       0x4008B668 /**< Hash digest */
-#define AES_HASH_DIGEST_H       0x4008B66C /**< Hash digest */
-#define AES_CTRL_ALG_SEL        0x4008B700 /**< Algorithm select */
-#define AES_CTRL_PROT_EN        0x4008B704 /**< Master PROT privileged access enable */
-#define AES_CTRL_SW_RESET       0x4008B740 /**< Software reset */
-#define AES_CTRL_INT_CFG        0x4008B780 /**< Interrupt configuration */
-#define AES_CTRL_INT_EN         0x4008B784 /**< Interrupt enable */
-#define AES_CTRL_INT_CLR        0x4008B788 /**< Interrupt clear */
-#define AES_CTRL_INT_SET        0x4008B78C /**< Interrupt set */
-#define AES_CTRL_INT_STAT       0x4008B790 /**< Interrupt status */
-#define AES_CTRL_OPTIONS        0x4008B7F8 /**< Options */
-#define AES_CTRL_VERSION        0x4008B7FC /**< Version */
-/** @} */
+
+typedef volatile uint32_t crypto_reg_t;
+
+#ifdef CRYPTO_CONF_SUPPORTS_SHA_512
+#define CRYPTO_SUPPORTS_SHA_512 CRYPTO_CONF_SUPPORTS_SHA_512
+#else /* CRYPTO_CONF_SUPPORTS_SHA_512 */
+#define CRYPTO_SUPPORTS_SHA_512 0
+#endif /* CRYPTO_CONF_SUPPORTS_SHA_512 */
+
 /*---------------------------------------------------------------------------*/
 /** \name AES_DMAC_CHx_CTRL registers bit fields
  * @{
@@ -460,25 +384,109 @@
 #define AES_CTRL_VERSION_EIP_NUMBER_S 0    /**< EIP-120t EIP-number shift */
 /** @} */
 /*---------------------------------------------------------------------------*/
-/** \name AES drivers return codes
- * @{
- */
-#define AES_KEYSTORE_READ_ERROR       5
-#define AES_KEYSTORE_WRITE_ERROR      6
-#define AES_AUTHENTICATION_FAILED     7
-/** @} */
-/*---------------------------------------------------------------------------*/
-/** \name AES constants
- * @{
- */
-#define AES_KEY_AREAS   8
-#define AES_BLOCK_LEN   (128 / 8)
-#define AES_IV_LEN      AES_BLOCK_LEN
-#define AES_TAG_LEN     AES_BLOCK_LEN
-/** @} */
-/*---------------------------------------------------------------------------*/
 
-#endif /* AES_H_ */
+/** Registers of the AES/SHA cryptoprocessor. */
+struct crypto {
+  /* DMA controller */
+  crypto_reg_t dmac_ch0_ctrl;
+  crypto_reg_t dmac_ch0_extaddr;
+  crypto_reg_t dmac_reserved1;
+  crypto_reg_t dmac_ch0_dmalength;
+  crypto_reg_t dmac_reserved2[2];
+  crypto_reg_t dmac_status;
+  crypto_reg_t dmac_swres;
+  crypto_reg_t dmac_ch1_ctrl;
+  crypto_reg_t dmac_ch1_extaddr;
+  crypto_reg_t dmac_reserved3;
+  crypto_reg_t dmac_ch1_dmalength;
+  crypto_reg_t dmac_reserved4[18];
+  crypto_reg_t dmac_mst_runparams; /**< aka DMABUSCFG */
+  crypto_reg_t dmac_persr;
+  crypto_reg_t dmac_reserved5[30];
+  crypto_reg_t dmac_options;
+  crypto_reg_t dmac_version;
+  crypto_reg_t dmac_reserved6[192];
+
+  /* Key store 0x400-0x4FF */
+  crypto_reg_t key_store_write_area;
+  crypto_reg_t key_store_written_area;
+  crypto_reg_t key_store_size;
+  crypto_reg_t key_store_read_area;
+  crypto_reg_t key_store_reserved[60];
+
+  /* AES engine 0x500-0x5FF */
+  crypto_reg_t aes_key2[4];
+  crypto_reg_t aes_key3[4];
+  crypto_reg_t aes_reserved1[8];
+  crypto_reg_t aes_iv_0;
+  crypto_reg_t aes_iv_1;
+  crypto_reg_t aes_iv_2;
+  crypto_reg_t aes_iv_3;
+  crypto_reg_t aes_ctrl;
+  crypto_reg_t aes_c_length_0;
+  crypto_reg_t aes_c_length_1;
+  crypto_reg_t aes_auth_length;
+  crypto_reg_t aes_data_in_out_0;
+  crypto_reg_t aes_data_in_out_1;
+  crypto_reg_t aes_data_in_out_2;
+  crypto_reg_t aes_data_in_out_3;
+  crypto_reg_t aes_tag_out_0;
+  crypto_reg_t aes_tag_out_1;
+  crypto_reg_t aes_tag_out_2;
+  crypto_reg_t aes_tag_out_3;
+  crypto_reg_t aes_reserved2[32];
+
+  /* Hash engine 0x600-0x6FF */
+  crypto_reg_t hash_data_in[CRYPTO_SUPPORTS_SHA_512 ? 32 : 16];
+  crypto_reg_t hash_io_buf_ctrl;
+  crypto_reg_t hash_mode_in;
+  crypto_reg_t hash_length_in_l;
+  crypto_reg_t hash_length_in_h;
+  crypto_reg_t reserved1[CRYPTO_SUPPORTS_SHA_512 ? 12 : 0];
+  crypto_reg_t hash_digest[CRYPTO_SUPPORTS_SHA_512 ? 16 : 8];
+  crypto_reg_t reserved2[CRYPTO_SUPPORTS_SHA_512 ? 0 : 36];
+
+  /* Master control 0x700 – 0x7FF */
+  crypto_reg_t ctrl_alg_sel;
+  crypto_reg_t ctrl_prot_en;
+  crypto_reg_t ctrl_reserved1[14];
+  crypto_reg_t ctrl_sw_reset;
+  crypto_reg_t ctrl_reserved2[15];
+  crypto_reg_t ctrl_int_cfg;
+  crypto_reg_t ctrl_int_en;
+  crypto_reg_t ctrl_int_clr;
+  crypto_reg_t ctrl_int_set;
+  crypto_reg_t ctrl_int_stat;
+  crypto_reg_t ctrl_reserved3[25];
+  crypto_reg_t ctrl_option;
+  crypto_reg_t ctrl_version;
+};
+
+extern struct crypto *crypto;
+
+/**
+ * \brief Enables and resets the AES/SHA cryptoprocessor.
+ */
+void crypto_init(void);
+
+/**
+ * \brief Enables the AES/SHA cryptoprocessor.
+ */
+void crypto_enable(void);
+
+/**
+ * \brief Disables the AES/SHA cryptoprocessor.
+ * \note Call this function to save power when the cryptoprocessor is unused.
+ */
+void crypto_disable(void);
+
+/**
+ * \brief  Checks if the AES/SHA cryptoprocessor is on.
+ * \return \c true if the AES/SHA cryptoprocessor is on and \c false otherwise.
+ */
+bool crypto_is_enabled(void);
+
+#endif /* CRYPTO_H_ */
 
 /**
  * @}

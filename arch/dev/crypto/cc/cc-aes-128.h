@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, University of Bristol - http://www.bristol.ac.uk
+ * Copyright (c) 2015, Hasso-Plattner-Institut.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,56 +25,34 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
+ *
+ * This file is part of the Contiki operating system.
  */
+
 /**
- * \addtogroup cc26xx
- * @{
- *
- * \defgroup cc26xx-aes CC26x0/CC13x0 AES-128
- *
- * AES-128 driver for the CC26x0/CC13x0 SoC
+ * \addtogroup cc-crypto
  * @{
  *
  * \file
- *         Header file of the AES-128 driver for the CC26xx SoC
+ *         Header file of the AES-128 driver for CCXXXX MCUs.
  * \author
- *         Atis Elsts <atis.elsts@gmail.com>
+ *         Konrad Krentz <konrad.krentz@gmail.com>
  */
-#ifndef CC2538_AES_H_
-#define CC2538_AES_H_
 
+#ifndef CC2538_AES_128_H_
+#define CC2538_AES_128_H_
+
+#include "contiki.h"
 #include "lib/aes-128.h"
 
-/**
- * \brief Set a key to use in subsequent encryption & decryption operations.
- * \param key The key to use
- *
- * The size of the key must be AES_128_KEY_LENGTH.
- */
-void cc26xx_aes_set_key(const uint8_t *key);
+#ifdef CC_AES_128_CONF_KEY_AREA
+#define CC_AES_128_KEY_AREA CC_AES_128_CONF_KEY_AREA
+#else /* CC_AES_128_CONF_KEY_AREA */
+#define CC_AES_128_KEY_AREA 0
+#endif /* CC_AES_128_CONF_KEY_AREA */
 
-/**
- * \brief Encrypt a message using the SoC AES-128 hardware implementation
- * \param plaintext_and_result In: message to encrypt, out: the encrypted message.
- *
- * The size of the message must be AES_128_BLOCK_SIZE.
- * The key to use in the encryption must be set before calling this function.
- */
-void cc26xx_aes_encrypt(uint8_t *plaintext_and_result);
+extern const struct aes_128_driver cc_aes_128_driver;
 
-/**
- * \brief Decrypt a message using the SoC AES-128 hardware implementation
- * \param cyphertext_and_result In: message to decrypt, out: the decrypted message.
- *
- * The size of the message must be AES_128_BLOCK_SIZE.
- * The key to use in the decryption must be set before calling this function.
- */
-void cc26xx_aes_decrypt(uint8_t *cyphertext_and_result);
+#endif /* CC2538_AES_128_H_ */
 
-extern const struct aes_128_driver cc26xx_aes_128_driver;
-
-#endif /* CC2538_AES_H_ */
-/**
- * @}
- * @}
- */
+/** @} */

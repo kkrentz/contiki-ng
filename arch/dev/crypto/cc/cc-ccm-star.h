@@ -1,14 +1,5 @@
 /*
- * Original file:
- * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
- * All rights reserved.
- *
- * Port to Contiki:
- * Copyright (c) 2013, ADVANSEE - http://www.advansee.com/
- * All rights reserved.
- *
- * Adaptation to platform-independent API:
- * Copyright (c) 2021, Uppsala universitet
+ * Copyright (c) 2015, Benoît Thébaudeau <benoit.thebaudeau.dev@gmail.com>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,28 +29,19 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /**
- * \addtogroup cc2538-crypto
- * @{
- *
- * \defgroup cc2538-sha-256 cc2538 SHA-256
- *
- * Driver for the cc2538 SHA-256 mode of the security core
+ * \addtogroup cc-crypto
  * @{
  *
  * \file
- * Header file for the cc2538 SHA-256 driver
+ *       Header file of the AES-CCM* driver for CCXXXX MCUs.
  */
+#ifndef CC2538_CCM_STAR_H_
+#define CC2538_CCM_STAR_H_
 
-#ifndef CC2538_SHA_256_H_
-#define CC2538_SHA_256_H_
+#include "lib/ccm-star.h"
+/*---------------------------------------------------------------------------*/
+extern const struct ccm_star_driver cc_ccm_star_driver;
 
-#include "lib/sha-256.h"
+#endif /* CC2538_CCM_STAR_H_ */
 
-extern const struct sha_256_driver cc2538_sha_256_driver;
-
-#endif /* CC2538_SHA_256_H_ */
-
-/**
- * @}
- * @}
- */
+/** @} */

@@ -28,17 +28,22 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
 /**
- * \addtogroup cc2538-crypto
+ * \addtogroup cc-crypto
  * @{
  *
  * \file
- * Implementation of the cc2538 AES/SHA cryptoprocessor driver
+ *         Implementation of general functions of the AES/SHA cryptoprocessor.
+ * \author
+ *         Konrad Krentz <konrad.krentz@gmail.com>
  */
-#include "contiki.h"
+
+#include "dev/crypto/cc/crypto.h"
 #include "dev/sys-ctrl.h"
-#include "dev/crypto.h"
 #include "reg.h"
+
+struct crypto *crypto = (struct crypto *)0x4008B000;
 
 /*---------------------------------------------------------------------------*/
 void
@@ -66,6 +71,12 @@ crypto_disable(void)
 {
   /* Gate the clock for the AES/SHA cryptoprocessor */
   REG(SYS_CTRL_RCGCSEC) &= ~SYS_CTRL_RCGCSEC_AES;
+}
+/*---------------------------------------------------------------------------*/
+bool
+crypto_is_enabled(void)
+{
+  return REG(SYS_CTRL_RCGCSEC) & SYS_CTRL_RCGCSEC_AES;
 }
 /*---------------------------------------------------------------------------*/
 

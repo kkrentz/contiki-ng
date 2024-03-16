@@ -1,5 +1,14 @@
 /*
+ * Original file:
+ * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com/
+ * All rights reserved.
+ *
+ * Port to Contiki:
  * Copyright (c) 2013, ADVANSEE - http://www.advansee.com/
+ * All rights reserved.
+ *
+ * Adaptation to platform-independent API:
+ * Copyright (c) 2021, Uppsala universitet
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,58 +38,20 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /**
- * \addtogroup cc2538
- * @{
- *
- * \defgroup cc2538-crypto cc2538 AES/SHA cryptoprocessor
- *
- * Driver for the cc2538 AES/SHA cryptoprocessor
+ * \addtogroup cc-crypto
  * @{
  *
  * \file
- * Header file for the cc2538 AES/SHA cryptoprocessor driver
- */
-#ifndef CRYPTO_H_
-#define CRYPTO_H_
-
-#include "contiki.h"
-#include "dev/sys-ctrl.h"
-#include "reg.h"
-/*---------------------------------------------------------------------------*/
-/** \name Crypto macros
- * @{
+ *       Header file for the SHA-256 driver for CCXXXX MCUs.
  */
 
-/** \brief Indicates whether the AES/SHA cryptoprocessor is enabled
- * \return Boolean value indicating whether the AES/SHA cryptoprocessor is
- * enabled
- */
-#define CRYPTO_IS_ENABLED() (!!(REG(SYS_CTRL_RCGCSEC) & SYS_CTRL_RCGCSEC_AES))
+#ifndef CC2538_SHA_256_H_
+#define CC2538_SHA_256_H_
+
+#include "lib/sha-256.h"
+
+extern const struct sha_256_driver cc_sha_256_driver;
+
+#endif /* CC2538_SHA_256_H_ */
 
 /** @} */
-/*---------------------------------------------------------------------------*/
-/** \name Crypto functions
- * @{
- */
-
-/** \brief Enables and resets the AES/SHA cryptoprocessor
- */
-void crypto_init(void);
-
-/** \brief Enables the AES/SHA cryptoprocessor
- */
-void crypto_enable(void);
-
-/** \brief Disables the AES/SHA cryptoprocessor
- * \note Call this function to save power when the cryptoprocessor is unused.
- */
-void crypto_disable(void);
-
-/** @} */
-
-#endif /* CRYPTO_H_ */
-
-/**
- * @}
- * @}
- */

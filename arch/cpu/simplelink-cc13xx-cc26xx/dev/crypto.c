@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Hasso-Plattner-Institut.
+ * Copyright (c) 2025, Konrad-Felix Krentz
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,97 +25,64 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * This file is part of the Contiki operating system.
  */
+
 /**
- * \addtogroup cc2538-aes-128
+ * \addtogroup cc-crypto
  * @{
  *
  * \file
- *         Implementation of the AES-128 driver for the CC2538 SoC
+ *         Implementation of general functions of the AES/SHA cryptoprocessor.
  * \author
  *         Konrad Krentz <konrad.krentz@gmail.com>
  */
-#include "contiki.h"
-#include "dev/ecb.h"
-#include "dev/cc2538-aes-128.h"
-#include "dev/sys-ctrl.h"
 
-#include <stdint.h>
-#include <stdio.h>
-/*---------------------------------------------------------------------------*/
-#define MODULE_NAME     "cc2538-aes-128"
+#include "dev/crypto/cc/crypto.h"
+#include <ti/devices/DeviceFamily.h>
+#include DeviceFamily_constructPath(inc/hw_crypto.h)
+#include DeviceFamily_constructPath(inc/hw_types.h)
+#include DeviceFamily_constructPath(inc/hw_memmap.h)
+#include DeviceFamily_constructPath(inc/hw_prcm.h)
+#include DeviceFamily_constructPath(driverlib/interrupt.h)
+#include DeviceFamily_constructPath(driverlib/prcm.h)
 
-#define DEBUG 0
-#if DEBUG
-#define PRINTF(...) printf(__VA_ARGS__)
-#else
-#define PRINTF(...)
-#endif
+#ifndef CRYPTO_SWRESET_SW_RESET
+/* for backwards compatibility with CC13x0/CC26x0 */
+#define CRYPTO_SWRESET_SW_RESET CRYPTO_SWRESET_RESET
+#endif /* !CRYPTO_SWRESET_SW_RESET */
+
+struct crypto *crypto = (struct crypto *)CRYPTO_BASE;
+
 /*---------------------------------------------------------------------------*/
-static uint8_t
-enable_crypto(void)
+void
+crypto_init(void)
 {
-  uint8_t enabled = CRYPTO_IS_ENABLED();
-  if(!enabled) {
-    crypto_enable();
-  }
-  return enabled;
+  crypto_enable();
+  HWREG(CRYPTO_BASE + CRYPTO_O_SWRESET) = 1;
+  crypto_disable();
+  IntDisable(INT_CRYPTO_RESULT_AVAIL_IRQ);
 }
 /*---------------------------------------------------------------------------*/
-static void
-restore_crypto(uint8_t enabled)
+void
+crypto_enable(void)
 {
-  if(!enabled) {
-    crypto_disable();
-  }
+  HWREG(PRCM_BASE + PRCM_O_SECDMACLKGR) |= PRCM_SECDMACLKGR_CRYPTO_CLK_EN;
+  PRCMLoadSet();
 }
 /*---------------------------------------------------------------------------*/
-static void
-set_key(const uint8_t *key)
+void
+crypto_disable(void)
 {
-  uint8_t crypto_enabled, ret;
-
-  crypto_enabled = enable_crypto();
-
-  ret = aes_load_keys(key, AES_KEY_STORE_SIZE_KEY_SIZE_128, 1,
-                      CC2538_AES_128_KEY_AREA);
-  if(ret != CRYPTO_SUCCESS) {
-    PRINTF("%s: aes_load_keys() error %u\n", MODULE_NAME, ret);
-    sys_ctrl_reset();
-  }
-
-  restore_crypto(crypto_enabled);
+  HWREG(PRCM_BASE + PRCM_O_SECDMACLKGR) &= ~PRCM_SECDMACLKGR_CRYPTO_CLK_EN;
+  PRCMLoadSet();
 }
 /*---------------------------------------------------------------------------*/
-static void
-encrypt(uint8_t *plaintext_and_result)
+bool
+crypto_is_enabled(void)
 {
-  uint8_t crypto_enabled, ret;
-  int8_t res;
-
-  crypto_enabled = enable_crypto();
-
-  ret = ecb_crypt_start(true, CC2538_AES_128_KEY_AREA, plaintext_and_result,
-                        plaintext_and_result, AES_128_BLOCK_SIZE, NULL);
-  if(ret != CRYPTO_SUCCESS) {
-    PRINTF("%s: ecb_crypt_start() error %u\n", MODULE_NAME, ret);
-    sys_ctrl_reset();
-  }
-
-  while((res = ecb_crypt_check_status()) == CRYPTO_PENDING);
-  if(res != CRYPTO_SUCCESS) {
-    PRINTF("%s: ecb_crypt_check_status() error %d\n", MODULE_NAME, res);
-    sys_ctrl_reset();
-  }
-
-  restore_crypto(crypto_enabled);
+  return HWREG(PRCM_BASE + PRCM_O_SECDMACLKGR)
+         & PRCM_SECDMACLKGR_CRYPTO_CLK_EN;
 }
 /*---------------------------------------------------------------------------*/
-const struct aes_128_driver cc2538_aes_128_driver = {
-  set_key,
-  encrypt
-};
 
 /** @} */

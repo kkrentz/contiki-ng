@@ -38,24 +38,30 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /**
- * \addtogroup cc2538-sha-256
+ * \addtogroup cc-crypto
  * @{
  *
  * \file
- * Implementation of the cc2538 SHA-256 driver
+ *       Implementation of the SHA-256 driver for CCXXXX MCUs.
  */
 
-#include "dev/cc2538-sha-256.h"
-#include "dev/udma.h"
-#include "dev/aes.h"
+#include "dev/crypto/cc/cc-sha-256.h"
+#include "dev/crypto/cc/crypto.h"
 #include "lib/aes-128.h"
 #include "lib/assert.h"
 #include <stdbool.h>
 
 /* Log configuration */
 #include "sys/log.h"
-#define LOG_MODULE "cc2538-sha-256"
+#define LOG_MODULE "cc-sha-256"
 #define LOG_LEVEL LOG_LEVEL_NONE
+
+/**
+ * \brief       Counts the number of elements of an array.
+ * \param array The array.
+ * \return      The number of elements of the array.
+ */
+#define ARRAY_LENGTH(array) (sizeof(array) / sizeof((array)[0]))
 
 static const uint8_t empty_digest[SHA_256_DIGEST_LENGTH] = {
   0xe3, 0xb0, 0xc4, 0x42, 0x98, 0xfc, 0x1c, 0x14,
@@ -67,22 +73,29 @@ static sha_256_checkpoint_t checkpoint;
 static bool was_crypto_enabled;
 
 /*---------------------------------------------------------------------------*/
+static bool
+is_valid_source_address(uintptr_t address)
+{
+  static const uintptr_t sram_base = 0x20000000;
+  return address >= sram_base;
+}
+/*---------------------------------------------------------------------------*/
 static void
 enable_crypto(void)
 {
-  was_crypto_enabled = CRYPTO_IS_ENABLED();
+  was_crypto_enabled = crypto_is_enabled();
   if(!was_crypto_enabled) {
     crypto_enable();
   }
   /* enable DMA path to the SHA-256 engine + Digest readout */
-  REG(AES_CTRL_ALG_SEL) = AES_CTRL_ALG_SEL_TAG | AES_CTRL_ALG_SEL_HASH;
+  crypto->ctrl_alg_sel = AES_CTRL_ALG_SEL_TAG | AES_CTRL_ALG_SEL_HASH;
 }
 /*---------------------------------------------------------------------------*/
 static void
 disable_crypto(void)
 {
   /* disable master control/DMA clock */
-  REG(AES_CTRL_ALG_SEL) = 0;
+  crypto->ctrl_alg_sel = 0;
   if(!was_crypto_enabled) {
     crypto_disable();
   }
@@ -93,65 +106,60 @@ do_hash(const uint8_t *data, size_t len,
         void *digest, uint64_t final_bit_count)
 {
   /* DMA fails if data does not reside in RAM  */
-  assert(udma_is_valid_source_address((uintptr_t)data));
+  assert(is_valid_source_address((uintptr_t)data));
   /* all previous interrupts should have been acknowledged */
-  assert(!REG(AES_CTRL_INT_STAT));
+  assert(!crypto->ctrl_int_stat);
 
   /* set up AES interrupts */
-  REG(AES_CTRL_INT_CFG) = AES_CTRL_INT_CFG_LEVEL;
-  REG(AES_CTRL_INT_EN) = AES_CTRL_INT_EN_RESULT_AV;
+  crypto->ctrl_int_cfg = AES_CTRL_INT_CFG_LEVEL;
+  crypto->ctrl_int_en = AES_CTRL_INT_EN_RESULT_AV;
 
   if(checkpoint.bit_count) {
     /* configure resumed hash session */
-    REG(AES_HASH_MODE_IN) = AES_HASH_MODE_IN_SHA256_MODE;
-    REG(AES_HASH_DIGEST_A) = checkpoint.state[0];
-    REG(AES_HASH_DIGEST_B) = checkpoint.state[1];
-    REG(AES_HASH_DIGEST_C) = checkpoint.state[2];
-    REG(AES_HASH_DIGEST_D) = checkpoint.state[3];
-    REG(AES_HASH_DIGEST_E) = checkpoint.state[4];
-    REG(AES_HASH_DIGEST_F) = checkpoint.state[5];
-    REG(AES_HASH_DIGEST_G) = checkpoint.state[6];
-    REG(AES_HASH_DIGEST_H) = checkpoint.state[7];
+    crypto->hash_mode_in = AES_HASH_MODE_IN_SHA256_MODE;
+    for(size_t i = 0; i < ARRAY_LENGTH(checkpoint.state); i++) {
+      crypto->hash_digest[i] = checkpoint.state[i];
+    }
   } else {
     /* configure new hash session */
-    REG(AES_HASH_MODE_IN) = AES_HASH_MODE_IN_SHA256_MODE
-                            | AES_HASH_MODE_IN_NEW_HASH;
+    crypto->hash_mode_in = AES_HASH_MODE_IN_SHA256_MODE
+                           | AES_HASH_MODE_IN_NEW_HASH;
   }
 
   if(final_bit_count) {
     /* configure for generating the final hash */
-    REG(AES_HASH_LENGTH_IN_L) = final_bit_count;
-    REG(AES_HASH_LENGTH_IN_H) = final_bit_count >> 32;
-    REG(AES_HASH_IO_BUF_CTRL) = AES_HASH_IO_BUF_CTRL_PAD_DMA_MESSAGE;
+    crypto->hash_length_in_l = final_bit_count;
+    crypto->hash_length_in_h = final_bit_count >> 32;
+    crypto->hash_io_buf_ctrl = AES_HASH_IO_BUF_CTRL_PAD_DMA_MESSAGE;
   }
 
   /* enable DMA channel 0 for message data */
-  REG(AES_DMAC_CH0_CTRL) = AES_DMAC_CH_CTRL_EN;
+  crypto->dmac_ch0_ctrl = AES_DMAC_CH_CTRL_EN;
   /* set base address of the data in ext. memory */
-  REG(AES_DMAC_CH0_EXTADDR) = (uintptr_t)data;
+  crypto->dmac_ch0_extaddr = (uintptr_t)data;
   /* set input data length in bytes */
-  REG(AES_DMAC_CH0_DMALENGTH) = len;
+  crypto->dmac_ch0_dmalength = len;
   /* enable DMA channel 1 for result digest */
-  REG(AES_DMAC_CH1_CTRL) = AES_DMAC_CH_CTRL_EN;
+  crypto->dmac_ch1_ctrl = AES_DMAC_CH_CTRL_EN;
   /* set base address of the digest buffer */
-  REG(AES_DMAC_CH1_EXTADDR) = (uintptr_t)digest;
+  crypto->dmac_ch1_extaddr = (uintptr_t)digest;
   /* set length of the result digest */
-  REG(AES_DMAC_CH1_DMALENGTH) = SHA_256_DIGEST_LENGTH;
+  crypto->dmac_ch1_dmalength = SHA_256_DIGEST_LENGTH;
 
   /* wait for operation done (hash and DMAC are ready) */
-  while(!(REG(AES_CTRL_INT_STAT) & AES_CTRL_INT_STAT_RESULT_AV));
+  while(!(crypto->ctrl_int_stat & AES_CTRL_INT_STAT_RESULT_AV));
 
   /* clear the interrupt */
-  REG(AES_CTRL_INT_CLR) = AES_CTRL_INT_CLR_RESULT_AV;
+  crypto->ctrl_int_clr = AES_CTRL_INT_CLR_RESULT_AV;
 
   /* check for the absence of errors */
-  if(REG(AES_CTRL_INT_STAT) & AES_CTRL_INT_STAT_DMA_BUS_ERR) {
+  if(crypto->ctrl_int_stat & AES_CTRL_INT_STAT_DMA_BUS_ERR) {
     LOG_ERR("error at line %d\n", __LINE__);
-    REG(AES_CTRL_INT_CLR) = AES_CTRL_INT_STAT_DMA_BUS_ERR;
+    crypto->ctrl_int_clr = AES_CTRL_INT_STAT_DMA_BUS_ERR;
   }
 
   /* all interrupts should have been acknowledged */
-  assert(!REG(AES_CTRL_INT_STAT));
+  assert(!crypto->ctrl_int_stat);
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -166,7 +174,7 @@ update(const uint8_t *data, size_t len)
   while(len) {
     size_t n;
     if(!checkpoint.buf_len && (len > SHA_256_BLOCK_SIZE)) {
-      if(udma_is_valid_source_address((uintptr_t)data)) {
+      if(is_valid_source_address((uintptr_t)data)) {
         n = (len - 1) & ~(SHA_256_BLOCK_SIZE - 1);
         do_hash(data, n, checkpoint.state, 0);
       } else {
@@ -228,7 +236,7 @@ hash(const uint8_t *data, size_t len,
   if(!len) {
     /* the CC2538 would freeze otherwise */
     memcpy(digest, empty_digest, sizeof(empty_digest));
-  } else if(udma_is_valid_source_address((uintptr_t)data)) {
+  } else if(is_valid_source_address((uintptr_t)data)) {
     enable_crypto();
     do_hash(data, len, digest, len << 3);
     disable_crypto();
@@ -237,7 +245,7 @@ hash(const uint8_t *data, size_t len,
   }
 }
 /*---------------------------------------------------------------------------*/
-const struct sha_256_driver cc2538_sha_256_driver = {
+const struct sha_256_driver cc_sha_256_driver = {
   init,
   update,
   finalize,
