@@ -34,7 +34,7 @@
  * @{
  *
  * \file
- * Implementation of PKA-accelerated ECDH and ECDSA.
+ * Implementation of PKA-accelerated ECDH, ECDSA, and FHMQV.
  */
 
 #include "lib/ecc.h"
@@ -110,6 +110,16 @@ static void
 element_to_pka_ram(const uint8_t *bytes, uintptr_t offset)
 {
   pka_big_endian_to_pka_ram(bytes, curve->bytes, offset);
+}
+/*---------------------------------------------------------------------------*/
+static void
+pad_to_pka_ram(const uint8_t *bytes, uintptr_t offset)
+{
+  uint8_t temp[MAX_ELEMENT_BYTES];
+  size_t bytes_size = curve->bytes >> 1;
+  memcpy(temp, bytes, bytes_size);
+  memset(temp + bytes_size, 0, curve->bytes - bytes_size);
+  pka_big_endian_to_pka_ram(temp, curve->bytes, offset);
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -1092,6 +1102,116 @@ static PT_THREAD(generate_shared_secret(const uint8_t *public_key,
   PT_END(&main_protothread);
 }
 /*---------------------------------------------------------------------------*/
+static PT_THREAD(generate_fhmqv_secret(const uint8_t *static_private_key,
+                                       const uint8_t *ephemeral_private_key,
+                                       const uint8_t *static_public_key,
+                                       const uint8_t *ephemeral_public_key,
+                                       const uint8_t *d,
+                                       const uint8_t *e,
+                                       uint8_t *shared_secret,
+                                       int *const result))
+{
+  static const uintptr_t static_private_key_offset =
+    variables_offset;
+  static const uintptr_t ephemeral_private_key_offset =
+    PKA_NEXT_OFFSET(static_private_key_offset, MAX_ELEMENT_WORDS);
+  static const uintptr_t static_public_key_offset =
+    PKA_NEXT_OFFSET(ephemeral_private_key_offset, MAX_ELEMENT_WORDS);
+  static const uintptr_t ephemeral_public_key_offset =
+    PKA_NEXT_OFFSET(static_public_key_offset, MAX_POINT_WORDS);
+  static const uintptr_t d_offset =
+    PKA_NEXT_OFFSET(ephemeral_public_key_offset, MAX_POINT_WORDS);
+  static const uintptr_t e_offset =
+    PKA_NEXT_OFFSET(d_offset, MAX_ELEMENT_WORDS);
+  static const uintptr_t s_offset =
+    PKA_NEXT_OFFSET(e_offset, MAX_ELEMENT_WORDS);
+  static const uintptr_t sigma_offset =
+    PKA_NEXT_OFFSET(s_offset, MAX_ELEMENT_WORDS);
+  /* PKA_NEXT_OFFSET(sigma_offset, MAX_POINT_WORDS); */
+
+  PT_BEGIN(&main_protothread);
+
+  /* copy inputs to PKA RAM */
+  element_to_pka_ram(static_private_key, static_private_key_offset);
+  element_to_pka_ram(ephemeral_private_key, ephemeral_private_key_offset);
+  point_to_pka_ram(static_public_key, static_public_key_offset);
+  point_to_pka_ram(ephemeral_public_key, ephemeral_public_key_offset);
+  pad_to_pka_ram(d, d_offset);
+  pad_to_pka_ram(e, e_offset);
+
+  /* s := d * static private key */
+  PT_SPAWN(&main_protothread,
+           &helper_protothread,
+           add_or_multiply_modulo(PKA_FUNCTION_MULTIPLY,
+                                  d_offset,
+                                  static_private_key_offset,
+                                  curve_n_offset,
+                                  s_offset,
+                                  result));
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(&main_protothread);
+  }
+
+  /* s := ephemeral private key + d * static private key */
+  PT_SPAWN(&main_protothread,
+           &helper_protothread,
+           add_or_multiply_modulo(PKA_FUNCTION_ADD,
+                                  s_offset,
+                                  ephemeral_private_key_offset,
+                                  curve_n_offset,
+                                  s_offset,
+                                  result));
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(&main_protothread);
+  }
+
+  /* sigma := e x static public key */
+  PT_SPAWN(&main_protothread,
+           &helper_protothread,
+           add_or_multiply_point(PKA_FUNCTION_ECCMUL,
+                                 e_offset,
+                                 static_public_key_offset,
+                                 sigma_offset,
+                                 result));
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(&main_protothread);
+  }
+
+  /* sigma := ephemeral public key + e x static public key */
+  PT_SPAWN(&main_protothread,
+           &helper_protothread,
+           add_or_multiply_point(PKA_FUNCTION_ECCADD,
+                                 sigma_offset,
+                                 ephemeral_public_key_offset,
+                                 sigma_offset,
+                                 result));
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(&main_protothread);
+  }
+
+  /* sigma := s x (ephemeral public key + e x static public key) */
+  PT_SPAWN(&main_protothread,
+           &helper_protothread,
+           add_or_multiply_point(PKA_FUNCTION_ECCMUL,
+                                 s_offset,
+                                 sigma_offset,
+                                 sigma_offset,
+                                 result));
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(&main_protothread);
+  }
+
+  element_from_pka_ram(shared_secret, sigma_offset);
+  *result = PKA_STATUS_SUCCESS;
+
+  PT_END(&main_protothread);
+}
+/*---------------------------------------------------------------------------*/
 static void
 disable(void)
 {
@@ -1111,6 +1231,7 @@ const struct ecc_driver cc2538_ecc_driver = {
   verify,
   generate_key_pair,
   generate_shared_secret,
+  generate_fhmqv_secret,
   disable
 };
 /*---------------------------------------------------------------------------*/
