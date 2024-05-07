@@ -183,6 +183,30 @@ static PT_THREAD(generate_shared_secret(
   PT_END(&protothread);
 }
 /*---------------------------------------------------------------------------*/
+static PT_THREAD(generate_fhmqv_secret(
+                   uint8_t *shared_secret,
+                   const uint8_t *static_private_key,
+                   const uint8_t *ephemeral_private_key,
+                   const uint8_t *static_public_key,
+                   const uint8_t *ephemeral_public_key,
+                   const uint8_t *d,
+                   const uint8_t *e,
+                   int *result))
+{
+  PT_BEGIN(&protothread);
+
+  *result = !uECC_shared_fhmqv_secret(shared_secret,
+                                      static_private_key,
+                                      ephemeral_private_key,
+                                      static_public_key,
+                                      ephemeral_public_key,
+                                      d,
+                                      e,
+                                      curve);
+
+  PT_END(&protothread);
+}
+/*---------------------------------------------------------------------------*/
 static void
 disable(void)
 {
@@ -201,6 +225,7 @@ const struct ecc_driver ecc_driver = {
   verify,
   generate_key_pair,
   generate_shared_secret,
+  generate_fhmqv_secret,
   disable
 };
 /*---------------------------------------------------------------------------*/
