@@ -44,6 +44,11 @@
 #include "net/nbr-table.h"
 #include "net/packetbuf.h"
 #include "net/queuebuf.h"
+#ifdef SMOR
+#include "smor-l2.h"
+#include "net/mac/csl/csl.h"
+#include "net/nbr-table.h"
+#endif /* SMOR */
 #include "services/akes/akes-mac.h"
 #include "services/akes/akes.h"
 
@@ -140,6 +145,50 @@ get_csmaca_status(const linkaddr_t *addr)
   return csmaca_status;
 }
 /*---------------------------------------------------------------------------*/
+#ifdef SMOR
+static struct csmaca_status *
+get_soonest_csmaca_status(frame_queue_entry_t *fqe,
+                          const linkaddr_t **lost_forwarder)
+{
+  *lost_forwarder = NULL;
+  const linkaddr_t *addr = queuebuf_addr(fqe->qb, PACKETBUF_ADDR_RECEIVER);
+  if(linkaddr_cmp(addr, &linkaddr_null)) {
+    return get_csmaca_status(addr);
+  }
+  struct csmaca_status *soonest_csmaca_status = NULL;
+  for(size_t i = 0; i < FRAME_QUEUE_MAX_FORWARDERS; i++) {
+    if(fqe->forwarders[i].tried) {
+      continue;
+    }
+    const linkaddr_t *forwarder_addr = &fqe->forwarders[i].addr;
+    if(linkaddr_cmp(forwarder_addr, &linkaddr_null)) {
+      continue;
+    }
+
+    struct csmaca_status *csmaca_status = get_csmaca_status(forwarder_addr);
+    if(!csmaca_status) {
+      LOG_WARN("forwarder lost\n");
+      *lost_forwarder = forwarder_addr;
+      return NULL;
+    }
+    if(!soonest_csmaca_status
+       || (CLOCK_LT(csmaca_status->next_attempt,
+                    soonest_csmaca_status->next_attempt))) {
+      soonest_csmaca_status = csmaca_status;
+    }
+  }
+  return soonest_csmaca_status;
+}
+#endif /* SMOR */
+/*---------------------------------------------------------------------------*/
+bool
+frame_queue_is_backing_off(const linkaddr_t *addr)
+{
+  struct csmaca_status *csmaca_status = get_csmaca_status(addr);
+  return csmaca_status
+         && CLOCK_LT(clock_time(), csmaca_status->next_attempt);
+}
+/*---------------------------------------------------------------------------*/
 static void
 release_csmaca_status(struct csmaca_status *csmaca_status)
 {
@@ -162,6 +211,14 @@ frame_queue_add(mac_callback_t sent, void *ptr)
     mac_call_sent_callback(sent, ptr, MAC_TX_QUEUE_FULL, 0);
     return false;
   }
+#ifdef SMOR
+  if(!smor_l2_select_forwarders(new_fqe->forwarders)) {
+    LOG_ERR("smor_l2_select_forwarders failed\n");
+    memb_free(&frame_queue_memb, new_fqe);
+    mac_call_sent_callback(sent, ptr, MAC_TX_ERR_FATAL, 0);
+    return false;
+  }
+#endif /* SMOR */
   new_fqe->qb = queuebuf_new_from_packetbuf();
   if(!new_fqe->qb) {
     LOG_ERR("queuebuf is full\n");
@@ -182,6 +239,19 @@ frame_queue_pick(void)
   for(frame_queue_entry_t *fqe = frame_queue_head();
       fqe;
       fqe = frame_queue_next(fqe)) {
+#ifdef SMOR
+    const linkaddr_t *lost_forwarder;
+    struct csmaca_status *csmaca_status =
+        get_soonest_csmaca_status(fqe, &lost_forwarder);
+    if(lost_forwarder) {
+      queuebuf_to_packetbuf(fqe->qb);
+      packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, lost_forwarder);
+      frame_queue_on_transmitted(MAC_TX_FORWARDER_LOST, fqe);
+      fqe = frame_queue_head();
+      continue;
+    }
+    assert(csmaca_status);
+#else /* SMOR */
     struct csmaca_status *csmaca_status =
         get_csmaca_status(queuebuf_addr(fqe->qb, PACKETBUF_ADDR_RECEIVER));
     if(!csmaca_status) {
@@ -191,6 +261,7 @@ frame_queue_pick(void)
       fqe = frame_queue_head();
       continue;
     }
+#endif /* SMOR */
     if(CLOCK_LT(now, csmaca_status->next_attempt)) {
       continue;
     }
@@ -230,10 +301,16 @@ frame_queue_burst(frame_queue_entry_t *fqe)
       continue;
     }
 #endif /* AKES_MAC_ENABLED */
+#ifdef SMOR
+    if(smor_l2_fits_burst(fqe)) {
+      return fqe;
+    }
+#else /* SMOR */
     if(linkaddr_cmp(packetbuf_addr(PACKETBUF_ADDR_RECEIVER),
                     queuebuf_addr(fqe->qb, PACKETBUF_ADDR_RECEIVER))) {
       return fqe;
     }
+#endif /* SMOR */
   }
   return NULL;
 }
@@ -267,10 +344,22 @@ frame_queue_on_transmitted(int result, frame_queue_entry_t *fqe)
   assert(result != MAC_TX_QUEUE_FULL);
 
   const linkaddr_t *addr = packetbuf_addr(PACKETBUF_ADDR_RECEIVER);
+#ifdef SMOR
+  struct csmaca_status *csmaca_status;
+  if(result == MAC_TX_FORWARDER_LOST) {
+    csmaca_status = NULL;
+  } else {
+    csmaca_status = get_csmaca_status(addr);
+    if(!csmaca_status) {
+      result = MAC_TX_ERR_FATAL;
+    }
+  }
+#else /* SMOR */
   struct csmaca_status *csmaca_status = get_csmaca_status(addr);
   if(!csmaca_status) {
     result = MAC_TX_ERR_FATAL;
   }
+#endif /* SMOR */
 
   switch(result) {
   case MAC_TX_ERR:
@@ -298,21 +387,66 @@ frame_queue_on_transmitted(int result, frame_queue_entry_t *fqe)
     }
     break;
   case MAC_TX_OK:
+  case MAC_TX_FORWARDER_DECLINED:
     csmaca_status->transmissions++;
     break;
   default:
     break;
   }
 
+  uint8_t transmissions;
   if(csmaca_status) {
+    transmissions = csmaca_status->transmissions;
     release_csmaca_status(csmaca_status);
+  } else {
+    transmissions = 0;
   }
 
+#ifdef SMOR
+  size_t forwarder_index = 0;
+  for(; forwarder_index < FRAME_QUEUE_MAX_FORWARDERS; forwarder_index++) {
+    if(linkaddr_cmp(&fqe->forwarders[forwarder_index].addr, addr)) {
+      break;
+    }
+  }
+  assert(forwarder_index < FRAME_QUEUE_MAX_FORWARDERS);
+  assert(!fqe->forwarders[forwarder_index].tried);
+  frame_queue_forwarder_t *other_forwarder =
+      (FRAME_QUEUE_MAX_FORWARDERS < 2)
+      ? NULL
+      : fqe->forwarders + FRAME_QUEUE_MAX_FORWARDERS - 1 - forwarder_index;
+  switch(result) {
+  case MAC_TX_FORWARDER_DECLINED:
+  case MAC_TX_FORWARDER_LOST:
+    result = result == MAC_TX_FORWARDER_DECLINED
+             ? MAC_TX_OK
+             : MAC_TX_ERR_FATAL;
+    if(other_forwarder
+       && smor_l2_select_spare_forwarder(
+              fqe->forwarders + forwarder_index,
+              queuebuf_addr(fqe->qb, PACKETBUF_ADDR_RECEIVER),
+              &other_forwarder->addr)) {
+      LOG_INFO("resorting to spare forwarder ");
+      LOG_INFO_LLADDR(&fqe->forwarders[forwarder_index].addr);
+      LOG_INFO_("\n");
+      akes_mac_report_to_network_layer(result, transmissions);
+      return;
+    }
+    /* fall through */
+  default:
+    fqe->forwarders[forwarder_index].tried = true;
+    if(other_forwarder
+       && !other_forwarder->tried
+       && !linkaddr_cmp(&linkaddr_null, &other_forwarder->addr)) {
+      LOG_INFO("duplicating\n");
+      akes_mac_report_to_network_layer(result, transmissions);
+      return;
+    }
+    break;
+  }
+#endif /* SMOR */
   queuebuf_free(fqe->qb);
-  mac_call_sent_callback(fqe->sent,
-                         fqe->ptr,
-                         result,
-                         csmaca_status ? csmaca_status->transmissions : 0);
+  mac_call_sent_callback(fqe->sent, fqe->ptr, result, transmissions);
   list_remove(frame_queue_list, fqe);
   memb_free(&frame_queue_memb, fqe);
 }
