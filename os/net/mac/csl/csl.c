@@ -63,6 +63,9 @@
 #include "net/queuebuf.h"
 #include "services/akes/akes-mac.h"
 #include "services/akes/akes.h"
+#ifdef SMOR
+#include "smor-l2.h"
+#endif /* SMOR */
 #include <stddef.h>
 
 #if CSL_COMPLIANT
@@ -829,6 +832,10 @@ PROCESS_THREAD(post_processing, ev, data)
         on_transmitted();
         continue;
       }
+#ifdef SMOR
+      packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER,
+                         &csl_state.transmit.next_hop_address);
+#endif /* SMOR */
 
       /* avoid skipping too many wake ups */
       rtimer_clock_t start_of_transmission =
@@ -938,6 +945,9 @@ PROCESS_THREAD(post_processing, ev, data)
       int create_result;
       do {
         queuebuf_to_packetbuf(csl_state.transmit.fqe[i]->qb);
+#ifdef SMOR
+        smor_l2_on_outgoing_frame_loaded(i);
+#endif /* SMOR */
         packetbuf_set_attr(PACKETBUF_ATTR_BURST_INDEX, i);
         packetbuf_set_attr(PACKETBUF_ATTR_PENDING,
                            (i < CSL_MAX_BURST_INDEX)
@@ -1258,6 +1268,17 @@ PT_THREAD(transmit(void))
           break;
         }
         NETSTACK_RADIO.async_off();
+#ifdef SMOR
+        if(csl_state.transmit.has_mesh_header[csl_state.transmit.burst_index]
+           && !csl_state.transmit.on_last_hop[csl_state.transmit.burst_index]
+           && (csl_state.transmit.reward[csl_state.transmit.burst_index]
+               == SMOR_METRIC.get_min())) {
+          csl_state.transmit.result[csl_state.transmit.burst_index] =
+              MAC_TX_FORWARDER_DECLINED;
+          LOG_WARN("forwarding was declined\n");
+          break;
+        }
+#endif /* SMOR */
       }
       csl_state.transmit.result[csl_state.transmit.burst_index] = MAC_TX_OK;
 
@@ -1307,8 +1328,21 @@ on_transmitted(void)
 {
   uint_fast8_t i = 0;
   do {
-    bool successful = csl_state.transmit.result[i] == MAC_TX_OK;
+    bool successful;
+    switch(csl_state.transmit.result[i]) {
+    case MAC_TX_OK:
+    case MAC_TX_FORWARDER_DECLINED:
+      successful = true;
+      break;
+    default:
+      successful = false;
+      break;
+    }
     queuebuf_to_packetbuf(csl_state.transmit.fqe[i]->qb);
+#ifdef SMOR
+    packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER,
+                       &csl_state.transmit.next_hop_address);
+#endif /* SMOR */
 
     if(!csl_state.transmit.is_broadcast) {
       if(!i) {
