@@ -46,6 +46,11 @@
 #include "net/mac/llsec802154.h"
 #include "net/mac/wake-up-counter.h"
 #include "services/akes/akes-mac.h"
+#ifdef SMOR
+#include "smor-metric.h"
+#else /* SMOR */
+#define SMOR_METRIC_LEN (0)
+#endif /* SMOR */
 
 /* define the lengths of various fields */
 #ifdef CSL_FRAMER_POTR_CONF_OTP_LEN
@@ -103,6 +108,7 @@
 #define CSL_FRAMER_POTR_MAX_ACKNOWLEDGMENT_LEN \
   (CSL_FRAMER_POTR_EXTENDED_FRAME_TYPE_LEN \
    + CSL_FRAMER_POTR_PHASE_LEN \
+   + SMOR_METRIC_LEN \
    + AKES_MAC_UNICAST_MIC_LEN)
 
 /* define the lengths of piggybacked data */
