@@ -38,6 +38,11 @@
 #define ECC_CURVE (&ecc_curve_p_256)
 #define ECC_CURVE_SIZE (ECC_CURVE_P_256_SIZE)
 
+struct cert_info {
+  uint8_t reconstruction_data[ECC_CURVE_SIZE * 2];
+  uint8_t hash[SHA_256_DIGEST_LENGTH];
+};
+
 PROCESS(test_process, "test");
 AUTOSTART_PROCESSES(&test_process);
 
@@ -316,6 +321,123 @@ UNIT_TEST(ecc_fhmqv)
   UNIT_TEST_END();
 }
 /*---------------------------------------------------------------------------*/
+static int
+encode_and_hash(const uint8_t *public_key_reconstruction_data,
+                void *opaque,
+                uint8_t *certificate_hash)
+{
+  struct cert_info *cert_info = (struct cert_info *)opaque;
+  SHA_256.hash(public_key_reconstruction_data,
+               sizeof(cert_info->reconstruction_data),
+               certificate_hash);
+  memcpy(cert_info->reconstruction_data,
+         public_key_reconstruction_data,
+         sizeof(cert_info->reconstruction_data));
+  memcpy(cert_info->hash, certificate_hash, sizeof(cert_info->hash));
+  return 1;
+}
+/*---------------------------------------------------------------------------*/
+UNIT_TEST_REGISTER(ecc_ecqv, "ECQV");
+UNIT_TEST(ecc_ecqv)
+{
+  int result;
+  static uint8_t ca_public_key[ECC_CURVE_SIZE * 2];
+  static uint8_t ca_private_key[ECC_CURVE_SIZE];
+  static uint8_t proto_public_key[ECC_CURVE_SIZE * 2];
+  static uint8_t proto_private_key[ECC_CURVE_SIZE];
+  static struct cert_info cert_info;
+  static uint8_t private_key_reconstruction_data[ECC_CURVE_SIZE];
+  static uint8_t bobs_public_key[ECC_CURVE_SIZE * 2];
+  static uint8_t bobs_private_key[ECC_CURVE_SIZE];
+  static uint8_t bobs_reconstructed_public_key[ECC_CURVE_SIZE * 2];
+
+  UNIT_TEST_BEGIN();
+
+  /* enable ECC driver */
+  PT_WAIT_UNTIL(&unit_test_pt, process_mutex_try_lock(ecc_get_mutex()));
+  UNIT_TEST_ASSERT(!ecc_enable(ECC_CURVE));
+
+  /* CA: generate public/private key pair */
+  PT_SPAWN(&unit_test_pt,
+           ecc_get_protothread(),
+           ecc_generate_key_pair(ca_public_key, ca_private_key, &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+
+  /* Bob: generate proto-public/private key pair */
+  PT_SPAWN(&unit_test_pt,
+           ecc_get_protothread(),
+           ecc_generate_key_pair(proto_public_key,
+                                 proto_private_key,
+                                 &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+
+  /* CA: validate proto-public key */
+  PT_SPAWN(&unit_test_pt,
+           ecc_get_protothread(),
+           ecc_validate_public_key(proto_public_key, &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+
+  /* CA: generate public and private key reconstruction data */
+  PT_SPAWN(&unit_test_pt,
+           ecc_get_protothread(),
+           ecc_generate_ecqv_certificate(proto_public_key,
+                                         ca_private_key,
+                                         encode_and_hash,
+                                         &cert_info,
+                                         private_key_reconstruction_data,
+                                         &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+
+  /* Bob: generate actual public/private key pair */
+  PT_SPAWN(&unit_test_pt,
+           ecc_get_protothread(),
+           ecc_generate_ecqv_key_pair(proto_private_key,
+                                      cert_info.hash,
+                                      private_key_reconstruction_data,
+                                      bobs_public_key,
+                                      bobs_private_key,
+                                      &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+
+  /* Alice: reconstruct Bob's public key */
+  PT_SPAWN(&unit_test_pt,
+           ecc_get_protothread(),
+           ecc_validate_public_key(cert_info.reconstruction_data,
+                                   &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+  PT_SPAWN(&unit_test_pt,
+           ecc_get_protothread(),
+           ecc_reconstruct_ecqv_public_key(cert_info.hash,
+                                           cert_info.reconstruction_data,
+                                           ca_public_key,
+                                           bobs_reconstructed_public_key,
+                                           &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+
+  ecc_disable();
+
+  /* check if the reconstructed public key matches the generated one */
+  UNIT_TEST_ASSERT(!memcmp(bobs_public_key,
+                           bobs_reconstructed_public_key,
+                           sizeof(bobs_public_key)));
+
+  UNIT_TEST_END();
+}
+/*---------------------------------------------------------------------------*/
 PROCESS_THREAD(test_process, ev, data)
 {
   PROCESS_BEGIN();
@@ -327,11 +449,13 @@ PROCESS_THREAD(test_process, ev, data)
   UNIT_TEST_RUN(ecc_ecdh);
   UNIT_TEST_RUN(ecc_ecdsa);
   UNIT_TEST_RUN(ecc_fhmqv);
+  UNIT_TEST_RUN(ecc_ecqv);
 
   if(!UNIT_TEST_PASSED(ecc_compress)
      || !UNIT_TEST_PASSED(ecc_ecdh)
      || !UNIT_TEST_PASSED(ecc_ecdsa)
-     || !UNIT_TEST_PASSED(ecc_fhmqv)) {
+     || !UNIT_TEST_PASSED(ecc_fhmqv)
+     || !UNIT_TEST_PASSED(ecc_ecqv)) {
     printf("=check-me= FAILED\n");
     printf("---\n");
   }
