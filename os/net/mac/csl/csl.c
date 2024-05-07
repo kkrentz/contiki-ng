@@ -44,6 +44,9 @@
 #else /* CRYPTO_CONF_INIT */
 #define CRYPTO_CONF_INIT 0
 #endif /* CRYPTO_CONF_INIT */
+#ifdef AGGREGATOR
+#include "filtering-client.h"
+#endif /* AGGREGATOR */
 #include "lib/aes-128.h"
 #include "lib/assert.h"
 #include "lib/list.h"
@@ -758,7 +761,11 @@ on_txdone(void)
  */
 PROCESS_THREAD(post_processing, ev, data)
 {
+#ifdef AGGREGATOR
+  static bool sent_once;
+#else /* AGGREGATOR */
   bool sent_once;
+#endif /* AGGREGATOR */
 
   PROCESS_BEGIN();
 
@@ -830,7 +837,13 @@ PROCESS_THREAD(post_processing, ev, data)
       /* avoid skipping too many wake ups */
       rtimer_clock_t start_of_transmission =
           csl_state.transmit.wake_up_sequence_start
+#ifdef AGGREGATOR
+          - (packetbuf_attr(PACKETBUF_ATTR_INBOUND_OSCORE)
+             ? US_TO_RTIMERTICKS(AGGREGATOR_OTP_WAIT_TIME * 1000)
+             : CSL_FRAME_CREATION_TIME)
+#else /* AGGREGATOR */
           - CSL_FRAME_CREATION_TIME
+#endif /* AGGREGATOR */
           - CSL_WAKE_UP_SEQUENCE_GUARD_TIME
           - US_TO_RTIMERTICKS(1000) /* leeway */;
       rtimer_clock_t end_of_transmission =
@@ -954,6 +967,28 @@ PROCESS_THREAD(post_processing, ev, data)
           csl_state.transmit.payload_frame_lens[0];
 
       /* prepare wake-up sequence */
+#ifdef AGGREGATOR
+      if(packetbuf_attr(PACKETBUF_ATTR_INBOUND_OSCORE)) {
+        struct pt *otp_retrieval_protothread =
+            filtering_client_get_otp_retrieval_protothread();
+        if(!otp_retrieval_protothread) {
+          LOG_ERR("filtering_client_get_otp_retrieval_protothread failed\n");
+          csl_state.transmit.result[0] = MAC_TX_ERR_FATAL;
+          on_transmitted();
+          continue;
+        }
+        bool was_otp_retrieval_successful;
+        PROCESS_PT_SPAWN(otp_retrieval_protothread,
+                         filtering_client_retrieve_filtering_otp(
+                             &was_otp_retrieval_successful));
+        if(!was_otp_retrieval_successful) {
+          LOG_ERR("filtering_client_retrieve_filtering_otp failed\n");
+          csl_state.transmit.result[0] = MAC_TX_ERR_FATAL;
+          on_transmitted();
+          continue;
+        }
+      }
+#endif /* AGGREGATOR */
       uint8_t wake_up_frame[CSL_MAX_WAKE_UP_FRAME_LEN];
       memcpy(wake_up_frame, radio_shr, RADIO_SHR_LEN);
       if(CSL_FRAMER.create_wake_up_frame(wake_up_frame + RADIO_SHR_LEN)
@@ -1385,7 +1420,13 @@ csl_can_schedule_wake_up_sequence(void)
 {
   return !rtimer_has_timed_out(
              csl_state.transmit.wake_up_sequence_start
+#ifdef AGGREGATOR
+             - (packetbuf_attr(PACKETBUF_ATTR_INBOUND_OSCORE)
+                ? US_TO_RTIMERTICKS(AGGREGATOR_OTP_WAIT_TIME * 1000)
+                : CSL_FRAME_CREATION_TIME)
+#else /* AGGREGATOR */
              - CSL_FRAME_CREATION_TIME
+#endif /* AGGREGATOR */
              - CSL_WAKE_UP_SEQUENCE_GUARD_TIME);
 }
 /*---------------------------------------------------------------------------*/
