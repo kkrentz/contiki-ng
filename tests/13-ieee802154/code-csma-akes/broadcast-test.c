@@ -31,9 +31,11 @@
  */
 
 #include "contiki.h"
-#include "contiki-net.h"
 #include "net/ipv6/simple-udp.h"
 #include "net/ipv6/uip.h"
+#include "services/akes/akes-nbr.h"
+#include "services/akes/akes-mac.h"
+#include "services/akes/akes-trickle.h"
 #include "sys/node-id.h"
 #include <stdio.h>
 
@@ -103,13 +105,25 @@ PROCESS_THREAD(broadcast_test_process, ev, data)
       UDP_SERVER_PORT,
       client_callback);
 
+  /* wait for session key establishment */
+  etimer_set(&timer, CLOCK_SECOND);
+  while(1) {
+    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
+    if(akes_nbr_head(AKES_NBR_PERMANENT)) {
+      break;
+    }
+    etimer_reset(&timer);
+  }
+
   if(node_id == 1) {
     for(; counter < 8; counter++) {
-      etimer_set(&timer, CLOCK_SECOND);
+      etimer_set(&timer, CLOCK_SECOND + clock_random(CLOCK_SECOND));
       PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
+
       simple_udp_sendto(&client_connection, &counter, 1, &ipaddr);
     }
   } else {
+    akes_trickle_stop();
     printf("=check-me= DONE\n");
   }
 
