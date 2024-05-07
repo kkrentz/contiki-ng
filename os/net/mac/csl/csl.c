@@ -45,6 +45,9 @@
 #else /* CRYPTO_CONF_INIT */
 #define CRYPTO_CONF_INIT 0
 #endif /* CRYPTO_CONF_INIT */
+#ifdef SMOR
+#include "smor-l2.h"
+#endif /* SMOR */
 #ifdef AGGREGATOR
 #include "filtering-client.h"
 #endif /* AGGREGATOR */
@@ -826,6 +829,9 @@ PROCESS_THREAD(post_processing, ev, data)
         }
         csl_state.fqe = next;
       }
+#ifdef SMOR
+      packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &csl_state.next_hop_address);
+#endif /* SMOR */
 
       /* avoid skipping too many wake ups */
       rtimer_clock_t end_of_transmission = csl_state.payload_frame_start
@@ -906,6 +912,9 @@ PROCESS_THREAD(post_processing, ev, data)
       int create_result;
       do {
         queuebuf_to_packetbuf(csl_state.transmit.fqe[i]->qb);
+#ifdef SMOR
+        smor_l2_on_outgoing_frame_loaded(i);
+#endif /* SMOR */
         packetbuf_set_attr(PACKETBUF_ATTR_BURST_INDEX, i);
         packetbuf_set_attr(PACKETBUF_ATTR_PENDING,
             ((i < CSL_MAX_BURST_INDEX) && csl_state.transmit.fqe[i + 1])
@@ -1217,6 +1226,17 @@ static PT_THREAD(transmit(void))
           break;
         }
         NETSTACK_RADIO.async_off();
+#ifdef SMOR
+        if(csl_state.transmit.has_mesh_header[csl_state.transmit.burst_index]
+            && !csl_state.transmit.on_last_hop[csl_state.transmit.burst_index]
+            && (csl_state.transmit.reward[csl_state.transmit.burst_index]
+                == SMOR_METRIC.get_min())) {
+          csl_state.transmit.result[csl_state.transmit.burst_index] =
+              MAC_TX_FORWARDING_DECLINED;
+          LOG_WARN("forwarding was declined\n");
+          break;
+        }
+#endif /* SMOR */
       }
       csl_state.transmit.result[csl_state.transmit.burst_index] = MAC_TX_OK;
 
@@ -1265,8 +1285,20 @@ on_transmitted(void)
 {
   uint_fast8_t i = 0;
   do {
-    bool successful = csl_state.transmit.result[i] == MAC_TX_OK;
+    bool successful;
+    switch(csl_state.transmit.result[i]) {
+    case MAC_TX_OK:
+    case MAC_TX_FORWARDING_DECLINED:
+      successful = true;
+      break;
+    default:
+      successful = false;
+      break;
+    }
     queuebuf_to_packetbuf(csl_state.transmit.fqe[i]->qb);
+#ifdef SMOR
+    packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &csl_state.next_hop_address);
+#endif /* SMOR */
 
     if(!csl_state.transmit.is_broadcast) {
       if(!i) {
@@ -1283,7 +1315,8 @@ on_transmitted(void)
     }
     frame_queue_on_transmitted(csl_state.transmit.result[i],
         csl_state.transmit.fqe[i]);
-  } while(successful && (++i <= csl_state.transmit.last_burst_index));
+  } while((csl_state.transmit.result[i] == MAC_TX_OK)
+      && (++i <= csl_state.transmit.last_burst_index));
 }
 /*---------------------------------------------------------------------------*/
 /** Called by upper layers when a frame shall be sent. */

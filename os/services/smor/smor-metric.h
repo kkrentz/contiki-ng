@@ -27,88 +27,38 @@
  * SUCH DAMAGE.
  *
  * This file is part of the Contiki operating system.
- *
  */
 
 /**
  * \file
- *         Common functionality for scheduling retransmissions.
+ *         Interface to the routing metric.
  * \author
  *         Konrad Krentz <konrad.krentz@gmail.com>
  */
 
-#ifndef FRAME_QUEUE_H_
-#define FRAME_QUEUE_H_
+#ifndef SMOR_METRIC_H_
+#define SMOR_METRIC_H_
 
-#ifdef SMOR
+#include "net/link-stats.h"
 #include "net/linkaddr.h"
-#endif /* SMOR */
-#include "net/mac/mac.h"
-#include "sys/clock.h"
 #include <stdbool.h>
 
-#ifdef FRAME_QUEUE_CONF_MAX_FORWARDERS
-#define FRAME_QUEUE_MAX_FORWARDERS FRAME_QUEUE_CONF_MAX_FORWARDERS
-#else /* FRAME_QUEUE_CONF_MAX_FORWARDERS */
-#define FRAME_QUEUE_MAX_FORWARDERS (2)
-#endif /* FRAME_QUEUE_CONF_MAX_FORWARDERS */
+#define SMOR_METRIC smor_etx_metric
+#define SMOR_METRIC_LEN (sizeof(smor_metric_t))
 
-typedef struct frame_queue_entry {
-  struct frame_queue_entry *next;
-  bool is_broadcast;
-  struct queuebuf *qb;
-  mac_callback_t sent;
-  void *ptr;
-#ifdef SMOR
-  linkaddr_t forwarders[FRAME_QUEUE_MAX_FORWARDERS];
-#endif /* SMOR */
-} frame_queue_entry_t;
+typedef link_packet_stat_t smor_metric_t;
 
-/**
- * \brief Initializes.
- */
-void frame_queue_init(void);
+struct smor_metric {
+  void (* init)(void);
+  smor_metric_t (* get_max)(void);
+  smor_metric_t (* get_min)(void);
+  smor_metric_t (* judge_link_to)(const linkaddr_t *addr);
+  smor_metric_t (* judge_path)(smor_metric_t first_hop_metric,
+      smor_metric_t second_hop_metric);
+  bool (* better_than)(smor_metric_t this_metric,
+      smor_metric_t that_metric);
+};
 
-#ifdef SMOR
-/**
- * \brief Tells if a transmission backoff toward a potential forwarder is ongoing.
- */
-bool frame_queue_is_backing_off(const linkaddr_t *addr);
-#endif /* SMOR */
+extern const struct smor_metric SMOR_METRIC;
 
-/**
- * \brief Buffers outgoing frames.
- */
-bool frame_queue_add(mac_callback_t sent, void *ptr);
-
-/**
- * \brief Selects the next frame to transmit.
- */
-frame_queue_entry_t *frame_queue_pick(void);
-
-/**
- * \brief Returns the first entry in the queue.
- */
-frame_queue_entry_t *frame_queue_head(void);
-
-/**
- * \brief Returns the next entry in the queue.
- */
-frame_queue_entry_t *frame_queue_next(frame_queue_entry_t *fqe);
-
-/**
- * \brief Selects the next frame to burst.
- */
-frame_queue_entry_t *frame_queue_burst(frame_queue_entry_t *previous);
-
-/**
- * \brief Delays the transmission of any frames toward the same receiver.
- */
-void frame_queue_postpone(clock_time_t next_attempt);
-
-/**
- * \brief Handles a completed transmission.
- */
-void frame_queue_on_transmitted(int result, frame_queue_entry_t *fqe);
-
-#endif /* FRAME_QUEUE_H_ */
+#endif /* SMOR_METRIC_H_ */

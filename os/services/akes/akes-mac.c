@@ -225,6 +225,15 @@ akes_mac_check_frame(void)
 static void
 send(mac_callback_t sent, void *ptr)
 {
+#ifdef SMOR
+  if(!akes_nbr_count(AKES_NBR_PERMANENT)) {
+    mac_call_sent_callback(sent, ptr, MAC_TX_ERR, 0);
+    return;
+  }
+  packetbuf_set_attr(PACKETBUF_ATTR_FRAME_TYPE, FRAME802154_DATAFRAME);
+  akes_mac_set_numbers(NULL);
+  AKES_MAC_STRATEGY.send(sent, ptr);
+#else /* SMOR */
   packetbuf_set_attr(PACKETBUF_ATTR_FRAME_TYPE, FRAME802154_DATAFRAME);
   struct akes_nbr *receiver;
   if(packetbuf_holds_broadcast()) {
@@ -245,6 +254,7 @@ send(mac_callback_t sent, void *ptr)
   return;
 error:
   mac_call_sent_callback(sent, ptr, MAC_TX_ERR_FATAL, 0);
+#endif /* SMOR */
 }
 /*---------------------------------------------------------------------------*/
 static int

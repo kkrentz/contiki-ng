@@ -27,88 +27,63 @@
  * SUCH DAMAGE.
  *
  * This file is part of the Contiki operating system.
- *
  */
 
 /**
  * \file
- *         Common functionality for scheduling retransmissions.
+ *         Database of SMOR.
  * \author
  *         Konrad Krentz <konrad.krentz@gmail.com>
  */
 
-#ifndef FRAME_QUEUE_H_
-#define FRAME_QUEUE_H_
+#ifndef SMOR_DB_H_
+#define SMOR_DB_H_
 
-#ifdef SMOR
 #include "net/linkaddr.h"
-#endif /* SMOR */
-#include "net/mac/mac.h"
-#include "sys/clock.h"
+#include "net/nbr-table.h"
+#include "services/akes/akes-nbr.h"
+#include "smor-metric.h"
 #include <stdbool.h>
+#include <stdint.h>
+#include <sys/types.h>
 
-#ifdef FRAME_QUEUE_CONF_MAX_FORWARDERS
-#define FRAME_QUEUE_MAX_FORWARDERS FRAME_QUEUE_CONF_MAX_FORWARDERS
-#else /* FRAME_QUEUE_CONF_MAX_FORWARDERS */
-#define FRAME_QUEUE_MAX_FORWARDERS (2)
-#endif /* FRAME_QUEUE_CONF_MAX_FORWARDERS */
+#define SMOR_DB_MAX_NODES (32)
+#define SMOR_DB_INVALID_ID (UINT16_MAX)
+#define SMOR_DB_BITMAP_MAX (UINT32_MAX)
 
-typedef struct frame_queue_entry {
-  struct frame_queue_entry *next;
-  bool is_broadcast;
-  struct queuebuf *qb;
-  mac_callback_t sent;
-  void *ptr;
-#ifdef SMOR
-  linkaddr_t forwarders[FRAME_QUEUE_MAX_FORWARDERS];
-#endif /* SMOR */
-} frame_queue_entry_t;
+typedef uint32_t smor_db_bitmap_t;
+typedef uint16_t smor_db_id_t;
 
-/**
- * \brief Initializes.
- */
-void frame_queue_init(void);
+#if NBR_TABLE_MAX_NEIGHBORS > SMOR_DB_MAX_NODES
+#error "NBR_TABLE_MAX_NEIGHBORS > SMOR_DB_MAX_NODES"
+#endif
 
-#ifdef SMOR
-/**
- * \brief Tells if a transmission backoff toward a potential forwarder is ongoing.
- */
-bool frame_queue_is_backing_off(const linkaddr_t *addr);
-#endif /* SMOR */
+void smor_db_init(void);
+smor_db_id_t smor_db_get_id(const linkaddr_t *addr);
+const linkaddr_t *smor_db_get_address(smor_db_id_t id);
+smor_db_id_t smor_db_get_or_create_id(const linkaddr_t *addr);
+void smor_db_add_link(smor_db_id_t from, smor_db_id_t to);
+void smor_db_cut_link(smor_db_id_t from, smor_db_id_t to);
+bool smor_db_have_link(smor_db_id_t from, smor_db_id_t to);
+void smor_db_set_links(smor_db_id_t id, smor_db_bitmap_t bitmap);
+smor_db_bitmap_t smor_db_get_adjacency_list(smor_db_id_t id);
 
-/**
- * \brief Buffers outgoing frames.
- */
-bool frame_queue_add(mac_callback_t sent, void *ptr);
+void smor_db_store_forwarders_reward(smor_db_id_t destination_id,
+    smor_db_id_t forwarder_id,
+    smor_metric_t reward);
+smor_metric_t smor_db_get_forwarders_reward(smor_db_id_t destination_id,
+    smor_db_id_t forwarder_id);
 
 /**
- * \brief Selects the next frame to transmit.
+ * \brief Called when a new permanent neighbor was added.
  */
-frame_queue_entry_t *frame_queue_pick(void);
+void smor_db_on_new_neighbor(struct akes_nbr_entry *entry);
 
 /**
- * \brief Returns the first entry in the queue.
+ * \brief Called when a new permanent neighbor was deleted.
  */
-frame_queue_entry_t *frame_queue_head(void);
+void smor_db_on_neighbor_lost(struct akes_nbr_entry *entry);
 
-/**
- * \brief Returns the next entry in the queue.
- */
-frame_queue_entry_t *frame_queue_next(frame_queue_entry_t *fqe);
+extern const smor_db_id_t smor_db_my_id;
 
-/**
- * \brief Selects the next frame to burst.
- */
-frame_queue_entry_t *frame_queue_burst(frame_queue_entry_t *previous);
-
-/**
- * \brief Delays the transmission of any frames toward the same receiver.
- */
-void frame_queue_postpone(clock_time_t next_attempt);
-
-/**
- * \brief Handles a completed transmission.
- */
-void frame_queue_on_transmitted(int result, frame_queue_entry_t *fqe);
-
-#endif /* FRAME_QUEUE_H_ */
+#endif /* SMOR_DB_H_ */

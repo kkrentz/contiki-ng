@@ -27,76 +27,77 @@
  * SUCH DAMAGE.
  *
  * This file is part of the Contiki operating system.
- *
  */
 
 /**
- * \addtogroup csl
- * @{
  * \file
- *
+ *         Imports ETX from the link-stats.module.
  * \author
  *         Konrad Krentz <konrad.krentz@gmail.com>
  */
 
-#include "net/mac/csl/csl-channel-selector.h"
-#include "net/mac/csl/csl-nbr.h"
-#include "net/mac/csl/csl.h"
+#include "net/link-stats.h"
+#include "services/akes/akes-nbr.h"
+#include "smor-metric.h"
+#include <sys/types.h>
 
 /* Log configuration */
 #include "sys/log.h"
-#define LOG_MODULE "CSL"
-#define LOG_LEVEL LOG_LEVEL_MAC
+#define LOG_MODULE "SMOR-ETX"
+#define LOG_LEVEL LOG_LEVEL_RPL
 
 /*---------------------------------------------------------------------------*/
-void
-csl_channel_selector_take_feedback(bool successful, uint_fast8_t burst_index)
+static void
+init(void)
 {
-#if !CSL_COMPLIANT
-  switch(csl_state.transmit.result[burst_index]) {
-  case MAC_TX_OK:
-  case MAC_TX_COLLISION:
-  case MAC_TX_NOACK:
-  case MAC_TX_FORWARDING_DECLINED:
-    break;
-  default:
-    return;
-  }
-
-  csl_nbr_t *csl_nbr = csl_nbr_get_receiver();
-  if(!csl_nbr) {
-    LOG_ERR("receiver not found\n");
-    return;
-  }
-
-  CSL_CHANNEL_SELECTOR.take_feedback(csl_nbr,
-                                     successful,
-                                     csl_get_channel_index());
-
-#endif /* !CSL_COMPLIANT */
+  link_stats_init();
 }
 /*---------------------------------------------------------------------------*/
-bool
-csl_channel_selector_take_feedback_is_exploring(void)
+static smor_metric_t
+get_max(void)
 {
-#if !CSL_COMPLIANT
-  if(csl_state.transmit.is_broadcast) {
-    return false;
-  }
-
-  csl_nbr_t *csl_nbr = csl_nbr_get_receiver();
-  if(!csl_nbr) {
-    LOG_ERR("csl_nbr_get_receiver failed");
-    LOG_ERR_LLADDR(packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
-    LOG_ERR_("\n");
-    return false;
-  }
-  return CSL_CHANNEL_SELECTOR.is_exploring(csl_nbr);
-#else /* !CSL_COMPLIANT */
-  return false;
-#endif /* !CSL_COMPLIANT */
+  return 0;
 }
 /*---------------------------------------------------------------------------*/
-
-
-/** @} */
+static smor_metric_t
+get_min(void)
+{
+  return UINT16_MAX;
+}
+/*---------------------------------------------------------------------------*/
+static smor_metric_t
+judge_link_to(const linkaddr_t *addr)
+{
+  struct akes_nbr_entry *one_hop_entry = akes_nbr_get_entry(addr);
+  if(!one_hop_entry || !one_hop_entry->permanent) {
+    return get_min();
+  }
+  const struct link_stats *stats = link_stats_from_lladdr(addr);
+  if(!stats || !stats->etx) {
+    LOG_WARN("returning default ETX\n");
+    return LINK_STATS_ETX_DIVISOR * 2;
+  }
+  return stats->etx;
+}
+/*---------------------------------------------------------------------------*/
+static smor_metric_t
+judge_path(smor_metric_t first_hop_etx, smor_metric_t second_hop_etx)
+{
+  return first_hop_etx + second_hop_etx;
+}
+/*---------------------------------------------------------------------------*/
+static bool
+better_than(smor_metric_t this_etx, smor_metric_t that_etx)
+{
+  return this_etx < that_etx;
+}
+/*---------------------------------------------------------------------------*/
+const struct smor_metric smor_etx_metric = {
+  init,
+  get_max,
+  get_min,
+  judge_link_to,
+  judge_path,
+  better_than,
+};
+/*---------------------------------------------------------------------------*/

@@ -27,76 +27,27 @@
  * SUCH DAMAGE.
  *
  * This file is part of the Contiki operating system.
- *
  */
 
 /**
- * \addtogroup csl
- * @{
  * \file
- *
+ *         Autoconfiguration.
  * \author
  *         Konrad Krentz <konrad.krentz@gmail.com>
  */
 
-#include "net/mac/csl/csl-channel-selector.h"
-#include "net/mac/csl/csl-nbr.h"
-#include "net/mac/csl/csl.h"
-
-/* Log configuration */
-#include "sys/log.h"
-#define LOG_MODULE "CSL"
-#define LOG_LEVEL LOG_LEVEL_MAC
-
-/*---------------------------------------------------------------------------*/
-void
-csl_channel_selector_take_feedback(bool successful, uint_fast8_t burst_index)
-{
-#if !CSL_COMPLIANT
-  switch(csl_state.transmit.result[burst_index]) {
-  case MAC_TX_OK:
-  case MAC_TX_COLLISION:
-  case MAC_TX_NOACK:
-  case MAC_TX_FORWARDING_DECLINED:
-    break;
-  default:
-    return;
-  }
-
-  csl_nbr_t *csl_nbr = csl_nbr_get_receiver();
-  if(!csl_nbr) {
-    LOG_ERR("receiver not found\n");
-    return;
-  }
-
-  CSL_CHANNEL_SELECTOR.take_feedback(csl_nbr,
-                                     successful,
-                                     csl_get_channel_index());
-
-#endif /* !CSL_COMPLIANT */
-}
-/*---------------------------------------------------------------------------*/
-bool
-csl_channel_selector_take_feedback_is_exploring(void)
-{
-#if !CSL_COMPLIANT
-  if(csl_state.transmit.is_broadcast) {
-    return false;
-  }
-
-  csl_nbr_t *csl_nbr = csl_nbr_get_receiver();
-  if(!csl_nbr) {
-    LOG_ERR("csl_nbr_get_receiver failed");
-    LOG_ERR_LLADDR(packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
-    LOG_ERR_("\n");
-    return false;
-  }
-  return CSL_CHANNEL_SELECTOR.is_exploring(csl_nbr);
-#else /* !CSL_COMPLIANT */
-  return false;
-#endif /* !CSL_COMPLIANT */
-}
-/*---------------------------------------------------------------------------*/
-
-
-/** @} */
+#define SMOR
+#define NETSTACK_CONF_ROUTING smor_l3_routing_driver
+#define UIP_CONF_DS6_LL_NUD 0
+#define UIP_CONF_IPV6_QUEUE_PKT 0
+#define UIP_CONF_MAX_ROUTES 0
+#define UIP_CONF_ND6_AUTOFILL_NBR_CACHE 0
+#define UIP_CONF_ND6_SEND_NS 0
+#define UIP_CONF_ND6_SEND_RA 0
+#define UIP_CONF_ND6_SEND_NA 0
+#define UIP_CONF_ROUTER 1
+#define SICSLOWPAN_CONF_WITH_MESH_ADDRESSING 1
+#define SICSLOWPAN_CONF_WITH_DEDUPLICATION 1
+#define SICSLOWPAN_CONF_FRAGMENT_ALWAYS 1
+#define AKES_MAC_CONF_UNICAST_SEC_LVL 2
+#define CSL_SYNCHRONIZER_CONF smor_l2_synchronizer

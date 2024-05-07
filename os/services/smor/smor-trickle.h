@@ -27,88 +27,33 @@
  * SUCH DAMAGE.
  *
  * This file is part of the Contiki operating system.
- *
  */
 
 /**
  * \file
- *         Common functionality for scheduling retransmissions.
+ *         Trickling of adjacency lists.
  * \author
  *         Konrad Krentz <konrad.krentz@gmail.com>
  */
 
-#ifndef FRAME_QUEUE_H_
-#define FRAME_QUEUE_H_
+#ifndef SMOR_TRICKLE_H_
+#define SMOR_TRICKLE_H_
 
-#ifdef SMOR
-#include "net/linkaddr.h"
-#endif /* SMOR */
-#include "net/mac/mac.h"
-#include "sys/clock.h"
-#include <stdbool.h>
-
-#ifdef FRAME_QUEUE_CONF_MAX_FORWARDERS
-#define FRAME_QUEUE_MAX_FORWARDERS FRAME_QUEUE_CONF_MAX_FORWARDERS
-#else /* FRAME_QUEUE_CONF_MAX_FORWARDERS */
-#define FRAME_QUEUE_MAX_FORWARDERS (2)
-#endif /* FRAME_QUEUE_CONF_MAX_FORWARDERS */
-
-typedef struct frame_queue_entry {
-  struct frame_queue_entry *next;
-  bool is_broadcast;
-  struct queuebuf *qb;
-  mac_callback_t sent;
-  void *ptr;
-#ifdef SMOR
-  linkaddr_t forwarders[FRAME_QUEUE_MAX_FORWARDERS];
-#endif /* SMOR */
-} frame_queue_entry_t;
+#include "services/akes/akes-nbr.h"
 
 /**
  * \brief Initializes.
  */
-void frame_queue_init(void);
-
-#ifdef SMOR
-/**
- * \brief Tells if a transmission backoff toward a potential forwarder is ongoing.
- */
-bool frame_queue_is_backing_off(const linkaddr_t *addr);
-#endif /* SMOR */
+void smor_trickle_init(void);
 
 /**
- * \brief Buffers outgoing frames.
+ * \brief Called when a new permanent neighbor was added.
  */
-bool frame_queue_add(mac_callback_t sent, void *ptr);
+void smor_trickle_on_new_neighbor(struct akes_nbr_entry *entry);
 
 /**
- * \brief Selects the next frame to transmit.
+ * \brief Called when a new permanent neighbor was deleted.
  */
-frame_queue_entry_t *frame_queue_pick(void);
+void smor_trickle_on_neighbor_lost(struct akes_nbr_entry *entry);
 
-/**
- * \brief Returns the first entry in the queue.
- */
-frame_queue_entry_t *frame_queue_head(void);
-
-/**
- * \brief Returns the next entry in the queue.
- */
-frame_queue_entry_t *frame_queue_next(frame_queue_entry_t *fqe);
-
-/**
- * \brief Selects the next frame to burst.
- */
-frame_queue_entry_t *frame_queue_burst(frame_queue_entry_t *previous);
-
-/**
- * \brief Delays the transmission of any frames toward the same receiver.
- */
-void frame_queue_postpone(clock_time_t next_attempt);
-
-/**
- * \brief Handles a completed transmission.
- */
-void frame_queue_on_transmitted(int result, frame_queue_entry_t *fqe);
-
-#endif /* FRAME_QUEUE_H_ */
+#endif /* SMOR_TRICKLE_H_ */

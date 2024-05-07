@@ -64,6 +64,9 @@
 #include "net/mac/frame-queue.h"
 #include "net/mac/wake-up-counter.h"
 #include "net/packetbuf.h"
+#ifdef SMOR
+#include "smor-metric.h"
+#endif /* SMOR */
 #include "sys/rtimer.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -266,6 +269,11 @@ typedef struct {
       uint8_t acknowledgment_nonce[CCM_STAR_NONCE_LENGTH];
 #endif /* !CSL_COMPLIANT */
       bool is_broadcast;
+#ifdef SMOR
+      bool has_mesh_header[CSL_MAX_BURST_INDEX + 1];
+      bool on_last_hop[CSL_MAX_BURST_INDEX + 1];
+      smor_metric_t reward[CSL_MAX_BURST_INDEX + 1];
+#endif /* SMOR */
       uint_fast16_t wake_up_frame_len;
       frame_queue_entry_t *fqe[CSL_MAX_BURST_INDEX + 1];
       int result[CSL_MAX_BURST_INDEX + 1];
@@ -295,6 +303,9 @@ typedef struct {
 #if !CSL_COMPLIANT
   wake_up_counter_t receivers_wake_up_counter;
 #endif /* !CSL_COMPLIANT */
+#ifdef SMOR
+  linkaddr_t next_hop_address;
+#endif /* SMOR */
 } csl_state_t;
 
 #if !CSL_COMPLIANT

@@ -115,6 +115,14 @@ enum {
      insufficient queue space, failure to allocate a neighbor,
      or insufficient packet memory space. The upper layer may try again later. */
   MAC_TX_QUEUE_FULL,
+
+  /**< The forwarding of a mesh-under fragment was declined. The MAC layer may
+     retry with other forwarders. */
+  MAC_TX_FORWARDING_DECLINED,
+
+  /**< The suggested forwarder was deleted in the meantime. The MAC layer may
+     retry with other forwarders. */
+  MAC_TX_FORWARDER_LOST,
 };
 
 #endif /* MAC_H_ */
