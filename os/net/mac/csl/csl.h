@@ -62,6 +62,9 @@
 #include "net/mac/frame-queue.h"
 #include "net/mac/wake-up-counter.h"
 #include "net/packetbuf.h"
+#ifdef SMOR
+#include "smor-metric.h"
+#endif /* SMOR */
 #include "sys/rtimer.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -271,9 +274,14 @@ typedef union {
     wake_up_counter_t receivers_wake_up_counter;
 #endif /* !CSL_COMPLIANT */
     bool is_broadcast;
-#if FRAME_QUEUE_BROADCASTS_AS_UNICASTS
+#if defined(SMOR) || FRAME_QUEUE_BROADCASTS_AS_UNICASTS
     linkaddr_t next_hop_address;
-#endif /* FRAME_QUEUE_BROADCASTS_AS_UNICASTS */
+#endif /* defined(SMOR) || FRAME_QUEUE_BROADCASTS_AS_UNICASTS */
+#ifdef SMOR
+    bool has_mesh_header[CSL_MAX_BURST_INDEX + 1];
+    bool on_last_hop[CSL_MAX_BURST_INDEX + 1];
+    smor_metric_t reward[CSL_MAX_BURST_INDEX + 1];
+#endif /* SMOR */
     uint_fast16_t wake_up_frame_len;
     frame_queue_entry_t *fqe[CSL_MAX_BURST_INDEX + 1];
     int result[CSL_MAX_BURST_INDEX + 1];
@@ -295,6 +303,7 @@ typedef union {
     rtimer_clock_t payload_frame_start;
     rtimer_clock_t wake_up_sequence_start;
     uint16_t remaining_wake_up_frames;
+    int8_t cca_threshold;
   } transmit;
 } csl_state_t;
 

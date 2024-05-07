@@ -54,6 +54,10 @@
 #include "net/mac/frame-queue.h"
 #include "net/packetbuf.h"
 #include "net/queuebuf.h"
+#ifdef SMOR
+#include "smor-db.h"
+#include "smor-trickle.h"
+#endif /* SMOR */
 #include "sys/clock.h"
 #include <stdbool.h>
 #include <string.h>
@@ -638,6 +642,10 @@ on_ack_sent(void *is_new, int status, int transmissions)
   }
   if(is_new) {
     akes_trickle_on_new_nbr();
+#ifdef SMOR
+    smor_db_on_new_neighbor(entry);
+    smor_trickle_on_new_neighbor(entry);
+#endif /* SMOR */
   }
   akes_mac_report_to_network_layer(status, transmissions);
 }
@@ -713,6 +721,10 @@ on_ack(const uint8_t *payload)
   }
   if(is_new) {
     akes_trickle_on_new_nbr();
+#ifdef SMOR
+    smor_db_on_new_neighbor(entry);
+    smor_trickle_on_new_neighbor(entry);
+#endif /* SMOR */
   }
 }
 /*---------------------------------------------------------------------------*/

@@ -39,6 +39,7 @@
 #define FRAME_QUEUE_H_
 
 #include "contiki.h"
+#include "net/linkaddr.h"
 #include "net/mac/mac.h"
 #include "net/mac/wake-up-counter.h"
 #include "sys/cc.h"
@@ -83,6 +84,19 @@
 #define FRAME_QUEUE_BROADCASTS_AS_UNICASTS 0
 #endif /* FRAME_QUEUE_CONF_BROADCASTS_AS_UNICASTS */
 
+#ifdef FRAME_QUEUE_CONF_MAX_FORWARDERS
+#define FRAME_QUEUE_MAX_FORWARDERS FRAME_QUEUE_CONF_MAX_FORWARDERS
+#else /* FRAME_QUEUE_CONF_MAX_FORWARDERS */
+#define FRAME_QUEUE_MAX_FORWARDERS (2)
+#endif /* FRAME_QUEUE_CONF_MAX_FORWARDERS */
+
+#ifdef SMOR
+typedef struct frame_queue_forwarder_t {
+  linkaddr_t addr;
+  bool tried;
+} frame_queue_forwarder_t;
+#endif /* SMOR */
+
 typedef struct frame_queue_entry {
   struct frame_queue_entry *next;
   struct queuebuf *qb;
@@ -91,6 +105,9 @@ typedef struct frame_queue_entry {
 #if FRAME_QUEUE_BROADCASTS_AS_UNICASTS
   uint32_t neighbor_bitmap;
   bool is_broadcast_as_unicast;
+#ifdef SMOR
+  frame_queue_forwarder_t forwarders[FRAME_QUEUE_MAX_FORWARDERS];
+#endif /* SMOR */
 #endif /* FRAME_QUEUE_BROADCASTS_AS_UNICASTS */
 } frame_queue_entry_t;
 
@@ -98,6 +115,11 @@ typedef struct frame_queue_entry {
  * \brief Initializes.
  */
 void frame_queue_init(void);
+
+/**
+ * \brief Tells if a transmission backoff toward a potential receiver occurs.
+ */
+bool frame_queue_is_backing_off(const linkaddr_t *addr);
 
 /**
  * \brief Buffers outgoing frames.
