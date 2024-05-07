@@ -34,7 +34,7 @@
  * @{
  *
  * \file
- * Implementation of PKA-accelerated ECDH and ECDSA.
+ * Implementation of PKA-accelerated ECDH, ECDSA, and FHMQV.
  */
 
 #include "lib/ecc.h"
@@ -1038,6 +1038,117 @@ static PT_THREAD(generate_shared_secret(
   PT_END(protothreads);
 }
 /*---------------------------------------------------------------------------*/
+static PT_THREAD(generate_fhmqv_secret(
+                   uint8_t *shared_secret,
+                   const uint8_t *static_private_key,
+                   const uint8_t *ephemeral_private_key,
+                   const uint8_t *static_public_key,
+                   const uint8_t *ephemeral_public_key,
+                   const uint8_t *d,
+                   const uint8_t *e,
+                   int *result))
+{
+  static const uintptr_t static_private_key_offset =
+    variables_offset;
+  static const uintptr_t ephemeral_private_key_offset =
+    PKA_NEXT_OFFSET(static_private_key_offset, MAX_ELEMENT_WORDS);
+  static const uintptr_t static_public_key_offset =
+    PKA_NEXT_OFFSET(ephemeral_private_key_offset, MAX_ELEMENT_WORDS);
+  static const uintptr_t ephemeral_public_key_offset =
+    PKA_NEXT_OFFSET(static_public_key_offset, MAX_POINT_WORDS);
+  static const uintptr_t d_offset =
+    PKA_NEXT_OFFSET(ephemeral_public_key_offset, MAX_POINT_WORDS);
+  static const uintptr_t e_offset =
+    PKA_NEXT_OFFSET(d_offset, MAX_ELEMENT_WORDS);
+  static const uintptr_t s_offset =
+    PKA_NEXT_OFFSET(e_offset, MAX_ELEMENT_WORDS);
+  static const uintptr_t sigma_offset =
+    PKA_NEXT_OFFSET(s_offset, MAX_ELEMENT_WORDS);
+  /* PKA_NEXT_OFFSET(sigma_offset, MAX_POINT_WORDS); */
+
+  PT_BEGIN(protothreads);
+
+  /* copy inputs to PKA RAM */
+  element_to_pka_ram(static_private_key, static_private_key_offset);
+  element_to_pka_ram(ephemeral_private_key, ephemeral_private_key_offset);
+  point_to_pka_ram(static_public_key, static_public_key_offset);
+  point_to_pka_ram(ephemeral_public_key, ephemeral_public_key_offset);
+  element_to_pka_ram(d, d_offset);
+  element_to_pka_ram(e, e_offset);
+
+  /* s := d * static private key */
+  PT_SPAWN(protothreads,
+           protothreads + 1,
+           add_or_multiply_modulo(PKA_FUNCTION_MULTIPLY,
+                                  d_offset,
+                                  static_private_key_offset,
+                                  curve_n_offset,
+                                  s_offset,
+                                  result));
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(protothreads);
+  }
+
+  /* s := ephemeral private key + d * static private key */
+  PT_SPAWN(protothreads,
+           protothreads + 1,
+           add_or_multiply_modulo(PKA_FUNCTION_ADD,
+                                  s_offset,
+                                  ephemeral_private_key_offset,
+                                  curve_n_offset,
+                                  s_offset,
+                                  result));
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(protothreads);
+  }
+
+  /* sigma := e x static public key */
+  PT_SPAWN(protothreads,
+           protothreads + 1,
+           add_or_multiply_point(PKA_FUNCTION_ECCMUL,
+                                 e_offset,
+                                 static_public_key_offset,
+                                 sigma_offset,
+                                 result));
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(protothreads);
+  }
+
+  /* sigma := ephemeral public key + e x static public key */
+  PT_SPAWN(protothreads,
+           protothreads + 1,
+           add_or_multiply_point(PKA_FUNCTION_ECCADD,
+                                 sigma_offset,
+                                 ephemeral_public_key_offset,
+                                 sigma_offset,
+                                 result));
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(protothreads);
+  }
+
+  /* sigma := s x (ephemeral public key + e x static public key) */
+  PT_SPAWN(protothreads,
+           protothreads + 1,
+           add_or_multiply_point(PKA_FUNCTION_ECCMUL,
+                                 s_offset,
+                                 sigma_offset,
+                                 sigma_offset,
+                                 result));
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(protothreads);
+  }
+
+  element_from_pka_ram(shared_secret, sigma_offset);
+  *result = PKA_STATUS_SUCCESS;
+
+  PT_END(protothreads);
+}
+/*---------------------------------------------------------------------------*/
 static void
 disable(void)
 {
@@ -1056,6 +1167,7 @@ const struct ecc_driver cc2538_ecc_driver = {
   verify,
   generate_key_pair,
   generate_shared_secret,
+  generate_fhmqv_secret,
   disable
 };
 /*---------------------------------------------------------------------------*/

@@ -153,6 +153,26 @@ struct ecc_driver {
                                        int *result));
 
   /**
+   * \brief                       Generates a shared secret as per FHMQV.
+   * \param shared_secret         The resultant n-byte shared secret.
+   * \param static_private_key    Our long-term n-byte private key.
+   * \param ephemeral_private_key Our ephemeral n-byte private key.
+   * \param static_public_key     Their long-term 2n-byte public key.
+   * \param ephemeral_public_key  Their ephemeral 2n-byte public key.
+   * \param d                     The n-byte FHMQV parameter d.
+   * \param e                     The n-byte FHMQV parameter e.
+   * \param result                0 on success.
+   */
+  PT_THREAD((* generate_fhmqv_secret)(uint8_t *shared_secret,
+                                      const uint8_t *static_private_key,
+                                      const uint8_t *ephemeral_private_key,
+                                      const uint8_t *static_public_key,
+                                      const uint8_t *ephemeral_public_key,
+                                      const uint8_t *d,
+                                      const uint8_t *e,
+                                      int *result));
+
+  /**
    * \brief Shuts down the ECC driver and unlocks the mutex.
    */
   void (* disable)(void);
