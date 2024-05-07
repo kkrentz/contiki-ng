@@ -43,6 +43,10 @@
 #include "akes/akes.h"
 #include "net/packetbuf.h"
 #include "sys/clock.h"
+#ifdef SMOR
+#include "smor-db.h"
+#include "smor-trickle.h"
+#endif /* SMOR */
 
 #ifdef AKES_DELETE_CONF_CHECK_INTERVAL
 #define CHECK_INTERVAL AKES_DELETE_CONF_CHECK_INTERVAL
@@ -124,6 +128,10 @@ akes_delete_on_update_sent(void *ptr, int status, int transmissions)
   if(AKES_DELETE_STRATEGY.is_permanent_neighbor_expired(entry->permanent)
       && (status != MAC_TX_QUEUE_FULL)) {
     LOG_INFO("deleting neighbor\n");
+#ifdef SMOR
+    smor_db_on_neighbor_lost(entry);
+    smor_trickle_on_neighbor_lost(entry);
+#endif /* SMOR */
     akes_nbr_delete(entry, AKES_NBR_PERMANENT);
   } else {
     entry->permanent->is_receiving_update = false;
