@@ -152,6 +152,17 @@ extern void aggregator_update_attributes(void);
 #define IS_COMPRESSABLE_PROTO(x) (x == UIP_PROTO_UDP)
 #endif /* COMPRESS_EXT_HDR */
 
+/** \name Mesh addressing
+ *  @{
+ */
+#ifdef SICSLOWPAN_CONF_WITH_MESH_ADDRESSING
+#define WITH_MESH_ADDRESSING SICSLOWPAN_CONF_WITH_MESH_ADDRESSING
+#else /* SICSLOWPAN_CONF_WITH_MESH_ADDRESSING */
+#define WITH_MESH_ADDRESSING 0
+#endif /* SICSLOWPAN_CONF_WITH_MESH_ADDRESSING */
+
+/** @} */
+
 /** \name General variables
  *  @{
  */
@@ -165,8 +176,8 @@ static uint8_t *packetbuf_ptr;
 
 /**
  * packetbuf_hdr_len is the total length of (the processed) 6lowpan headers
- * (fragment headers, IPV6 or HC1, HC2, and HC1 and HC2 non compressed
- * fields).
+ * (mesh addressing, fragment headers, IPV6 or HC1, HC2, and HC1 and HC2 non
+ * compressed fields).
  */
 static uint8_t packetbuf_hdr_len;
 
@@ -653,6 +664,16 @@ uncompress_addr(uip_ipaddr_t *ipaddr, uint8_t const prefix[],
   return true;
 }
 
+/*--------------------------------------------------------------------*/
+static size_t
+get_mesh_addressing_len(void)
+{
+  /* 
+   * While writing the Mesh Addressing field, packetbuf_ptr is
+   * incremented accordingly. This allows us to compute the length as:
+   */
+  return packetbuf_ptr - ((uint8_t *)packetbuf_dataptr());
+}
 /*--------------------------------------------------------------------*/
 /**
  * \brief Compress IP/UDP header
@@ -1588,7 +1609,9 @@ fragment_copy_payload_and_send(uint16_t uip_offset)
   /* Now copy fragment payload from uip_buf */
   memcpy(packetbuf_ptr + packetbuf_hdr_len,
          (uint8_t *)UIP_IP_BUF + uip_offset, packetbuf_payload_len);
-  packetbuf_set_datalen(packetbuf_payload_len + packetbuf_hdr_len);
+  packetbuf_set_datalen(packetbuf_payload_len
+                        + packetbuf_hdr_len
+                        + get_mesh_addressing_len());
 
   /* Backup packetbuf to queuebuf. Enables preserving attributes for all framgnets */
   q = queuebuf_new_from_packetbuf();
@@ -1674,6 +1697,34 @@ output(const linkaddr_t *localdest)
     LOG_WARN("output: failed to calculate payload size - dropping packet\n");
     return 0;
   }
+
+#if WITH_MESH_ADDRESSING
+  /* Mesh Addressing Type */
+  *packetbuf_ptr = SICSLOWPAN_DISPATCH_MESH
+                   | (LINKADDR_SIZE == 2 ? SICSLOWPAN_MESH_VERY_FIRST : 0)
+                   | ((LINKADDR_SIZE == 2) || !localdest
+                      ? SICSLOWPAN_MESH_FINAL_DESTINATION
+                      : 0)
+                   | (SICSLOWPAN_INITIAL_MESH_HOPS
+                      & SICSLOWPAN_MESH_HOPS_LEFT);
+  packetbuf_ptr += 1;
+
+  /* Originator Address */
+  linkaddr_write(packetbuf_ptr, &linkaddr_node_addr);
+  packetbuf_ptr += LINKADDR_SIZE;
+
+  /* Final Destination Address */
+  if(localdest) {
+    linkaddr_write(packetbuf_ptr, localdest);
+    packetbuf_ptr += LINKADDR_SIZE;
+  } else {
+    SET16(packetbuf_ptr, 0, 0xFFFF);
+    packetbuf_ptr += 2;
+    LOG_WARN("output: mesh-under broadcasts aren't implemented, yet\n");
+    return 0;
+  }
+  mac_max_payload -= get_mesh_addressing_len();
+#endif /* WITH_MESH_ADDRESSING */
 
   /* Try to compress the headers */
 #if SICSLOWPAN_COMPRESSION == SICSLOWPAN_COMPRESSION_IPV6
@@ -1836,7 +1887,10 @@ output(const linkaddr_t *localdest)
 
     memcpy(packetbuf_ptr + packetbuf_hdr_len, (uint8_t *)UIP_IP_BUF + uncomp_hdr_len,
            uip_len - uncomp_hdr_len);
-    packetbuf_set_datalen(uip_len - uncomp_hdr_len + packetbuf_hdr_len);
+    packetbuf_set_datalen(uip_len
+                          - uncomp_hdr_len
+                          + packetbuf_hdr_len
+                          + get_mesh_addressing_len());
     send_packet();
   }
   return 1;
@@ -1888,6 +1942,73 @@ input(void)
     return;
   }
 
+#if WITH_MESH_ADDRESSING
+  /* Look for Mesh Header */
+  if((SICSLOWPAN_DISPATCH_MESH_MASK & packetbuf_ptr[0])
+      == SICSLOWPAN_DISPATCH_MESH) {
+    uint16_t datalen = packetbuf_datalen();
+    uint8_t *dataptr = packetbuf_dataptr();
+
+    bool short_originator =
+        (packetbuf_ptr[0] & SICSLOWPAN_MESH_VERY_FIRST) != 0;
+    bool short_final_destination =
+        (packetbuf_ptr[0] & SICSLOWPAN_MESH_FINAL_DESTINATION) != 0;
+    uint8_t hops_left = packetbuf_ptr[0] & SICSLOWPAN_MESH_HOPS_LEFT;
+    size_t mesh_header_len = 1
+                             + (short_originator ? 2 : 8)
+                             + (short_final_destination ? 2 : 8);
+    if(datalen <= mesh_header_len) {
+      LOG_WARN("input: empty mesh fragment\n");
+      return;
+    }
+    LOG_DBG("input: mesh hops left: %u\n", hops_left);
+    packetbuf_ptr++;
+
+    if((LINKADDR_SIZE == 2) == !short_originator) {
+      LOG_WARN("input: unsupported MAC address format\n");
+      return;
+    }
+    linkaddr_t originator;
+    linkaddr_read(&originator, packetbuf_ptr);
+    packetbuf_set_addr(PACKETBUF_ADDR_SENDER, &originator);
+    packetbuf_ptr += LINKADDR_SIZE;
+
+    if(short_final_destination && GET16(packetbuf_ptr, 0) == 0xFFFF) {
+      LOG_WARN("input: mesh destination is broadcast\n");
+      return;
+    } else if((LINKADDR_SIZE == 2) == !short_originator) {
+      LOG_WARN("input: unsupported MAC address format\n");
+      return;
+    }
+    linkaddr_t final_destination;
+    linkaddr_read(&final_destination, packetbuf_ptr);
+    LOG_DBG("input: mesh destination is ");
+    LOG_DBG_LLADDR(&final_destination);
+    LOG_DBG_("\n");
+    packetbuf_ptr += LINKADDR_SIZE;
+
+    if(!linkaddr_cmp(&final_destination, &linkaddr_node_addr)) {
+      if(hops_left <= 1) {
+        LOG_ERR("input: no hops left\n");
+        return;
+      }
+      LOG_DBG("input: forwarding\n");
+      *dataptr = (*dataptr & ~SICSLOWPAN_MESH_HOPS_LEFT) | (hops_left - 1);
+      packetbuf_clear();
+      packetbuf_set_datalen(datalen);
+      memmove(packetbuf_dataptr(), dataptr, datalen);
+      packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER, &final_destination);
+      send_packet();
+      return;
+    }
+
+    if(!packetbuf_hdrreduce(mesh_header_len)) {
+      LOG_WARN("input: packetbuf_hdrreduce failed\n");
+      return;
+    }
+  }
+#endif /* WITH_MESH_ADDRESSING */
+
   /* Clear uipbuf and set default attributes */
   uipbuf_clear();
 
@@ -1900,13 +2021,8 @@ input(void)
   uipbuf_set_attr(UIPBUF_ATTR_RSSI, packetbuf_attr(PACKETBUF_ATTR_RSSI));
   uipbuf_set_attr(UIPBUF_ATTR_LINK_QUALITY, packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY));
 
-
 #if SICSLOWPAN_CONF_FRAG
-
-  /*
-   * Since we don't support the mesh and broadcast header, the first header
-   * we look for is the fragmentation header
-   */
+  /* Look for fragmentation header */
   switch((GET16(PACKETBUF_FRAG_PTR, PACKETBUF_FRAG_DISPATCH_SIZE) >> 8) & SICSLOWPAN_DISPATCH_FRAG_MASK) {
     case SICSLOWPAN_DISPATCH_FRAG1:
       frag_offset = 0;
