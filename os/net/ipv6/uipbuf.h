@@ -184,9 +184,10 @@ void uipbuf_init(void);
  */
 /* Avoid using NHC compression on the packet (6LoWPAN) */
 #define UIPBUF_ATTR_FLAGS_6LOWPAN_NO_NHC_COMPRESSION      0x01
-/* Avoid using prefix compression on the packet (6LoWPAN) */
-#define UIPBUF_ATTR_FLAGS_6LOWPAN_NO_PREFIX_COMPRESSION   0x02
-
+/* Signals that this is an inbound OSCORE request */
+#define UIPBUF_ATTR_FLAGS_INBOUND_OSCORE_REQUEST          0x04
+/* Signals that this is an inbound OSCORE request */
+#define UIPBUF_ATTR_FLAGS_INBOUND_OSCORE_RESPONSE         0x08
 
 /* Use this initial security level if defined */
 #ifdef UIPBUF_ATTR_LLSEC_STARTUP_LEVEL
@@ -210,6 +211,7 @@ enum {
   UIPBUF_ATTR_FLAGS,   /**< Flags that can control lower layers.  see above. */
   UIPBUF_ATTR_RSSI, /**< Last packet's RSSI */
   UIPBUF_ATTR_LINK_QUALITY, /**< Last packet's LQI */
+  UIPBUF_ATTR_COAP_MESSAGE_ID,
   UIPBUF_ATTR_MAX
 };
 
