@@ -1,0 +1,2 @@
+MODULES += os/net/app-layer/libcoap
+MODULES += os/net/app-layer/libcoap/src/oscore-ng
