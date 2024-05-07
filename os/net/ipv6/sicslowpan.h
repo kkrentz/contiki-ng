@@ -85,6 +85,8 @@
 #define SICSLOWPAN_DISPATCH_HC1                     0x42 /* 01000010 = 66 */
 #define SICSLOWPAN_DISPATCH_IPHC                    0x60 /* 011xxxxx = ... */
 #define SICSLOWPAN_DISPATCH_IPHC_MASK               0xe0
+#define SICSLOWPAN_DISPATCH_MESH                    0x80 /* 10xxxxxx */
+#define SICSLOWPAN_DISPATCH_MESH_MASK               0xc0
 #define SICSLOWPAN_DISPATCH_FRAG1                   0xc0 /* 11000xxx */
 #define SICSLOWPAN_DISPATCH_FRAGN                   0xe0 /* 11100xxx */
 #define SICSLOWPAN_DISPATCH_FRAG_MASK               0xf8
@@ -161,6 +163,17 @@
 #define SICSLOWPAN_NHC_ETX_HDR_DESTO                0x03
 #define SICSLOWPAN_NHC_ETX_HDR_MOH                  0x04
 #define SICSLOWPAN_NHC_ETX_HDR_IPV6                 0x07
+
+/* Mesh Addressing Type */
+#ifdef SICSLOWPAN_CONF_INITIAL_MESH_HOPS
+#define SICSLOWPAN_INITIAL_MESH_HOPS SICSLOWPAN_CONF_INITIAL_MESH_HOPS
+#else /* SICSLOWPAN_CONF_INITIAL_MESH_HOPS */
+#define SICSLOWPAN_INITIAL_MESH_HOPS 2
+#endif /* SICSLOWPAN_CONF_INITIAL_MESH_HOPS */
+
+#define SICSLOWPAN_MESH_VERY_FIRST                  (1 << 5)
+#define SICSLOWPAN_MESH_FINAL_DESTINATION           (1 << 4)
+#define SICSLOWPAN_MESH_HOPS_LEFT                   0x0F
 
 /**
  * \name LOWPAN_UDP encoding (works together with IPHC)
