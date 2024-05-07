@@ -29,72 +29,35 @@
  */
 
 /**
- * \addtogroup csl
- * @{
- *
  * \file
- *
+ *         Interface to the routing metric.
  * \author
  *         Konrad Krentz <konrad.krentz@gmail.com>
  */
 
-#include "net/mac/csl/csl-channel-selector.h"
-#include "net/mac/csl/csl-nbr.h"
-#include "net/mac/csl/csl.h"
+#ifndef SMOR_METRIC_H_
+#define SMOR_METRIC_H_
 
-/* Log configuration */
-#include "sys/log.h"
-#define LOG_MODULE "CSL"
-#define LOG_LEVEL LOG_LEVEL_MAC
+#include "net/link-stats.h"
+#include "net/linkaddr.h"
+#include <stdbool.h>
 
-/*---------------------------------------------------------------------------*/
-void
-csl_channel_selector_take_feedback(bool successful, uint_fast8_t burst_index)
-{
-#if !CSL_COMPLIANT
-  switch(csl_state.transmit.result[burst_index]) {
-  case MAC_TX_OK:
-  case MAC_TX_COLLISION:
-  case MAC_TX_NOACK:
-  case MAC_TX_FORWARDER_DECLINED:
-    break;
-  default:
-    return;
-  }
+#define SMOR_METRIC smor_etx_metric
+#define SMOR_METRIC_LEN (sizeof(smor_metric_t))
 
-  csl_nbr_t *csl_nbr = csl_nbr_get_receiver();
-  if(!csl_nbr) {
-    LOG_ERR("receiver not found\n");
-    return;
-  }
+typedef link_packet_stat_t smor_metric_t;
 
-  CSL_CHANNEL_SELECTOR.take_feedback(csl_nbr,
-                                     successful,
-                                     csl_get_channel_index());
+struct smor_metric {
+  void (* init)(void);
+  smor_metric_t (* get_max)(void);
+  smor_metric_t (* get_min)(void);
+  smor_metric_t (* judge_link_to)(const linkaddr_t *addr);
+  smor_metric_t (* judge_path)(smor_metric_t first_hop_metric,
+                               smor_metric_t second_hop_metric);
+  bool (* better_than)(smor_metric_t this_metric,
+                       smor_metric_t that_metric);
+};
 
-#endif /* !CSL_COMPLIANT */
-}
-/*---------------------------------------------------------------------------*/
-bool
-csl_channel_selector_take_feedback_is_exploring(void)
-{
-#if !CSL_COMPLIANT
-  if(csl_state.transmit.is_broadcast) {
-    return false;
-  }
+extern const struct smor_metric SMOR_METRIC;
 
-  csl_nbr_t *csl_nbr = csl_nbr_get_receiver();
-  if(!csl_nbr) {
-    LOG_ERR("csl_nbr_get_receiver failed");
-    LOG_ERR_LLADDR(packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
-    LOG_ERR_("\n");
-    return false;
-  }
-  return CSL_CHANNEL_SELECTOR.is_exploring(csl_nbr);
-#else /* !CSL_COMPLIANT */
-  return false;
-#endif /* !CSL_COMPLIANT */
-}
-/*---------------------------------------------------------------------------*/
-
-/** @} */
+#endif /* SMOR_METRIC_H_ */
