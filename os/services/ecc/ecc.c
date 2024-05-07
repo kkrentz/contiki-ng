@@ -180,6 +180,29 @@ PT_THREAD(ecc_generate_shared_secret(const uint8_t *public_key,
   PT_END(&protothread);
 }
 /*---------------------------------------------------------------------------*/
+PT_THREAD(ecc_generate_fhmqv_secret(const uint8_t *static_private_key,
+                                    const uint8_t *ephemeral_private_key,
+                                    const uint8_t *static_public_key,
+                                    const uint8_t *ephemeral_public_key,
+                                    const uint8_t *d,
+                                    const uint8_t *e,
+                                    uint8_t *shared_secret,
+                                    int *const result))
+{
+  PT_BEGIN(&protothread);
+
+  *result = !uECC_shared_fhmqv_secret(static_private_key,
+                                      ephemeral_private_key,
+                                      static_public_key,
+                                      ephemeral_public_key,
+                                      d,
+                                      e,
+                                      shared_secret,
+                                      uecc_curve);
+
+  PT_END(&protothread);
+}
+/*---------------------------------------------------------------------------*/
 void
 ecc_disable(void)
 {
