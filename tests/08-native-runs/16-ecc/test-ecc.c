@@ -31,6 +31,7 @@
 #include "contiki.h"
 #include "unit-test.h"
 #include "lib/ecc.h"
+#include "lib/sha-256.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -210,6 +211,92 @@ UNIT_TEST(ecc_ecdsa)
   UNIT_TEST_END();
 }
 /*---------------------------------------------------------------------------*/
+UNIT_TEST_REGISTER(ecc_fhmqv, "FHMQV");
+UNIT_TEST(ecc_fhmqv)
+{
+  int result;
+  static uint8_t spkA[ECC_CURVE_SIZE * 2];
+  static uint8_t sskA[ECC_CURVE_SIZE];
+  static uint8_t epkA[ECC_CURVE_SIZE * 2];
+  static uint8_t eskA[ECC_CURVE_SIZE];
+  static uint8_t spkB[ECC_CURVE_SIZE * 2];
+  static uint8_t sskB[ECC_CURVE_SIZE];
+  static uint8_t epkB[ECC_CURVE_SIZE * 2];
+  static uint8_t eskB[ECC_CURVE_SIZE];
+  static uint8_t d[SHA_256_DIGEST_LENGTH];
+  static uint8_t e[SHA_256_DIGEST_LENGTH];
+  static uint8_t kA[ECC_CURVE_SIZE];
+  static uint8_t kB[ECC_CURVE_SIZE];
+
+  UNIT_TEST_BEGIN();
+
+  /* enable ECC driver */
+  if(ECC.enable(ECC_CURVE)) {
+    UNIT_TEST_FAIL();
+  }
+
+  /* generate key pairs */
+  PT_SPAWN(&unit_test_pt,
+           ECC.get_protothread(),
+           ECC.generate_key_pair(sskA, spkA, &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+  PT_SPAWN(&unit_test_pt,
+           ECC.get_protothread(),
+           ECC.generate_key_pair(eskA, epkA, &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+  PT_SPAWN(&unit_test_pt,
+           ECC.get_protothread(),
+           ECC.generate_key_pair(sskB, spkB, &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+  PT_SPAWN(&unit_test_pt,
+           ECC.get_protothread(),
+           ECC.generate_key_pair(eskB, epkB, &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+
+  /* run FHMQV */
+
+  /* d || e */
+  SHA_256.init();
+  SHA_256.update(epkA, sizeof(epkA));
+  SHA_256.update(epkB, sizeof(epkB));
+  SHA_256.update(spkA, sizeof(spkA));
+  SHA_256.update(spkB, sizeof(spkB));
+  SHA_256.finalize(d);
+  memcpy(e + SHA_256_DIGEST_LENGTH / 2, d, SHA_256_DIGEST_LENGTH / 2);
+  memset(e, 0, SHA_256_DIGEST_LENGTH / 2);
+  memset(d, 0, SHA_256_DIGEST_LENGTH / 2);
+
+  PT_SPAWN(&unit_test_pt,
+           ECC.get_protothread(),
+           ECC.generate_fhmqv_secret(kB, sskB, eskB, spkA, epkA, e, d, &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+
+  PT_SPAWN(&unit_test_pt,
+           ECC.get_protothread(),
+           ECC.generate_fhmqv_secret(kA, sskA, eskA, spkB, epkB, d, e, &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+
+  /* check */
+  UNIT_TEST_ASSERT(!memcmp(kB, kA, ECC_CURVE_SIZE));
+
+  /* disable ECC driver */
+  ECC.disable();
+
+  UNIT_TEST_END();
+}
+/*---------------------------------------------------------------------------*/
 PROCESS_THREAD(test_process, ev, data)
 {
   PROCESS_BEGIN();
@@ -220,10 +307,12 @@ PROCESS_THREAD(test_process, ev, data)
   UNIT_TEST_RUN(ecc_compress);
   UNIT_TEST_RUN(ecc_ecdh);
   UNIT_TEST_RUN(ecc_ecdsa);
+  UNIT_TEST_RUN(ecc_fhmqv);
 
   if(!UNIT_TEST_PASSED(ecc_compress)
       || !UNIT_TEST_PASSED(ecc_ecdh)
-      || !UNIT_TEST_PASSED(ecc_ecdsa)) {
+      || !UNIT_TEST_PASSED(ecc_ecdsa)
+      || !UNIT_TEST_PASSED(ecc_fhmqv)) {
     printf("=check-me= FAILED\n");
     printf("---\n");
   }
