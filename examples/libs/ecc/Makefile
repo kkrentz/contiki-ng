@@ -1,4 +1,4 @@
-CONTIKI_PROJECT = compress ecdh ecdsa fhmqv
+CONTIKI_PROJECT = compress ecdh ecdsa ecqv fhmqv
 all: $(CONTIKI_PROJECT)
 
 CONTIKI = ../../..
