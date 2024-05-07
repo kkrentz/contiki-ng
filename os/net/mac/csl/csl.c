@@ -64,6 +64,10 @@
 #include "net/queuebuf.h"
 #include "services/akes/akes-mac.h"
 #include "services/akes/akes.h"
+#ifdef SMOR
+#include "smor-l2.h"
+#include "smor-metric.h"
+#endif /* SMOR */
 #include "sys/atomic.h"
 #include <stddef.h>
 
@@ -844,10 +848,11 @@ PROCESS_THREAD(post_processing, ev, data)
 
       /* schedule */
       schedule_start = RTIMER_NOW();
-#if FRAME_QUEUE_BROADCASTS_AS_UNICASTS
+#if !defined(SMOR) && FRAME_QUEUE_BROADCASTS_AS_UNICASTS
       linkaddr_copy(&csl_state.transmit.next_hop_address,
                     packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
-#endif /* FRAME_QUEUE_BROADCASTS_AS_UNICASTS */
+      /* SMOR sets csl_state.transmit.next_hop_address by itself */
+#endif /* !defined(SMOR) && FRAME_QUEUE_BROADCASTS_AS_UNICASTS */
       csl_state.transmit.result[0] = CSL_SYNCHRONIZER.schedule();
       assert(csl_state.transmit.result[0] != MAC_TX_ERR);
       if(csl_state.transmit.result[0] != MAC_TX_OK) {
@@ -953,7 +958,10 @@ PROCESS_THREAD(post_processing, ev, data)
       int create_result;
       do {
         queuebuf_to_packetbuf(csl_state.transmit.fqe[i]->qb);
-#if FRAME_QUEUE_BROADCASTS_AS_UNICASTS
+#ifdef SMOR
+        smor_l2_on_outgoing_frame_loaded(i);
+        /* SMOR restores the receiver's by itself */
+#elif FRAME_QUEUE_BROADCASTS_AS_UNICASTS
         packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER,
                            &csl_state.transmit.next_hop_address);
 #endif /* FRAME_QUEUE_BROADCASTS_AS_UNICASTS */
@@ -1293,6 +1301,17 @@ PT_THREAD(transmit(void))
         break;
       }
       NETSTACK_RADIO.async_off();
+#ifdef SMOR
+      if(csl_state.transmit.has_mesh_header[csl_state.transmit.burst_index]
+         && !csl_state.transmit.on_last_hop[csl_state.transmit.burst_index]
+         && (csl_state.transmit.reward[csl_state.transmit.burst_index]
+             == SMOR_METRIC.get_min())) {
+        csl_state.transmit.result[csl_state.transmit.burst_index] =
+            MAC_TX_FORWARDER_DECLINED;
+        LOG_WARN("forwarding was declined\n");
+        break;
+      }
+#endif /* SMOR */
     }
     csl_state.transmit.result[csl_state.transmit.burst_index] = MAC_TX_OK;
 
@@ -1341,12 +1360,21 @@ on_transmitted(void)
 {
   uint_fast8_t i = 0;
   do {
-    bool successful = csl_state.transmit.result[i] == MAC_TX_OK;
+    bool successful;
+    switch(csl_state.transmit.result[i]) {
+    case MAC_TX_OK:
+    case MAC_TX_FORWARDER_DECLINED:
+      successful = true;
+      break;
+    default:
+      successful = false;
+      break;
+    }
     queuebuf_to_packetbuf(csl_state.transmit.fqe[i]->qb);
-#if FRAME_QUEUE_BROADCASTS_AS_UNICASTS
+#if defined(SMOR) || FRAME_QUEUE_BROADCASTS_AS_UNICASTS
     packetbuf_set_addr(PACKETBUF_ADDR_RECEIVER,
                        &csl_state.transmit.next_hop_address);
-#endif /* FRAME_QUEUE_BROADCASTS_AS_UNICASTS */
+#endif /* SMOR || FRAME_QUEUE_BROADCASTS_AS_UNICASTS */
 
     if(!csl_state.transmit.is_broadcast) {
       if(!i) {
