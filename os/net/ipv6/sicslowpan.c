@@ -261,6 +261,12 @@ static uint16_t my_tag;
 /* Assuming that the worst growth for uncompression is 38 bytes */
 #define SICSLOWPAN_FIRST_FRAGMENT_SIZE (SICSLOWPAN_FRAGMENT_SIZE + 38)
 
+#ifdef SICSLOWPAN_CONF_WITH_DEDUPLICATION
+#define WITH_DEDUPLICATION SICSLOWPAN_CONF_WITH_DEDUPLICATION
+#else /* SICSLOWPAN_CONF_WITH_DEDUPLICATION */
+#define WITH_DEDUPLICATION 0
+#endif /* SICSLOWPAN_CONF_WITH_DEDUPLICATION */
+
 /* all information needed for reassembly */
 struct sicslowpan_frag_info {
   /** When reassembling, the source address of the fragments being merged */
@@ -295,6 +301,85 @@ struct sicslowpan_frag_buf {
 
 static struct sicslowpan_frag_buf frag_buf[SICSLOWPAN_FRAGMENT_BUFFERS];
 
+#if WITH_DEDUPLICATION
+#define HISTORY_DEPTH 4
+
+struct reassembly_log {
+  uint16_t recent_tags[HISTORY_DEPTH];
+};
+
+NBR_TABLE(struct reassembly_log, reassembly_logs);
+
+/*--------------------------------------------------------------------*/
+static void
+store_reassembled_tag(uint16_t tag)
+{
+  const linkaddr_t *sender = packetbuf_addr(PACKETBUF_ADDR_SENDER);
+  struct reassembly_log *reassembly_log =
+      nbr_table_get_from_lladdr(reassembly_logs, sender);
+  if(!reassembly_log) {
+    reassembly_log = nbr_table_add_lladdr(reassembly_logs,
+                                          sender,
+                                          NBR_TABLE_REASON_UNDEFINED,
+                                          NULL);
+    if(!reassembly_log) {
+      LOG_ERR("nbr_table_add_lladdr failed\n");
+      return;
+    }
+    for(size_t i = 0; i < HISTORY_DEPTH; i++) {
+      reassembly_log->recent_tags[i] = tag;
+    }
+  } else {
+    memmove(reassembly_log->recent_tags + 1,
+            reassembly_log->recent_tags,
+            sizeof(reassembly_log->recent_tags[0])
+            * (HISTORY_DEPTH - 1));
+    reassembly_log->recent_tags[0] = tag;
+  }
+}
+/*--------------------------------------------------------------------*/
+static bool
+is_duplicate_fragment(uint16_t tag, uint8_t frag_offset)
+{
+  const linkaddr_t *sender = packetbuf_addr(PACKETBUF_ADDR_SENDER);
+  bool is_active_tag = false;
+  size_t i;
+  for(i = 0; i < SICSLOWPAN_REASS_CONTEXTS; i++) {
+    if(frag_info[i].len
+       && tag == frag_info[i].tag
+       && linkaddr_cmp(sender, &frag_info[i].sender)) {
+      is_active_tag = true;
+      break;
+    }
+  }
+  if(is_active_tag) {
+    if(!frag_offset) {
+      /* we already received a FRAG1 for this tag */
+      return true;
+    }
+    /* look for duplicate FRAGN for this tag */
+    for(size_t j = 0; j < SICSLOWPAN_FRAGMENT_BUFFERS; j++) {
+      if(frag_buf[j].len
+         && (frag_buf[j].index == i)
+         && (frag_buf[j].offset == frag_offset)) {
+        return true;
+      }
+    }
+  }
+  /* check if any of the recently reassembled packets had the same tag */
+  struct reassembly_log *reassembly_log =
+      nbr_table_get_from_lladdr(reassembly_logs, sender);
+  if(!reassembly_log) {
+    return false;
+  }
+  for(size_t k = 0; k < HISTORY_DEPTH; k++) {
+    if(reassembly_log->recent_tags[k] == tag) {
+      return true;
+    }
+  }
+  return false;
+}
+#endif /* WITH_DEDUPLICATION */
 /*---------------------------------------------------------------------------*/
 static int
 clear_fragments(uint8_t frag_info_index)
@@ -2043,6 +2128,12 @@ input(void)
       frag_offset = 0;
       frag_size = GET16(PACKETBUF_FRAG_PTR, PACKETBUF_FRAG_DISPATCH_SIZE) & 0x07ff;
       frag_tag = GET16(PACKETBUF_FRAG_PTR, PACKETBUF_FRAG_TAG);
+#if WITH_DEDUPLICATION
+      if(is_duplicate_fragment(frag_tag, frag_offset)) {
+        LOG_WARN("input: duplicate frag1\n");
+        return;
+      }
+#endif /* WITH_DEDUPLICATION */
       packetbuf_hdr_len += SICSLOWPAN_FRAG1_HDR_LEN;
       first_fragment = 1;
       is_fragment = 1;
@@ -2057,6 +2148,12 @@ input(void)
        */
       frag_offset = PACKETBUF_FRAG_PTR[PACKETBUF_FRAG_OFFSET];
       frag_tag = GET16(PACKETBUF_FRAG_PTR, PACKETBUF_FRAG_TAG);
+#if WITH_DEDUPLICATION
+      if(is_duplicate_fragment(frag_tag, frag_offset)) {
+        LOG_WARN("input: duplicate fragn\n");
+        return;
+      }
+#endif /* WITH_DEDUPLICATION */
       frag_size = GET16(PACKETBUF_FRAG_PTR, PACKETBUF_FRAG_DISPATCH_SIZE) & 0x07ff;
       packetbuf_hdr_len += SICSLOWPAN_FRAGN_HDR_LEN;
 
@@ -2181,6 +2278,9 @@ input(void)
     } else {
       /* since we expect no more fragments, leave uncompressed header in uip */
       last_fragment = 1;
+#if WITH_DEDUPLICATION
+      store_reassembled_tag(frag_tag);
+#endif /* WITH_DEDUPLICATION */
     }
   } else if(last_fragment) {
     /* For the last fragment, we are OK if there is extraneous bytes at
@@ -2190,6 +2290,9 @@ input(void)
     if(!copy_frags2uip(frag_context)) {
       return;
     }
+#if WITH_DEDUPLICATION
+    store_reassembled_tag(frag_tag);
+#endif /* WITH_DEDUPLICATION */
   }
 #endif /* SICSLOWPAN_CONF_FRAG */
 
@@ -2307,6 +2410,9 @@ sicslowpan_init(void)
 #endif /* SICSLOWPAN_CONF_MAX_ADDR_CONTEXTS > 1 */
 
 #endif /* SICSLOWPAN_COMPRESSION == SICSLOWPAN_COMPRESSION_IPHC */
+#if WITH_DEDUPLICATION
+  nbr_table_register(reassembly_logs, NULL);
+#endif /* WITH_DEDUPLICATION */
 }
 /*--------------------------------------------------------------------*/
 const struct network_driver sicslowpan_driver = {
