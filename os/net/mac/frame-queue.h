@@ -43,11 +43,27 @@
 #include "sys/clock.h"
 #include <stdbool.h>
 
+#ifdef FRAME_QUEUE_CONF_MAX_FORWARDERS
+#define FRAME_QUEUE_MAX_FORWARDERS FRAME_QUEUE_CONF_MAX_FORWARDERS
+#else /* FRAME_QUEUE_CONF_MAX_FORWARDERS */
+#define FRAME_QUEUE_MAX_FORWARDERS (2)
+#endif /* FRAME_QUEUE_CONF_MAX_FORWARDERS */
+
+#ifdef SMOR
+typedef struct frame_queue_forwarder_t {
+  linkaddr_t addr;
+  bool tried;
+} frame_queue_forwarder_t;
+#endif /* SMOR */
+
 typedef struct frame_queue_entry {
   struct frame_queue_entry *next;
   struct queuebuf *qb;
   mac_callback_t sent;
   void *ptr;
+#ifdef SMOR
+  frame_queue_forwarder_t forwarders[FRAME_QUEUE_MAX_FORWARDERS];
+#endif /* SMOR */
 } frame_queue_entry_t;
 
 /**
