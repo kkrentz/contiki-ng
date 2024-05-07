@@ -1,0 +1,1 @@
+../../os/net/app-layer/libcoap/coap_config.h.contiki
