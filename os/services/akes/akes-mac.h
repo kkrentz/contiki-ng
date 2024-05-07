@@ -71,13 +71,21 @@
 #ifdef AKES_MAC_CONF_UNICAST_SEC_LVL
 #define AKES_MAC_UNICAST_SEC_LVL AKES_MAC_CONF_UNICAST_SEC_LVL
 #else /* AKES_MAC_CONF_UNICAST_SEC_LVL */
+#ifdef SMOR
+#define AKES_MAC_UNICAST_SEC_LVL (2)
+#else /* SMOR */
 #define AKES_MAC_UNICAST_SEC_LVL (6)
+#endif /* SMOR */
 #endif /* AKES_MAC_CONF_UNICAST_SEC_LVL */
 
 _Static_assert((AKES_MAC_UNICAST_SEC_LVL >= 1)
                && (AKES_MAC_UNICAST_SEC_LVL <= 7)
                && (AKES_MAC_UNICAST_SEC_LVL != 4),
                "security levels must be in {1, 2, 3, 5, 6, 7}");
+
+#if defined(SMOR) && (AKES_MAC_UNICAST_SEC_LVL & (1 << 2))
+#error encryption conflicts with the need to inspect the Mesh Addressing header
+#endif
 
 #ifdef AKES_MAC_CONF_BROADCAST_SEC_LVL
 #define AKES_MAC_BROADCAST_SEC_LVL AKES_MAC_CONF_BROADCAST_SEC_LVL

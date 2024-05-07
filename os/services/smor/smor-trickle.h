@@ -29,72 +29,30 @@
  */
 
 /**
- * \addtogroup csl
- * @{
- *
  * \file
- *
+ *         Trickling of adjacency lists.
  * \author
  *         Konrad Krentz <konrad.krentz@gmail.com>
  */
 
-#include "net/mac/csl/csl-channel-selector.h"
-#include "net/mac/csl/csl-nbr.h"
-#include "net/mac/csl/csl.h"
+#ifndef SMOR_TRICKLE_H_
+#define SMOR_TRICKLE_H_
 
-/* Log configuration */
-#include "sys/log.h"
-#define LOG_MODULE "CSL"
-#define LOG_LEVEL LOG_LEVEL_MAC
+#include "services/akes/akes-nbr.h"
 
-/*---------------------------------------------------------------------------*/
-void
-csl_channel_selector_take_feedback(bool successful, uint_fast8_t burst_index)
-{
-#if !CSL_COMPLIANT
-  switch(csl_state.transmit.result[burst_index]) {
-  case MAC_TX_OK:
-  case MAC_TX_COLLISION:
-  case MAC_TX_NOACK:
-  case MAC_TX_FORWARDER_DECLINED:
-    break;
-  default:
-    return;
-  }
+/**
+ * \brief Initializes.
+ */
+void smor_trickle_init(void);
 
-  csl_nbr_t *csl_nbr = csl_nbr_get_receiver();
-  if(!csl_nbr) {
-    LOG_ERR("receiver not found\n");
-    return;
-  }
+/**
+ * \brief To be called when a permanent neighbor was added.
+ */
+void smor_trickle_on_new_neighbor(akes_nbr_entry_t *entry);
 
-  CSL_CHANNEL_SELECTOR.take_feedback(csl_nbr,
-                                     successful,
-                                     csl_get_channel_index());
+/**
+ * \brief To be called when a permanent neighbor was deleted.
+ */
+void smor_trickle_on_neighbor_lost(akes_nbr_entry_t *entry);
 
-#endif /* !CSL_COMPLIANT */
-}
-/*---------------------------------------------------------------------------*/
-bool
-csl_channel_selector_take_feedback_is_exploring(void)
-{
-#if !CSL_COMPLIANT
-  if(csl_state.transmit.is_broadcast) {
-    return false;
-  }
-
-  csl_nbr_t *csl_nbr = csl_nbr_get_receiver();
-  if(!csl_nbr) {
-    LOG_ERR("csl_nbr_get_receiver failed");
-    LOG_ERR_LLADDR(packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
-    LOG_ERR_("\n");
-    return false;
-  }
-  return CSL_CHANNEL_SELECTOR.is_exploring(csl_nbr);
-#else /* !CSL_COMPLIANT */
-  return false;
-#endif /* !CSL_COMPLIANT */
-}
-/*---------------------------------------------------------------------------*/
-
-/** @} */
+#endif /* SMOR_TRICKLE_H_ */
