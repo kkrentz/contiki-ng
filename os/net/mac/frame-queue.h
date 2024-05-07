@@ -40,9 +40,18 @@
 #ifndef FRAME_QUEUE_H_
 #define FRAME_QUEUE_H_
 
+#ifdef SMOR
+#include "net/linkaddr.h"
+#endif /* SMOR */
 #include "net/mac/mac.h"
 #include "sys/clock.h"
 #include <stdbool.h>
+
+#ifdef FRAME_QUEUE_CONF_MAX_FORWARDERS
+#define FRAME_QUEUE_MAX_FORWARDERS FRAME_QUEUE_CONF_MAX_FORWARDERS
+#else /* FRAME_QUEUE_CONF_MAX_FORWARDERS */
+#define FRAME_QUEUE_MAX_FORWARDERS (2)
+#endif /* FRAME_QUEUE_CONF_MAX_FORWARDERS */
 
 typedef struct frame_queue_entry {
   struct frame_queue_entry *next;
@@ -50,12 +59,22 @@ typedef struct frame_queue_entry {
   struct queuebuf *qb;
   mac_callback_t sent;
   void *ptr;
+#ifdef SMOR
+  linkaddr_t forwarders[FRAME_QUEUE_MAX_FORWARDERS];
+#endif /* SMOR */
 } frame_queue_entry_t;
 
 /**
  * \brief Initializes.
  */
 void frame_queue_init(void);
+
+#ifdef SMOR
+/**
+ * \brief Tells if a transmission backoff toward a potential forwarder is ongoing.
+ */
+bool frame_queue_is_backing_off(const linkaddr_t *addr);
+#endif /* SMOR */
 
 /**
  * \brief Buffers outgoing frames.
