@@ -215,6 +215,12 @@ static int last_tx_status;
 /* Support for reassembling multiple packets                         */
 /* ----------------------------------------------------------------- */
 
+#ifdef SICSLOWPAN_CONF_FRAGMENT_ALWAYS
+#define FRAGMENT_ALWAYS SICSLOWPAN_CONF_FRAGMENT_ALWAYS
+#else /* SICSLOWPAN_CONF_FRAGMENT_ALWAYS */
+#define FRAGMENT_ALWAYS 0
+#endif /* SICSLOWPAN_CONF_FRAGMENT_ALWAYS */
+
 #if SICSLOWPAN_CONF_FRAG
 static uint16_t my_tag;
 
@@ -1748,8 +1754,11 @@ output(const linkaddr_t *localdest)
   /* Use the mac_max_payload to understand what is the max payload in a MAC
    * packet. We calculate it here only to make a better decision of whether
    * the outgoing packet needs to be fragmented or not. */
-
+#if FRAGMENT_ALWAYS
+  frag_needed = true;
+#else /* FRAGMENT_ALWAYS */
   frag_needed = (int)uip_len - (int)uncomp_hdr_len + (int)packetbuf_hdr_len > mac_max_payload;
+#endif /* FRAGMENT_ALWAYS */
   LOG_INFO("output: header len %d -> %d, total len %d -> %d, MAC max payload %d, frag_needed %d\n",
             uncomp_hdr_len, packetbuf_hdr_len,
             uip_len, uip_len - uncomp_hdr_len + packetbuf_hdr_len,
@@ -1781,9 +1790,15 @@ output(const linkaddr_t *localdest)
     /* sum of all IPv6 payload that goes to non-first and non-last fragments */
     int middle_fragn_total_payload = MAX(total_payload - frag1_payload - last_fragn_max_payload, 0);
     /* Ceiling of: 2 + middle_fragn_total_payload / fragn_max_payload */
-    unsigned fragment_count = 2;
-    if(middle_fragn_total_payload > 0) {
-      fragment_count += 1 + (middle_fragn_total_payload - 1) / fragn_max_payload;
+    unsigned fragment_count;
+    if(total_payload <= frag1_payload) {
+      fragment_count = 1;
+      frag1_payload = total_payload;
+    } else {
+      fragment_count = 2;
+      if(middle_fragn_total_payload > 0) {
+        fragment_count += 1 + (middle_fragn_total_payload - 1) / fragn_max_payload;
+      }
     }
 
     size_t free_bufs = queuebuf_numfree();
