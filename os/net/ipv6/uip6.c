@@ -81,6 +81,10 @@
 #include "net/ipv6/multicast/uip-mcast6.h"
 #include "net/routing/routing.h"
 
+#ifdef AGGREGATOR
+extern int aggregator_prefilter(void);
+#endif /* AGGREGATOR */
+
 #if UIP_ND6_SEND_NS
 #include "net/ipv6/uip-ds6-nbr.h"
 #endif /* UIP_ND6_SEND_NS */
@@ -1300,6 +1304,12 @@ uip_process(uint8_t flag)
         /* Send ICMPv6 error, prepared by the function that just returned false */
         goto send;
       }
+
+#ifdef AGGREGATOR
+      if(!aggregator_prefilter()) {
+        goto drop;
+      }
+#endif /* AGGREGATOR */
 
       LOG_INFO("Forwarding packet to next hop, dest: ");
       LOG_INFO_6ADDR(&UIP_IP_BUF->destipaddr);
