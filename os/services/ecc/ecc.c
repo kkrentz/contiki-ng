@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021, Uppsala universitet.
+ * Copyright (c) 2024, Siemens AG.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -202,6 +203,66 @@ static PT_THREAD(generate_fhmqv_secret(const uint8_t *static_private_key,
   PT_END(&protothread);
 }
 /*---------------------------------------------------------------------------*/
+static PT_THREAD(generate_ecqv_certificate(
+                   const uint8_t *proto_public_key,
+                   const uint8_t *ca_private_key,
+                   ecc_encode_ecqv_certificate_and_hash_t encode_and_hash,
+                   void *opaque,
+                   uint8_t *private_key_reconstruction_data,
+                   int *const result))
+{
+  PT_BEGIN(&protothread);
+
+  *result = !uECC_generate_ecqv_certificate(proto_public_key,
+                                            ca_private_key,
+                                            encode_and_hash,
+                                            opaque,
+                                            private_key_reconstruction_data,
+                                            uecc_curve);
+
+  PT_END(&protothread);
+}
+/*---------------------------------------------------------------------------*/
+static PT_THREAD(generate_ecqv_key_pair(
+                   const uint8_t *proto_private_key,
+                   const uint8_t *certificate_hash,
+                   const uint8_t *private_key_reconstruction_data,
+                   uint8_t *public_key,
+                   uint8_t *private_key,
+                   int *const result))
+{
+  PT_BEGIN(&protothread);
+
+  *result = !uECC_generate_ecqv_key_pair(proto_private_key,
+                                         certificate_hash,
+                                         ecc_curve->bytes,
+                                         private_key_reconstruction_data,
+                                         public_key,
+                                         private_key,
+                                         uecc_curve);
+
+  PT_END(&protothread);
+}
+/*---------------------------------------------------------------------------*/
+static PT_THREAD(restore_ecqv_public_key(
+                   const uint8_t *certificate_hash,
+                   const uint8_t *public_key_reconstruction_data,
+                   const uint8_t *ca_public_key,
+                   uint8_t *public_key,
+                   int *const result))
+{
+  PT_BEGIN(&protothread);
+
+  *result = !uECC_restore_ecqv_public_key(certificate_hash,
+                                          ecc_curve->bytes,
+                                          public_key_reconstruction_data,
+                                          ca_public_key,
+                                          public_key,
+                                          uecc_curve);
+
+  PT_END(&protothread);
+}
+/*---------------------------------------------------------------------------*/
 static void
 disable(void)
 {
@@ -221,6 +282,9 @@ const struct ecc_driver ecc_driver = {
   generate_key_pair,
   generate_shared_secret,
   generate_fhmqv_secret,
+  generate_ecqv_certificate,
+  generate_ecqv_key_pair,
+  restore_ecqv_public_key,
   disable
 };
 /*---------------------------------------------------------------------------*/
