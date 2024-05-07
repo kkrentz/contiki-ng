@@ -28,5 +28,6 @@ tests/08-native-runs/20-random/native:./20-random.sh \
 tests/08-native-runs/21-coffee-validation/native:./21-coffee-validation.sh \
 tests/08-native-runs/22-ccm-star/native:./22-ccm-star.sh \
 tests/08-native-runs/23-uiplib/native:./23-uiplib.sh \
+tests/08-native-runs/24-etimer/native:./24-etimer.sh \
 
 include ../Makefile.compile-test
