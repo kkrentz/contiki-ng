@@ -25,6 +25,7 @@ tests/08-native-runs/17-process-mutex/native:./17-process-mutex.sh \
 tests/08-native-runs/18-ecc/native:./18-ecc.sh \
 tests/08-native-runs/19-bitrev/native:./19-bitrev-test.sh \
 tests/08-native-runs/20-random/native:./20-random.sh \
-tests/08-native-runs/21-ccm-star/native:./21-ccm-star.sh
+tests/08-native-runs/21-ccm-star/native:./21-ccm-star.sh \
+tests/08-native-runs/22-etimer/native:./22-etimer.sh
 
 include ../Makefile.compile-test
