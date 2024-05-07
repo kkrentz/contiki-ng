@@ -64,6 +64,7 @@
 #define ETIMER_H_
 
 #include "contiki.h"
+#include <stdbool.h>
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -253,6 +254,11 @@ int etimer_pending(void);
  */
 clock_time_t etimer_next_expiration_time(void);
 
+/**
+ * \brief      Check if all etimers are correctly ordered by expiration time.
+ * \return     True if the ordering is correct and false otherwise.
+ */
+bool etimer_check_ordering(void);
 
 /** @} */
 
