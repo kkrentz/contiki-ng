@@ -40,6 +40,9 @@
  */
 
 #include "net/mac/csl/csl-framer-potr.h"
+#ifdef FILTERING_CLIENT
+#include "filtering-client.h"
+#endif /* FILTERING_CLIENT */
 #include "lib/assert.h"
 #include "net/mac/csl/csl-ccm-inputs.h"
 #include "net/mac/csl/csl-framer.h"
@@ -481,6 +484,14 @@ create_wake_up_frame(uint8_t *dst)
     uint8_t payload_frames_length = packetbuf_totlen();
     dst[0] = payload_frames_length;
     assert(dst[0] <= RADIO_MAX_PAYLOAD);
+#ifdef AGGREGATOR
+    if(packetbuf_attr(PACKETBUF_ATTR_INBOUND_OSCORE)) {
+      dst[0] |= FILTERING_OTP_FLAG;
+      dst += CSL_FRAMER_POTR_PAYLOAD_FRAMES_LEN_LEN;
+      filtering_client_get_filtering_otp(dst);
+      dst += CSL_FRAMER_POTR_OTP_LEN;
+    } else
+#endif /* AGGREGATOR */
     {
       dst += CSL_FRAMER_POTR_PAYLOAD_FRAMES_LEN_LEN;
 
@@ -628,7 +639,12 @@ parse_wake_up_frame(void)
       LOG_ERR("could not read at line %i\n", __LINE__);
       return FRAMER_FAILED;
     }
+#if defined(FILTERING_CLIENT) && !defined(AGGREGATOR)
+    csl_state.duty_cycle.next_frames_len = dataptr[0] & ~FILTERING_OTP_FLAG;
+    bool has_filtering_otp = dataptr[0] & FILTERING_OTP_FLAG;
+#else /* defined(FILTERING_CLIENT) && !defined(AGGREGATOR) */
     csl_state.duty_cycle.next_frames_len = dataptr[0];
+#endif /* defined(FILTERING_CLIENT) && !defined(AGGREGATOR) */
     switch(csl_state.duty_cycle.subtype) {
     case CSL_SUBTYPE_ACK:
       if(csl_state.duty_cycle.next_frames_len
@@ -650,15 +666,33 @@ parse_wake_up_frame(void)
     dataptr++;
 
     /* OTP */
+#if defined(FILTERING_CLIENT) && !defined(AGGREGATOR)
+    if(has_filtering_otp && !filtering_client_set_otp_key()) {
+      LOG_ERR("filtering_client_set_otp_key failed\n");
+      return FRAMER_FAILED;
+    }
+#endif /* defined(FILTERING_CLIENT) && !defined(AGGREGATOR) */
     uint8_t otp[CSL_FRAMER_POTR_OTP_LEN];
-    if(!CCM_STAR.aead(nonce,
+    bool aead_result = CCM_STAR.aead(nonce,
         NULL, 0,
         &csl_state.duty_cycle.next_frames_len, 1,
         otp, CSL_FRAMER_POTR_OTP_LEN,
-        false)) {
+        false);
+    if(!aead_result) {
+#if defined(FILTERING_CLIENT) && !defined(AGGREGATOR)
+      filtering_client_unset_otp_key();
+#endif /* defined(FILTERING_CLIENT) && !defined(AGGREGATOR) */
       LOG_ERR("CCM* failed\n");
       return FRAMER_FAILED;
     }
+#if defined(FILTERING_CLIENT) && !defined(AGGREGATOR)
+    if(has_filtering_otp
+        && !filtering_client_unset_otp_key()
+        && !CCM_STAR.set_key(nbr->pairwise_key)) {
+      LOG_ERR("CCM_STAR.set_key failed\n");
+      return FRAMER_FAILED;
+    }
+#endif /* defined(FILTERING_CLIENT) && !defined(AGGREGATOR) */
     if(radio_read_payload_to_packetbuf(
         CSL_FRAMER_POTR_OTP_LEN)) {
       LOG_ERR("could not read at line %i\n", __LINE__);
