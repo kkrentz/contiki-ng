@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021, Uppsala universitet.
+ * Copyright (c) 2024, Siemens AG.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -90,6 +91,7 @@ static const uintptr_t variables_offset =
 static const uintptr_t curve_prime_offset = curve_pab_offset;
 
 static struct pt main_protothread;
+static struct pt auxiliary_protothread;
 static struct pt helper_protothread;
 static const ecc_curve_t *curve;
 static process_mutex_t mutex;
@@ -304,6 +306,7 @@ PT_THREAD(subtract(uintptr_t a_offset,
 /*---------------------------------------------------------------------------*/
 static
 PT_THREAD(reduce_to_element(uintptr_t hash_offset,
+                            bool uniformly,
                             int *const result))
 {
   PT_BEGIN(&helper_protothread);
@@ -328,6 +331,10 @@ PT_THREAD(reduce_to_element(uintptr_t hash_offset,
   PT_YIELD_UNTIL(&helper_protothread, pka_check_status());
 
   if(REG(PKA_COMPARE) != PKA_COMPARE_A_LESS_THAN_B) {
+    if(uniformly) {
+      *result = PKA_STATUS_FAILURE;
+      PT_EXIT(&helper_protothread);
+    }
     /* subtract n */
     REG(PKA_APTR) = scratchpad_offset;
     REG(PKA_BPTR) = curve_n_offset;
@@ -727,7 +734,7 @@ PT_THREAD(ecc_sign(const uint8_t *message_hash,
   /* reduce hash to an element */
   PT_SPAWN(&main_protothread,
            &helper_protothread,
-           reduce_to_element(e_offset, result));
+           reduce_to_element(e_offset, false, result));
   if(*result != PKA_STATUS_SUCCESS) {
     LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
     PT_EXIT(&main_protothread);
@@ -899,7 +906,7 @@ PT_THREAD(ecc_verify(const uint8_t *signature,
   /* reduce hash to an element */
   PT_SPAWN(&main_protothread,
            &helper_protothread,
-           reduce_to_element(e_offset, result));
+           reduce_to_element(e_offset, false, result));
   if(*result != PKA_STATUS_SUCCESS) {
     LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
     PT_EXIT(&main_protothread);
@@ -1018,27 +1025,24 @@ PT_THREAD(ecc_verify(const uint8_t *signature,
   PT_END(&main_protothread);
 }
 /*---------------------------------------------------------------------------*/
-PT_THREAD(ecc_generate_key_pair(uint8_t *public_key,
-                                uint8_t *private_key,
-                                int *const result))
+static
+PT_THREAD(generate_key_pair(uintptr_t public_key_offset,
+                            uintptr_t private_key_offset,
+                            int *const result))
 {
-  static const uintptr_t private_key_offset =
-      variables_offset;
-  static const uintptr_t public_key_offset =
-      PKA_NEXT_OFFSET(private_key_offset, MAX_ELEMENT_WORDS);
-  /* PKA_NEXT_OFFSET(public_key_offset, MAX_POINT_WORDS); */
+  uint8_t private_key[MAX_ELEMENT_BYTES];
 
-  PT_BEGIN(&main_protothread);
+  PT_BEGIN(&auxiliary_protothread);
 
   while(1) {
     /* generate private key */
     if(!csprng_rand(private_key, curve->bytes)) {
       LOG_ERR("CSPRNG error\n");
       *result = PKA_STATUS_FAILURE;
-      PT_EXIT(&main_protothread);
+      PT_EXIT(&auxiliary_protothread);
     }
     element_to_pka_ram(private_key, private_key_offset);
-    PT_SPAWN(&main_protothread,
+    PT_SPAWN(&auxiliary_protothread,
              &helper_protothread,
              check_bounds(private_key_offset,
                           element_null_offset,
@@ -1050,7 +1054,7 @@ PT_THREAD(ecc_generate_key_pair(uint8_t *public_key,
     }
 
     /* generate public key */
-    PT_SPAWN(&main_protothread,
+    PT_SPAWN(&auxiliary_protothread,
              &helper_protothread,
              add_or_multiply_point(PKA_FUNCTION_ECCMUL,
                                    private_key_offset,
@@ -1063,9 +1067,32 @@ PT_THREAD(ecc_generate_key_pair(uint8_t *public_key,
     }
     if(*result != PKA_STATUS_SUCCESS) {
       LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
-      PT_EXIT(&main_protothread);
+      PT_EXIT(&auxiliary_protothread);
     }
     break;
+  }
+
+  PT_END(&auxiliary_protothread);
+}
+/*---------------------------------------------------------------------------*/
+PT_THREAD(ecc_generate_key_pair(uint8_t *public_key,
+                                uint8_t *private_key,
+                                int *const result))
+{
+  static const uintptr_t private_key_offset =
+      variables_offset;
+  static const uintptr_t public_key_offset =
+      PKA_NEXT_OFFSET(private_key_offset, MAX_ELEMENT_WORDS);
+  /* PKA_NEXT_OFFSET(public_key_offset, MAX_POINT_WORDS); */
+
+  PT_BEGIN(&main_protothread);
+
+  PT_SPAWN(&main_protothread,
+           &auxiliary_protothread,
+           generate_key_pair(public_key_offset, private_key_offset, result));
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(&main_protothread);
   }
 
   element_from_pka_ram(private_key, private_key_offset);
@@ -1216,6 +1243,279 @@ PT_THREAD(ecc_generate_fhmqv_secret(const uint8_t *static_private_key,
   }
 
   element_from_pka_ram(shared_secret, sigma_offset);
+  *result = PKA_STATUS_SUCCESS;
+
+  PT_END(&main_protothread);
+}
+/*---------------------------------------------------------------------------*/
+PT_THREAD(ecc_generate_ecqv_certificate(
+              const uint8_t *proto_public_key,
+              const uint8_t *ca_private_key,
+              ecc_encode_ecqv_certificate_and_hash_t encode_and_hash,
+              void *opaque,
+              uint8_t *private_key_reconstruction_data,
+              int *const result))
+{
+  static const uintptr_t public_key_reconstruction_data_offset =
+      variables_offset;
+  static const uintptr_t reconstruction_private_key_offset =
+      PKA_NEXT_OFFSET(public_key_reconstruction_data_offset, MAX_POINT_WORDS);
+  static const uintptr_t proto_public_key_offset =
+      PKA_NEXT_OFFSET(reconstruction_private_key_offset, MAX_ELEMENT_WORDS);
+  static const uintptr_t ca_private_key_offset =
+      PKA_NEXT_OFFSET(proto_public_key_offset, MAX_POINT_WORDS);
+  static const uintptr_t certificate_hash_offset =
+      PKA_NEXT_OFFSET(ca_private_key_offset, MAX_ELEMENT_WORDS);
+  static const uintptr_t private_key_reconstruction_data_offset =
+      PKA_NEXT_OFFSET(certificate_hash_offset, MAX_ELEMENT_WORDS);
+  /* PKA_NEXT_OFFSET(private_key_reconstruction_data_offset, MAX_ELEMENT_WORDS); */
+  uint8_t certificate_hash[MAX_ELEMENT_BYTES];
+  uint8_t public_key_reconstruction_data[MAX_ELEMENT_BYTES * 2];
+
+  PT_BEGIN(&main_protothread);
+
+  /* copy inputs to PKA RAM */
+  point_to_pka_ram(proto_public_key, proto_public_key_offset);
+  element_to_pka_ram(ca_private_key, ca_private_key_offset);
+
+  while(1) {
+    /*
+     * generate reconstruction private key k in [1, n - 1] and reconstruction
+     * public key kG (kG is stored at public_key_reconstruction_data_offset)
+     */
+    PT_SPAWN(&main_protothread,
+             &auxiliary_protothread,
+             generate_key_pair(public_key_reconstruction_data_offset,
+                               reconstruction_private_key_offset,
+                               result));
+    if(*result != PKA_STATUS_SUCCESS) {
+      LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+      PT_EXIT(&main_protothread);
+    }
+
+    /* add proto-public key to reconstruction public key kG */
+    PT_SPAWN(&main_protothread,
+             &helper_protothread,
+             add_or_multiply_point(PKA_FUNCTION_ECCADD,
+                                   public_key_reconstruction_data_offset,
+                                   proto_public_key_offset,
+                                   public_key_reconstruction_data_offset,
+                                   result));
+    if(*result != PKA_STATUS_SUCCESS) {
+      LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+      PT_EXIT(&main_protothread);
+    }
+
+    /* encode and hash ECQV certificate */
+    point_from_pka_ram(public_key_reconstruction_data,
+                       public_key_reconstruction_data_offset);
+    *result = !encode_and_hash(public_key_reconstruction_data,
+                               opaque,
+                               certificate_hash);
+    if(*result) {
+      LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+      PT_EXIT(&main_protothread);
+    }
+    element_to_pka_ram(certificate_hash, certificate_hash_offset);
+    PT_SPAWN(&main_protothread,
+             &helper_protothread,
+             reduce_to_element(certificate_hash_offset, true, result));
+    if(*result != PKA_STATUS_SUCCESS) {
+      LOG_WARN("retrying to generate ECQV certificate as hash >= n\n");
+      continue;
+    }
+    break;
+  }
+
+  /* multiply hash and reconstruction private key */
+  PT_SPAWN(&main_protothread,
+           &helper_protothread,
+           add_or_multiply_modulo(PKA_FUNCTION_MULTIPLY,
+                                  certificate_hash_offset,
+                                  reconstruction_private_key_offset,
+                                  curve_n_offset,
+                                  private_key_reconstruction_data_offset,
+                                  result));
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(&main_protothread);
+  }
+
+  /* add CA's private key to obtain private key reconstruction data */
+  PT_SPAWN(&main_protothread,
+           &helper_protothread,
+           add_or_multiply_modulo(PKA_FUNCTION_ADD,
+                                  private_key_reconstruction_data_offset,
+                                  ca_private_key_offset,
+                                  curve_n_offset,
+                                  private_key_reconstruction_data_offset,
+                                  result));
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(&main_protothread);
+  }
+
+  element_from_pka_ram(private_key_reconstruction_data,
+                       private_key_reconstruction_data_offset);
+  *result = PKA_STATUS_SUCCESS;
+
+  PT_END(&main_protothread);
+}
+/*---------------------------------------------------------------------------*/
+PT_THREAD(ecc_generate_ecqv_key_pair(
+              const uint8_t *proto_private_key,
+              const uint8_t *certificate_hash,
+              const uint8_t *private_key_reconstruction_data,
+              uint8_t *public_key,
+              uint8_t *private_key,
+              int *const result))
+{
+  static const uintptr_t private_key_offset =
+      variables_offset;
+  static const uintptr_t public_key_offset =
+      PKA_NEXT_OFFSET(private_key_offset, MAX_ELEMENT_WORDS);
+  static const uintptr_t proto_private_key_offset =
+      PKA_NEXT_OFFSET(public_key_offset, MAX_POINT_WORDS);
+  static const uintptr_t certificate_hash_offset =
+      PKA_NEXT_OFFSET(proto_private_key_offset, MAX_ELEMENT_WORDS);
+  static const uintptr_t private_key_reconstruction_data_offset =
+      PKA_NEXT_OFFSET(certificate_hash_offset, MAX_ELEMENT_WORDS);
+  /* PKA_NEXT_OFFSET(private_key_reconstruction_data_offset, MAX_ELEMENT_WORDS); */
+
+  PT_BEGIN(&main_protothread);
+
+  /* copy inputs to PKA RAM */
+  element_to_pka_ram(proto_private_key, proto_private_key_offset);
+  element_to_pka_ram(certificate_hash, certificate_hash_offset);
+  element_to_pka_ram(private_key_reconstruction_data,
+                     private_key_reconstruction_data_offset);
+
+  /* truncate certificate hash to an element */
+  PT_SPAWN(&main_protothread,
+           &helper_protothread,
+           reduce_to_element(certificate_hash_offset, true, result));
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(&main_protothread);
+  }
+
+  /* multiply hash by proto-private key */
+  PT_SPAWN(&main_protothread,
+           &helper_protothread,
+           add_or_multiply_modulo(PKA_FUNCTION_MULTIPLY,
+                                  certificate_hash_offset,
+                                  proto_private_key_offset,
+                                  curve_n_offset,
+                                  private_key_offset,
+                                  result));
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(&main_protothread);
+  }
+
+  /* add private key reconstruction data to obtain the private key */
+  PT_SPAWN(&main_protothread,
+           &helper_protothread,
+           add_or_multiply_modulo(PKA_FUNCTION_ADD,
+                                  private_key_offset,
+                                  private_key_reconstruction_data_offset,
+                                  curve_n_offset,
+                                  private_key_offset,
+                                  result));
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(&main_protothread);
+  }
+
+  /* compute the corresponding public key */
+  PT_SPAWN(&main_protothread,
+           &helper_protothread,
+           add_or_multiply_point(PKA_FUNCTION_ECCMUL,
+                                 private_key_offset,
+                                 curve_g_offset,
+                                 public_key_offset,
+                                 result));
+  if(*result == PKA_SHIFT_POINT_AT_INFINITY) {
+    LOG_ERR("actual ECQV public key at infinity\n");
+    PT_EXIT(&main_protothread);
+  }
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(&main_protothread);
+  }
+
+  element_from_pka_ram(private_key, private_key_offset);
+  point_from_pka_ram(public_key, public_key_offset);
+  *result = PKA_STATUS_SUCCESS;
+
+  PT_END(&main_protothread);
+}
+/*---------------------------------------------------------------------------*/
+PT_THREAD(ecc_reconstruct_ecqv_public_key(
+              const uint8_t *certificate_hash,
+              const uint8_t *public_key_reconstruction_data,
+              const uint8_t *ca_public_key,
+              uint8_t *public_key,
+              int *const result))
+{
+  static const uintptr_t public_key_offset =
+      variables_offset;
+  static const uintptr_t certificate_hash_offset =
+      PKA_NEXT_OFFSET(public_key_offset, MAX_POINT_WORDS);
+  static const uintptr_t public_key_reconstruction_data_offset =
+      PKA_NEXT_OFFSET(certificate_hash_offset, MAX_ELEMENT_WORDS);
+  static const uintptr_t ca_public_key_offset =
+      PKA_NEXT_OFFSET(public_key_reconstruction_data_offset, MAX_POINT_WORDS);
+  /* PKA_NEXT_OFFSET(ca_public_key_offset, MAX_POINT_WORDS); */
+
+  PT_BEGIN(&main_protothread);
+
+  /* copy inputs to PKA RAM */
+  element_to_pka_ram(certificate_hash, certificate_hash_offset);
+  point_to_pka_ram(public_key_reconstruction_data,
+                   public_key_reconstruction_data_offset);
+  point_to_pka_ram(ca_public_key, ca_public_key_offset);
+
+  /* truncate certificate hash to an element */
+  PT_SPAWN(&main_protothread,
+           &helper_protothread,
+           reduce_to_element(certificate_hash_offset, true, result));
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(&main_protothread);
+  }
+
+  /* multiply hash by public-key reconstruction data */
+  PT_SPAWN(&main_protothread,
+           &helper_protothread,
+           add_or_multiply_point(PKA_FUNCTION_ECCMUL,
+                                 certificate_hash_offset,
+                                 public_key_reconstruction_data_offset,
+                                 public_key_offset,
+                                 result));
+  if(*result == PKA_SHIFT_POINT_AT_INFINITY) {
+    LOG_ERR("hit the point at infinity\n");
+    PT_EXIT(&main_protothread);
+  }
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(&main_protothread);
+  }
+
+  /* add CA's public key to reconstruct the public key */
+  PT_SPAWN(&main_protothread,
+           &helper_protothread,
+           add_or_multiply_point(PKA_FUNCTION_ECCADD,
+                                 public_key_offset,
+                                 ca_public_key_offset,
+                                 public_key_offset,
+                                 result));
+  if(*result != PKA_STATUS_SUCCESS) {
+    LOG_ERR("Line: %u Error: %u\n", __LINE__, *result);
+    PT_EXIT(&main_protothread);
+  }
+
+  point_from_pka_ram(public_key, public_key_offset);
   *result = PKA_STATUS_SUCCESS;
 
   PT_END(&main_protothread);
