@@ -162,6 +162,30 @@ PT_THREAD(ecc_generate_shared_secret(const uint8_t *public_key,
                                      int *result));
 
 /**
+ * \brief                       Generates a shared secret as per FHMQV.
+ *
+ * NOTE: Instead of computing separate digests, one can set
+ * d||e = Hash(ours and peer's ephemeral and static public keys).
+ *
+ * \param static_private_key    Our static |CURVE|-byte private key.
+ * \param ephemeral_private_key Our ephemeral |CURVE|-byte private key.
+ * \param static_public_key     Peer's static 2|CURVE|-byte public key.
+ * \param ephemeral_public_key  Peer's ephemeral 2|CURVE|-byte public key.
+ * \param d                     The |CURVE|/2-byte FHMQV parameter d.
+ * \param e                     The |CURVE|/2-byte FHMQV parameter e.
+ * \param shared_secret         The resultant |CURVE|-byte shared secret.
+ * \param result                0 on success or a driver-specific error code.
+ */
+PT_THREAD(ecc_generate_fhmqv_secret(const uint8_t *static_private_key,
+                                    const uint8_t *ephemeral_private_key,
+                                    const uint8_t *static_public_key,
+                                    const uint8_t *ephemeral_public_key,
+                                    const uint8_t *d,
+                                    const uint8_t *e,
+                                    uint8_t *shared_secret,
+                                    int *result));
+
+/**
  * \brief Shuts down the ECC driver and unlocks the mutex.
  */
 void ecc_disable(void);
