@@ -29,72 +29,59 @@
  */
 
 /**
- * \addtogroup csl
- * @{
- *
  * \file
- *
+ *         Database of SMOR.
  * \author
  *         Konrad Krentz <konrad.krentz@gmail.com>
  */
 
-#include "net/mac/csl/csl-channel-selector.h"
-#include "net/mac/csl/csl-nbr.h"
-#include "net/mac/csl/csl.h"
+#ifndef SMOR_DB_H_
+#define SMOR_DB_H_
 
-/* Log configuration */
-#include "sys/log.h"
-#define LOG_MODULE "CSL"
-#define LOG_LEVEL LOG_LEVEL_MAC
+#include "net/linkaddr.h"
+#include "net/nbr-table.h"
+#include "services/akes/akes-nbr.h"
+#include "smor-metric.h"
+#include <stdbool.h>
+#include <stdint.h>
 
-/*---------------------------------------------------------------------------*/
-void
-csl_channel_selector_take_feedback(bool successful, uint_fast8_t burst_index)
-{
-#if !CSL_COMPLIANT
-  switch(csl_state.transmit.result[burst_index]) {
-  case MAC_TX_OK:
-  case MAC_TX_COLLISION:
-  case MAC_TX_NOACK:
-  case MAC_TX_FORWARDER_DECLINED:
-    break;
-  default:
-    return;
-  }
+#define SMOR_DB_MAX_NODES (32)
+#define SMOR_DB_INVALID_ID (UINT16_MAX)
+#define SMOR_DB_BITMAP_MAX (UINT32_MAX)
 
-  csl_nbr_t *csl_nbr = csl_nbr_get_receiver();
-  if(!csl_nbr) {
-    LOG_ERR("receiver not found\n");
-    return;
-  }
+typedef uint32_t smor_db_bitmap_t;
+typedef uint16_t smor_db_id_t;
 
-  CSL_CHANNEL_SELECTOR.take_feedback(csl_nbr,
-                                     successful,
-                                     csl_get_channel_index());
+#if NBR_TABLE_MAX_NEIGHBORS > SMOR_DB_MAX_NODES
+#error "NBR_TABLE_MAX_NEIGHBORS > SMOR_DB_MAX_NODES"
+#endif
 
-#endif /* !CSL_COMPLIANT */
-}
-/*---------------------------------------------------------------------------*/
-bool
-csl_channel_selector_take_feedback_is_exploring(void)
-{
-#if !CSL_COMPLIANT
-  if(csl_state.transmit.is_broadcast) {
-    return false;
-  }
+void smor_db_init(void);
+smor_db_id_t smor_db_get_id(const linkaddr_t *addr);
+const linkaddr_t *smor_db_get_address(smor_db_id_t id);
+smor_db_id_t smor_db_get_or_create_id(const linkaddr_t *addr);
+void smor_db_add_link(smor_db_id_t from, smor_db_id_t to);
+void smor_db_cut_link(smor_db_id_t from, smor_db_id_t to);
+bool smor_db_have_link(smor_db_id_t from, smor_db_id_t to);
+void smor_db_set_links(smor_db_id_t id, smor_db_bitmap_t bitmap);
+smor_db_bitmap_t smor_db_get_adjacency_list(smor_db_id_t id);
 
-  csl_nbr_t *csl_nbr = csl_nbr_get_receiver();
-  if(!csl_nbr) {
-    LOG_ERR("csl_nbr_get_receiver failed");
-    LOG_ERR_LLADDR(packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
-    LOG_ERR_("\n");
-    return false;
-  }
-  return CSL_CHANNEL_SELECTOR.is_exploring(csl_nbr);
-#else /* !CSL_COMPLIANT */
-  return false;
-#endif /* !CSL_COMPLIANT */
-}
-/*---------------------------------------------------------------------------*/
+void smor_db_store_forwarders_reward(smor_db_id_t destination_id,
+                                     smor_db_id_t forwarder_id,
+                                     smor_metric_t reward);
+smor_metric_t smor_db_get_forwarders_reward(smor_db_id_t destination_id,
+                                            smor_db_id_t forwarder_id);
 
-/** @} */
+/**
+ * \brief To be called when a permanent neighbor was added.
+ */
+void smor_db_on_new_neighbor(akes_nbr_entry_t *entry);
+
+/**
+ * \brief To be called when a permanent neighbor was deleted.
+ */
+void smor_db_on_neighbor_lost(akes_nbr_entry_t *entry);
+
+extern const smor_db_id_t smor_db_my_id;
+
+#endif /* SMOR_DB_H_ */
