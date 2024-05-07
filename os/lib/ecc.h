@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2021, Uppsala universitet.
+ * Copyright (c) 2024, Siemens AG.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -58,6 +59,20 @@
 #else /* ECC_CONF_ENABLED */
 #define ECC_ENABLED 0
 #endif /* ECC_CONF_ENABLED */
+
+/**
+ * \brief                                Encodes and hashes an ECQV
+ *                                       certificate.
+ * \param public_key_reconstruction_data 2|CURVE| bytes for reconstruction.
+ * \param opaque                         The opaque pointer from
+ *                                       ecc_generate_ecqv_certificate().
+ * \return                               Returns 1 on success and 0 otherwise.
+ * \param certificate_hash               The resultant |CURVE|-byte digest.
+ */
+typedef int (* ecc_encode_ecqv_certificate_and_hash_t)(
+    const uint8_t *public_key_reconstruction_data,
+    void *opaque,
+    uint8_t *certificate_hash);
 
 /**
  * \brief Initializes ECC.
@@ -184,6 +199,73 @@ PT_THREAD(ecc_generate_fhmqv_secret(const uint8_t *static_private_key,
                                     const uint8_t *e,
                                     uint8_t *shared_secret,
                                     int *result));
+
+/**
+ * \brief                                 Generates an ECQV certificate.
+ *
+ * NOTE: If proto_public_key came over an unauthenticated channel, it should
+ * be validated using ecc_validate_public_key() before calling this function.
+ *
+ * \param proto_public_key                The 2|CURVE|-byte proto-public key.
+ * \param ca_private_key                  The CA's |CURVE|-byte private key.
+ * \param encode_and_hash                 Callback for encoding and hashing.
+ * \param opaque                          An opaque pointer for use in the
+ *                                        encode_and_hash callback.
+ * \param private_key_reconstruction_data |CURVE| bytes for reconstruction.
+ * \param result                          0 on success and else a driver-
+ *                                        specific error code.
+ */
+PT_THREAD(ecc_generate_ecqv_certificate(
+              const uint8_t *proto_public_key,
+              const uint8_t *ca_private_key,
+              ecc_encode_ecqv_certificate_and_hash_t encode_and_hash,
+              void *opaque,
+              uint8_t *private_key_reconstruction_data,
+              int *result));
+
+/**
+ * \brief                                 Generates an ECQV key pair.
+ *
+ * NOTE: If private_key_reconstruction_data came over an unauthenticated
+ * channel, public_key should be ensured to match with the one reconstructed
+ * by ecc_reconstruct_ecqv_public_key().
+ *
+ * \param proto_private_key               The |CURVE|-byte proto-private key.
+ * \param certificate_hash                |CURVE|-byte ECQV certificate hash.
+ * \param private_key_reconstruction_data |CURVE| bytes for reconstruction.
+ * \param public_key                      The 2|CURVE|-byte public key.
+ * \param private_key                     The |CURVE|-byte private key.
+ * \param result                          0 on success and else a driver-
+ *                                        specific error code.
+ */
+PT_THREAD(ecc_generate_ecqv_key_pair(
+              const uint8_t *proto_private_key,
+              const uint8_t *certificate_hash,
+              const uint8_t *private_key_reconstruction_data,
+              uint8_t *public_key,
+              uint8_t *private_key,
+              int *result));
+
+/**
+ * \brief                                Reconstructs an ECQV public key.
+ *
+ * NOTE: If public_key_reconstruction_data came over an unauthenticated
+ * channel, it should be validated using ecc_validate_public_key() before
+ * calling this function.
+ *
+ * \param certificate_hash               |CURVE|-byte ECQV certificate hash.
+ * \param public_key_reconstruction_data 2|CURVE| bytes for reconstruction.
+ * \param ca_public_key                  The CA's 2|CURVE|-byte public key.
+ * \param public_key                     The 2|CURVE|-byte public key.
+ * \param result                         0 on success and else a driver-
+ *                                       specific error code.
+ */
+PT_THREAD(ecc_reconstruct_ecqv_public_key(
+              const uint8_t *certificate_hash,
+              const uint8_t *public_key_reconstruction_data,
+              const uint8_t *ca_public_key,
+              uint8_t *public_key,
+              int *result));
 
 /**
  * \brief Shuts down the ECC driver and unlocks the mutex.
