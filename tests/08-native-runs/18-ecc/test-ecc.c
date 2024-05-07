@@ -31,6 +31,7 @@
 #include "contiki.h"
 #include "unit-test.h"
 #include "lib/ecc.h"
+#include "lib/sha-256.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -212,6 +213,109 @@ UNIT_TEST(ecc_ecdsa)
   UNIT_TEST_END();
 }
 /*---------------------------------------------------------------------------*/
+UNIT_TEST_REGISTER(ecc_fhmqv, "FHMQV");
+UNIT_TEST(ecc_fhmqv)
+{
+  int result;
+  static uint8_t static_public_key_a[ECC_CURVE_SIZE * 2];
+  static uint8_t static_private_key_a[ECC_CURVE_SIZE];
+  static uint8_t ephemeral_public_key_a[ECC_CURVE_SIZE * 2];
+  static uint8_t ephemeral_private_key_a[ECC_CURVE_SIZE];
+  static uint8_t static_public_key_b[ECC_CURVE_SIZE * 2];
+  static uint8_t static_private_key_b[ECC_CURVE_SIZE];
+  static uint8_t ephemeral_public_key_b[ECC_CURVE_SIZE * 2];
+  static uint8_t ephemeral_private_key_b[ECC_CURVE_SIZE];
+  static uint8_t de[SHA_256_DIGEST_LENGTH];
+  static uint8_t k_a[ECC_CURVE_SIZE];
+  static uint8_t k_b[ECC_CURVE_SIZE];
+
+  UNIT_TEST_BEGIN();
+
+  /* enable ECC driver */
+  PT_WAIT_UNTIL(&unit_test_pt, process_mutex_try_lock(ecc_get_mutex()));
+  UNIT_TEST_ASSERT(!ecc_enable(ECC_CURVE));
+
+  /* generate key pairs */
+  PT_SPAWN(&unit_test_pt,
+           ecc_get_protothread(),
+           ecc_generate_key_pair(static_public_key_a,
+                                 static_private_key_a,
+                                 &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+  PT_SPAWN(&unit_test_pt,
+           ecc_get_protothread(),
+           ecc_generate_key_pair(ephemeral_public_key_a,
+                                 ephemeral_private_key_a,
+                                 &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+  PT_SPAWN(&unit_test_pt,
+           ecc_get_protothread(),
+           ecc_generate_key_pair(static_public_key_b,
+                                 static_private_key_b,
+                                 &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+  PT_SPAWN(&unit_test_pt,
+           ecc_get_protothread(),
+           ecc_generate_key_pair(ephemeral_public_key_b,
+                                 ephemeral_private_key_b,
+                                 &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+
+  /* run FHMQV */
+
+  /* d || e */
+  SHA_256.init();
+  SHA_256.update(ephemeral_public_key_a, sizeof(ephemeral_public_key_a));
+  SHA_256.update(ephemeral_public_key_b, sizeof(ephemeral_public_key_b));
+  SHA_256.update(static_public_key_a, sizeof(static_public_key_a));
+  SHA_256.update(static_public_key_b, sizeof(static_public_key_b));
+  SHA_256.finalize(de);
+
+  PT_SPAWN(&unit_test_pt,
+           ecc_get_protothread(),
+           ecc_generate_fhmqv_secret(static_private_key_b,
+                                     ephemeral_private_key_b,
+                                     static_public_key_a,
+                                     ephemeral_public_key_a,
+                                     de,
+                                     de + (ECC_CURVE_P_256_SIZE / 2),
+                                     k_b,
+                                     &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+
+  PT_SPAWN(&unit_test_pt,
+           ecc_get_protothread(),
+           ecc_generate_fhmqv_secret(static_private_key_a,
+                                     ephemeral_private_key_a,
+                                     static_public_key_b,
+                                     ephemeral_public_key_b,
+                                     de + (ECC_CURVE_P_256_SIZE / 2),
+                                     de,
+                                     k_a,
+                                     &result));
+  if(result) {
+    UNIT_TEST_FAIL();
+  }
+
+  /* check */
+  UNIT_TEST_ASSERT(!memcmp(k_a, k_b, ECC_CURVE_SIZE));
+
+  /* disable ECC driver */
+  ecc_disable();
+
+  UNIT_TEST_END();
+}
+/*---------------------------------------------------------------------------*/
 PROCESS_THREAD(test_process, ev, data)
 {
   PROCESS_BEGIN();
@@ -222,10 +326,12 @@ PROCESS_THREAD(test_process, ev, data)
   UNIT_TEST_RUN(ecc_compress);
   UNIT_TEST_RUN(ecc_ecdh);
   UNIT_TEST_RUN(ecc_ecdsa);
+  UNIT_TEST_RUN(ecc_fhmqv);
 
   if(!UNIT_TEST_PASSED(ecc_compress)
      || !UNIT_TEST_PASSED(ecc_ecdh)
-     || !UNIT_TEST_PASSED(ecc_ecdsa)) {
+     || !UNIT_TEST_PASSED(ecc_ecdsa)
+     || !UNIT_TEST_PASSED(ecc_fhmqv)) {
     printf("=check-me= FAILED\n");
     printf("---\n");
   }
