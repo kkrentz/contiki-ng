@@ -36,7 +36,7 @@ jobs:
         fail-fast: false
         matrix:
             os: [ ubuntu-latest, macos-15-intel ]
-            test: [ documentation, compile-base, compile-arm-ports, rpl-lite, rpl-classic, renode-simulation, simulation-base, ipv6, ieee802154, tun-rpl-br, script-base, native-runs, ipv6-nbr, coap-lwm2m, packet-parsing ]
+            test: [ documentation, compile-base, compile-arm-ports, rpl-lite, rpl-classic, smor, renode-simulation, simulation-base, ipv6, ieee802154, tun-rpl-br, script-base, native-runs, ipv6-nbr, coap-lwm2m, packet-parsing ]
             exclude:
               # Renode tests done by Linux (more CI runners available).
               - os: macos-15-intel
@@ -82,7 +82,7 @@ jobs:
     - name: install macOS software
       if: matrix.os == 'macos-15-intel'
       run: |
-        brew install coreutils doxygen make mosquitto mtr rlwrap
+        brew install automake coreutils doxygen make mosquitto mtr rlwrap
         python3 -m pip -q install --break-system-packages matplotlib
         python3 -m pip -q install --break-system-packages -r tools/docker/files/rtd_requirements.txt
         wget -nv https://github.com/pjonsson/msp430gcc-binary/releases/download/v1.1/mspgcc-4.7.4-macos-x86_64.tar.bz2
@@ -189,6 +189,14 @@ jobs:
           tools/cooja/.gradle
           tools/cooja/.gradle_home
         key: cooja-${{ runner.os }}-gradle-deps-${{ env.COOJA_COMMIT }}
+
+    # Generate coap.h for those tests that need it
+    - name: Setup libcoap
+      if: matrix.test == 'smor'
+      run: |
+        cd os/net/app-layer/libcoap/
+        ./autogen.sh
+        ./configure --disable-documentation --disable-dtls --without-epoll --disable-examples --disable-examples-source --disable-tcp --enable-oscore-ng --disable-q-block
 
     # Fire up the container and run corresponding tests
     - name: Execute tests
