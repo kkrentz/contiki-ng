@@ -27,76 +27,42 @@
  * SUCH DAMAGE.
  *
  * This file is part of the Contiki operating system.
- *
  */
 
 /**
- * \addtogroup csl
- * @{
  * \file
- *
+ *         HPI-MAC integration.
  * \author
  *         Konrad Krentz <konrad.krentz@gmail.com>
  */
 
-#include "net/mac/csl/csl-channel-selector.h"
-#include "net/mac/csl/csl-nbr.h"
-#include "net/mac/csl/csl.h"
+#ifndef SMOR_L2_H_
+#define SMOR_L2_H_
 
-/* Log configuration */
-#include "sys/log.h"
-#define LOG_MODULE "CSL"
-#define LOG_LEVEL LOG_LEVEL_MAC
+#include "net/mac/frame-queue.h"
+#include <stdbool.h>
 
-/*---------------------------------------------------------------------------*/
-void
-csl_channel_selector_take_feedback(bool successful, uint_fast8_t burst_index)
-{
-#if !CSL_COMPLIANT
-  switch(csl_state.transmit.result[burst_index]) {
-  case MAC_TX_OK:
-  case MAC_TX_COLLISION:
-  case MAC_TX_NOACK:
-  case MAC_TX_FORWARDING_DECLINED:
-    break;
-  default:
-    return;
-  }
+/**
+ * \brief Selects next hops.
+ */
+bool smor_l2_select_forwarders(
+    linkaddr_t forwarders[static FRAME_QUEUE_MAX_FORWARDERS]);
 
-  csl_nbr_t *csl_nbr = csl_nbr_get_receiver();
-  if(!csl_nbr) {
-    LOG_ERR("receiver not found\n");
-    return;
-  }
+/**
+ * \brief Selects a spare forwarder to replace a forwarder who declined.
+ */
+bool smor_l2_select_spare_forwarder(linkaddr_t *spare_forwarder,
+    const linkaddr_t *dest,
+    const linkaddr_t *forwarder_to_exclude);
 
-  CSL_CHANNEL_SELECTOR.take_feedback(csl_nbr,
-      successful,
-      radio_get_channel() - csl_get_min_channel());
+/**
+ * \brief Called when an outgoing frame was moved to the packetbuf.
+ */
+void smor_l2_on_outgoing_frame_loaded(uint_fast8_t burst_index);
 
-#endif /* !CSL_COMPLIANT */
-}
-/*---------------------------------------------------------------------------*/
-bool
-csl_channel_selector_take_feedback_is_exploring(void)
-{
-#if !CSL_COMPLIANT
-  if(csl_state.transmit.is_broadcast) {
-    return false;
-  }
+/**
+ * \brief Tells whether the frame can become part of the current burst.
+ */
+bool smor_l2_fits_burst(frame_queue_entry_t *fqe);
 
-  csl_nbr_t *csl_nbr = csl_nbr_get_receiver();
-  if(!csl_nbr) {
-    LOG_ERR("csl_nbr_get_receiver failed");
-    LOG_ERR_LLADDR(packetbuf_addr(PACKETBUF_ADDR_RECEIVER));
-    LOG_ERR_("\n");
-    return false;
-  }
-  return CSL_CHANNEL_SELECTOR.is_exploring(csl_nbr);
-#else /* !CSL_COMPLIANT */
-  return false;
-#endif /* !CSL_COMPLIANT */
-}
-/*---------------------------------------------------------------------------*/
-
-
-/** @} */
+#endif /* SMOR_L2_H_ */
