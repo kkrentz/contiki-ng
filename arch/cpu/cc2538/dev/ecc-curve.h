@@ -33,12 +33,7 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /**
- * \addtogroup cc2538-ecc
- * @{
- *
- * \defgroup cc2538-ecc-curves cc2538 NIST curves
- *
- * NIST curves for various key sizes
+ * \addtogroup cc2538-pka
  * @{
  *
  * \file
@@ -47,8 +42,44 @@
 #ifndef ECC_CURVE_H_
 #define ECC_CURVE_H_
 
+#include <stddef.h>
+#include <stdint.h>
+
+/** Parameters of an ECC curve in little-endian word order. */
+typedef struct {
+  /** Name of the curve. */
+  const char *name;
+
+  /** Size of the curve in 32-bit words. */
+  const size_t size;
+
+  /** The prime that defines the field of the curve. */
+  const uint32_t *p;
+
+  /** Precomputed value of p + 1. */
+  const uint32_t *p_plus_one;
+
+  /** Length of the binary representation of p + 1. */
+  const size_t binary_length_of_p_plus_one;
+
+  /** Order of the curve. */
+  const uint32_t *n;
+
+  /** Coefficient a of the equation. */
+  const uint32_t *a;
+
+  /** Coefficient b of the equation. */
+  const uint32_t *b;
+
+  /** x coordinate of the generator point. */
+  const uint32_t *x;
+
+  /** y coordinate of the generator point. */
+  const uint32_t *y;
+} ecc_curve_info_t;
+
 /*
- * NIST P-256, X9.62 prime256v1
+ * NIST P-256, X9.62 prime256v1, secp256r1
  */
 extern ecc_curve_info_t nist_p_256;
 
@@ -60,6 +91,5 @@ extern ecc_curve_info_t nist_p_192;
 #endif /* CURVE_INFO_H_ */
 
 /**
- * @}
  * @}
  */
