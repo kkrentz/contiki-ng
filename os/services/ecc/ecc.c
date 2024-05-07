@@ -39,7 +39,6 @@
 
 #include "lib/ecc.h"
 #include "uECC.h"
-#include "lib/csprng.h"
 #include "lib/sha-256.h"
 
 /* Log configuration */
@@ -52,12 +51,6 @@ static uECC_Curve curve;
 
 /*---------------------------------------------------------------------------*/
 static int
-ecc_rng(uint8_t *dest, unsigned size)
-{
-  return csprng_rand(dest, size);
-}
-/*---------------------------------------------------------------------------*/
-static int
 enable(const ecc_curve_t *c)
 {
   if(c == &ecc_curve_p_256) {
@@ -67,7 +60,6 @@ enable(const ecc_curve_t *c)
   } else {
     curve = NULL;
   }
-  uECC_set_rng(ecc_rng);
   return curve == NULL;
 }
 /*---------------------------------------------------------------------------*/
@@ -174,6 +166,30 @@ static PT_THREAD(generate_shared_secret(
   PT_END(&protothread);
 }
 /*---------------------------------------------------------------------------*/
+static PT_THREAD(generate_fhmqv_secret(
+                   uint8_t *shared_secret,
+                   const uint8_t *static_private_key,
+                   const uint8_t *ephemeral_private_key,
+                   const uint8_t *static_public_key,
+                   const uint8_t *ephemeral_public_key,
+                   const uint8_t *d,
+                   const uint8_t *e,
+                   int *result))
+{
+  PT_BEGIN(&protothread);
+
+  *result = !uECC_shared_fhmqv_secret(shared_secret,
+                                      static_private_key,
+                                      ephemeral_private_key,
+                                      static_public_key,
+                                      ephemeral_public_key,
+                                      d,
+                                      e,
+                                      curve);
+
+  PT_END(&protothread);
+}
+/*---------------------------------------------------------------------------*/
 static void
 disable(void)
 {
@@ -189,6 +205,7 @@ const struct ecc_driver ecc_driver = {
   verify,
   generate_key_pair,
   generate_shared_secret,
+  generate_fhmqv_secret,
   disable
 };
 /*---------------------------------------------------------------------------*/
