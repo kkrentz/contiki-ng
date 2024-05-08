@@ -51,12 +51,21 @@
 /* Log configuration */
 #include "sys/log.h"
 #define LOG_MODULE "TinyDICE"
+#ifdef ATTESTATION_BENCHMARK
+#define LOG_LEVEL LOG_LEVEL_ERR
+#else /* ATTESTATION_BENCHMARK */
 #define LOG_LEVEL LOG_LEVEL_DBG
+#endif /* ATTESTATION_BENCHMARK */
 
 struct cert_l1 {
   tiny_dice_cert_t *cert;
   uint8_t hash[SHA_256_DIGEST_LENGTH];
 };
+
+#ifdef ATTESTATION_BENCHMARK
+static rtimer_clock_t t1, t2;
+extern uint32_t wait_sum;
+#endif /* ATTESTATION_BENCHMARK */
 
 /*---------------------------------------------------------------------------*/
 void
@@ -114,6 +123,14 @@ PT_THREAD(tiny_dice_l0_boot(
     *result = 1;
     goto error;
   }
+
+#ifdef ATTESTATION_BENCHMARK
+static unsigned sample;
+for(sample = 0; sample < 30; sample++) {
+  wait_sum = 0;
+  tiny_dice_csprng_reset();
+  t1 = RTIMER_NOW();
+#endif /* ATTESTATION_BENCHMARK */
 
   /* deterministically generate (proto-)DeviceID */
   {
@@ -234,6 +251,16 @@ PT_THREAD(tiny_dice_l0_boot(
     LOG_ERR("ecc_generate_ecqv_key_pair failed\n");
     goto error;
   }
+
+#ifdef ATTESTATION_BENCHMARK
+  t2 = RTIMER_NOW();
+  printf("%s,tiny-%s,%" RTIMER_PRI ",%" RTIMER_PRI "\n",
+         WATCHDOG_CONF_ENABLE ? "yes" : "no",
+         cert_chain->length == 2 ? "with" : "without",
+         t2 - t1,
+         wait_sum);
+}
+#endif /* ATTESTATION_BENCHMARK */
 
   *result = 0;
 error:
