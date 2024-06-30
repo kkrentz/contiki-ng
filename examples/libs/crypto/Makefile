@@ -1,4 +1,4 @@
-CONTIKI_PROJECT = ccm-star-test sha-256-test
+CONTIKI_PROJECT = aes-128-test ccm-star-test sha-256-test
 all: $(CONTIKI_PROJECT)
 
 CONTIKI = ../../..
