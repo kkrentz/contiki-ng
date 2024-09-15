@@ -76,9 +76,9 @@ static int set_keying_material(const coap_bin_const_t *recipient_id,
 static void clean_up(void);
 static int init_libcoap(void);
 static int disclose(
-#if WITH_TRAP
+#if WITH_TRAP && !WITH_IRAP
     uint8_t clients_fhmqv_mic[COAP_RAP_FHMQV_MIC_SIZE]
-#endif /* WITH_TRAP */
+#endif /* WITH_TRAP && !WITH_IRAP */
     );
 static coap_response_t on_disclose_response(coap_session_t *session,
                                             const coap_pdu_t *sent,
@@ -149,6 +149,11 @@ static const coap_rap_config_t rap_config = {
   root_of_trusts_public_key,
   expected_sm_hash,
   expected_tee_hash,
+#if WITH_IRAP
+  1,
+  1,
+  NULL,
+#endif /* WITH_IRAP */
   set_keying_material
 };
 static const uint8_t master_secret_to_share[AES_128_KEY_LENGTH] = {
@@ -251,15 +256,15 @@ PROCESS_THREAD(filtering_client_process, ev, data)
     }
 
     /* remote attestation & key exchange */
-#if WITH_TRAP
+#if WITH_TRAP && !WITH_IRAP
     uint8_t clients_fhmqv_mic[COAP_RAP_FHMQV_MIC_SIZE];
-#endif /* WITH_TRAP */
+#endif /* WITH_TRAP && !WITH_IRAP */
     PROCESS_PT_SPAWN(&session->rap_pt,
                      coap_rap_initiate(session,
                                        &rap_config
-#if WITH_TRAP
+#if WITH_TRAP && !WITH_IRAP
                                        , clients_fhmqv_mic
-#endif /* WITH_TRAP */
+#endif /* WITH_TRAP && !WITH_IRAP */
                                        ));
     if(!session->oscore_ng_context) {
       LOG_ERR("coap_rap failed\n");
@@ -286,9 +291,9 @@ PROCESS_THREAD(filtering_client_process, ev, data)
     coap_register_nack_handler(context, on_timeout);
     coap_register_response_handler(context, on_disclose_response);
     if(!disclose(
-#if WITH_TRAP
+#if WITH_TRAP && !WITH_IRAP
            clients_fhmqv_mic
-#endif /* WITH_TRAP */
+#endif /* WITH_TRAP && !WITH_IRAP */
            )) {
       LOG_ERR("disclose failed\n");
       continue;
@@ -363,9 +368,9 @@ init_libcoap(void)
 /*---------------------------------------------------------------------------*/
 static int
 disclose(
-#if WITH_TRAP
+#if WITH_TRAP && !WITH_IRAP
     uint8_t clients_fhmqv_mic[COAP_RAP_FHMQV_MIC_SIZE]
-#endif /* WITH_TRAP */
+#endif /* WITH_TRAP && !WITH_IRAP */
     )
 {
   coap_pdu_t *pdu = coap_pdu_init(COAP_MESSAGE_CON,
@@ -375,9 +380,9 @@ disclose(
                                                        sizeof(disclose_uri)
                                                        - 1)
                                   + PAYLOAD_MARKER_SIZE
-#if WITH_TRAP
+#if WITH_TRAP && !WITH_IRAP
                                   + COAP_RAP_FHMQV_MIC_SIZE
-#endif /* WITH_TRAP */
+#endif /* WITH_TRAP && !WITH_IRAP */
                                   + sizeof(master_secret_to_share));
   if(!pdu) {
     LOG_ERR("coap_pdu_init failed\n");
@@ -391,7 +396,7 @@ disclose(
     coap_delete_pdu(pdu);
     return 0;
   }
-#if WITH_TRAP
+#if WITH_TRAP && !WITH_IRAP
   uint8_t *payload = coap_add_data_after(pdu,
                                          COAP_RAP_FHMQV_MIC_SIZE
                                          + sizeof(master_secret_to_share));
@@ -404,7 +409,7 @@ disclose(
   memcpy(payload + COAP_RAP_FHMQV_MIC_SIZE,
          master_secret_to_share,
          sizeof(master_secret_to_share));
-#else /* WITH_TRAP */
+#else /* WITH_TRAP && !WITH_IRAP */
   if(!coap_add_data(pdu,
                     sizeof(master_secret_to_share),
                     master_secret_to_share)) {
@@ -412,7 +417,7 @@ disclose(
     coap_delete_pdu(pdu);
     return 0;
   }
-#endif /* WITH_TRAP */
+#endif /* WITH_TRAP && !WITH_IRAP */
   return coap_send(session, pdu) != COAP_INVALID_MID;
 }
 /*---------------------------------------------------------------------------*/
