@@ -38,6 +38,10 @@
 #ifndef PROJECT_CONF_H_
 #define PROJECT_CONF_H_
 
+/* Configure remote attestation protocol */
+#define WITH_TRAP 1
+#define WITH_IRAP 1 /* IRAP depends on WITH_TRAP */
+
 /* Configure CoAP */
 #include "coap_config.h"
 #define LOG_CONF_LEVEL_COAP 3
