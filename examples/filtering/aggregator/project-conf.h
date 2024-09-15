@@ -31,6 +31,10 @@
 #ifndef PROJECT_CONF_H_
 #define PROJECT_CONF_H_
 
+/* Configure remote attestation protocol */
+#define WITH_TRAP 1
+#define WITH_IRAP 1 /* IRAP depends on WITH_TRAP */
+
 /* DH-based remote attestation otherwise has stack overflows */
 #define NBR_TABLE_CONF_MAX_NEIGHBORS 5
 
