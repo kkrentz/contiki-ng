@@ -53,12 +53,23 @@
 #include "contiki.h"
 #include "lib/ecc-curve.h"
 #include "sys/process-mutex.h"
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #ifdef ECC_CONF_ENABLED
 #define ECC_ENABLED ECC_CONF_ENABLED
 #else /* ECC_CONF_ENABLED */
 #define ECC_ENABLED 0
 #endif /* ECC_CONF_ENABLED */
+
+/**
+ * \brief        Generates a cryptographic random number.
+ * \param result The place to store the generated cryptographic random number.
+ * \param size   The length of the cryptographic random number to be generated.
+ * \return       \c true on success and \c false otherwise.
+ */
+typedef bool (* ecc_csprng_t)(uint8_t *result, size_t size);
 
 /**
  * \brief                                Encodes and hashes an ECQV
@@ -159,6 +170,18 @@ PT_THREAD(ecc_verify(const uint8_t *signature,
 PT_THREAD(ecc_generate_key_pair(uint8_t *public_key,
                                 uint8_t *private_key,
                                 int *result));
+
+/**
+ * \brief             Generates a public/private key pair deterministically.
+ * \param csprng      The CSPRNG to use for generating the private key.
+ * \param public_key  The 2|CURVE|-byte public key.
+ * \param private_key The |CURVE|-byte private key.
+ * \param result      0 on success and else a driver-specific error code.
+ */
+PT_THREAD(ecc_generate_key_pair_deterministic(ecc_csprng_t csprng,
+                                              uint8_t *public_key,
+                                              uint8_t *private_key,
+                                              int *result));
 
 /**
  * \brief               Generates a shared secret as per ECDH.
