@@ -94,6 +94,7 @@ static struct pt main_protothread;
 static struct pt auxiliary_protothread;
 static struct pt helper_protothread;
 static const ecc_curve_t *curve;
+static ecc_csprng_t ecc_csprng;
 static process_mutex_t mutex;
 
 /*---------------------------------------------------------------------------*/
@@ -446,7 +447,14 @@ enable(const ecc_curve_t *c)
   pka_little_endian_to_pka_ram(c->b,
                                c->words,
                                curve_b_offset);
+  ecc_csprng = csprng_rand;
   return 0;
+}
+/*---------------------------------------------------------------------------*/
+static void
+set_csprng(ecc_csprng_t csprng)
+{
+  ecc_csprng = csprng;
 }
 /*---------------------------------------------------------------------------*/
 static struct pt *
@@ -745,7 +753,7 @@ PT_THREAD(sign(const uint8_t *message_hash,
 
   while(1) {
     /* generate k */
-    if(!csprng_rand(k, sizeof(k))) {
+    if(!ecc_csprng(k, sizeof(k))) {
       LOG_ERR("CSPRNG error\n");
       *result = PKA_STATUS_FAILURE;
       PT_EXIT(&main_protothread);
@@ -1040,7 +1048,7 @@ PT_THREAD(generate_key_pair_internal(uintptr_t public_key_offset,
 
   while(1) {
     /* generate private key */
-    if(!csprng_rand(private_key, curve->bytes)) {
+    if(!ecc_csprng(private_key, curve->bytes)) {
       LOG_ERR("CSPRNG error\n");
       *result = PKA_STATUS_FAILURE;
       PT_EXIT(&auxiliary_protothread);
@@ -1544,6 +1552,7 @@ const struct ecc_driver cc2538_ecc_driver = {
   init,
   get_mutex,
   enable,
+  set_csprng,
   get_protothread,
   validate_public_key,
   compress_public_key,
