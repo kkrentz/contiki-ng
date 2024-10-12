@@ -44,6 +44,7 @@
 #include "lib/sha-256.h"
 #include "uECC.h"
 
+static ecc_csprng_t temporary_csprng;
 static struct pt protothread;
 static const ecc_curve_t *ecc_curve;
 static uECC_Curve uecc_curve;
@@ -162,6 +163,28 @@ PT_THREAD(ecc_generate_key_pair(uint8_t *public_key,
   *result = !uECC_make_key(public_key,
                            private_key,
                            uecc_curve);
+
+  PT_END(&protothread);
+}
+/*---------------------------------------------------------------------------*/
+static int
+temporary_csprng_adapter(uint8_t *dest, unsigned size)
+{
+  return temporary_csprng(dest, size);
+}
+/*---------------------------------------------------------------------------*/
+PT_THREAD(ecc_generate_key_pair_deterministic(ecc_csprng_t csprng,
+                                              uint8_t *public_key,
+                                              uint8_t *private_key,
+                                              int *const result))
+{
+  PT_BEGIN(&protothread);
+
+  temporary_csprng = csprng;
+  *result = !uECC_make_key_deterministic(temporary_csprng_adapter,
+                                         public_key,
+                                         private_key,
+                                         uecc_curve);
 
   PT_END(&protothread);
 }
