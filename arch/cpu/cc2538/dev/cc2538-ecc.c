@@ -94,6 +94,7 @@ static struct pt main_protothread;
 static struct pt auxiliary_protothread;
 static struct pt helper_protothread;
 static const ecc_curve_t *curve;
+static ecc_csprng_t csprng;
 static process_mutex_t mutex;
 
 /*---------------------------------------------------------------------------*/
@@ -446,6 +447,7 @@ ecc_enable(const ecc_curve_t *c)
   pka_little_endian_to_pka_ram(c->b,
                                c->words,
                                curve_b_offset);
+  csprng = csprng_rand;
   return 0;
 }
 /*---------------------------------------------------------------------------*/
@@ -1036,7 +1038,7 @@ PT_THREAD(generate_key_pair(uintptr_t public_key_offset,
 
   while(1) {
     /* generate private key */
-    if(!csprng_rand(private_key, curve->bytes)) {
+    if(!csprng(private_key, curve->bytes)) {
       LOG_ERR("CSPRNG error\n");
       *result = PKA_STATUS_FAILURE;
       PT_EXIT(&auxiliary_protothread);
@@ -1099,6 +1101,17 @@ PT_THREAD(ecc_generate_key_pair(uint8_t *public_key,
   point_from_pka_ram(public_key, public_key_offset);
 
   PT_END(&main_protothread);
+}
+/*---------------------------------------------------------------------------*/
+PT_THREAD(ecc_generate_key_pair_deterministic(ecc_csprng_t temporary_csprng,
+                                              uint8_t *public_key,
+                                              uint8_t *private_key,
+                                              int *const result))
+{
+  csprng = temporary_csprng;
+  char pt_state = ecc_generate_key_pair(public_key, private_key, result);
+  csprng = csprng_rand;
+  return pt_state;
 }
 /*---------------------------------------------------------------------------*/
 PT_THREAD(ecc_generate_shared_secret(const uint8_t *public_key,
