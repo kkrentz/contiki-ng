@@ -45,10 +45,19 @@
 #include "contiki.h"
 #include "lib/ecc-curve.h"
 #include "sys/process-mutex.h"
+#include <stdbool.h>
 
 #ifdef ECC_CONF
 #define ECC ECC_CONF
 #endif /* ECC_CONF */
+
+/**
+ * \brief        Generates a cryptographic random number.
+ * \param result The place to store the generated cryptographic random number.
+ * \param size   The length of the cryptographic random number to be generated.
+ * \return       \c true on success and \c false otherwise.
+ */
+typedef bool (* ecc_csprng_t)(uint8_t *result, size_t size);
 
 /**
  * \brief                                Encodes and hashes an ECQV
@@ -93,6 +102,13 @@ struct ecc_driver {
    *              there is no need to call ECC.disable() either.
    */
   int (* enable)(const ecc_curve_t *curve);
+
+  /**
+   * \brief        Replaces the cryptographically-secure random number
+   *               generator, e.g., to generate key pairs deterministically.
+   * \param csprng The new cryptographically-secure random number generator.
+   */
+  void (* set_csprng)(ecc_csprng_t csprng);
 
   /**
    * \brief  Provides the protothread that runs long-running ECC operations.
