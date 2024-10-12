@@ -44,6 +44,7 @@
 #include "lib/sha-256.h"
 #include "uECC.h"
 
+static ecc_csprng_t ecc_csprng;
 static struct pt protothread;
 static const ecc_curve_t *ecc_curve;
 static uECC_Curve uecc_curve;
@@ -53,7 +54,7 @@ static process_mutex_t mutex;
 static int
 csprng_adapter(uint8_t *dest, unsigned size)
 {
-  return csprng_rand(dest, size);
+  return ecc_csprng(dest, size);
 }
 /*---------------------------------------------------------------------------*/
 void
@@ -81,7 +82,14 @@ ecc_enable(const ecc_curve_t *c)
     return 1;
   }
   ecc_curve = c;
+  ecc_csprng = csprng_rand;
   return 0;
+}
+/*---------------------------------------------------------------------------*/
+void
+ecc_set_csprng(ecc_csprng_t csprng)
+{
+  ecc_csprng = csprng;
 }
 /*---------------------------------------------------------------------------*/
 struct pt *
