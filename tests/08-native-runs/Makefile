@@ -21,5 +21,6 @@ tests/08-native-runs/13-coffee/native:./13-coffee.sh \
 tests/08-native-runs/14-sha-256/native:./14-sha-256.sh \
 tests/08-native-runs/15-ieee802154-security/native:./15-ieee802154-security.sh \
 tests/08-native-runs/16-cbor/native:./16-cbor.sh \
+tests/08-native-runs/17-process-mutex/native:./17-process-mutex.sh
 
 include ../Makefile.compile-test
