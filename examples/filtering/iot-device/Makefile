@@ -6,6 +6,7 @@ include $(CONTIKI)/Makefile.identify-target
 
 MODULES += os/services/akes
 MODULES += os/services/filtering
+# MODULES += os/services/tiny-dice # uncomment for mutual attestation
 
 ifeq ($(TARGET),cooja)
 # Include software implementation of ECC
