@@ -50,6 +50,14 @@
 #include "net/mac/csl/csl.h"
 #include "net/mac/wake-up-counter.h"
 #include "net/packetbuf.h"
+#ifdef WITH_TINY_DICE
+#include "tiny-dice.h"
+#include "tiny-dice-ca.h"
+#include "tiny-dice-csprng.h"
+#include "tiny-dice-l0.h"
+#include "tiny-dice-l1.h"
+#include "tiny-dice-rot.h"
+#endif /* WITH_TINY_DICE */
 #include <string.h>
 
 #define WITH_CC_OPTIMIZATION \
@@ -99,6 +107,19 @@ static void on_got_otp_result(void *ptr);
 #endif /* AGGREGATOR */
 
 static const coap_bin_const_t middlebox_id = { 0, NULL };
+#ifdef WITH_TINY_DICE
+static const uint32_t tci_l0_version = 1;
+static const uint32_t tci_l1_version = 1;
+static const uint8_t tci_l1[TINY_DICE_TCI_SIZE] = {
+  0xe4, 0x40, 0x26, 0x24, 0x29, 0xfa, 0x0f, 0xa2,
+  0x16, 0x0d, 0xe8, 0x78, 0xb6, 0x26, 0x7d, 0xb9,
+  0xb1, 0x08, 0xfe, 0x56, 0xaa, 0x34, 0xaf, 0x3b,
+  0xf0, 0x47, 0xdc, 0x14, 0xf9, 0x03, 0xe6, 0xad
+};
+static const tiny_dice_tci_mapping_t tci_l1_mapping = {
+  tci_l1, tci_l1_version
+};
+#else /* WITH_TINY_DICE */
 #if WITH_TRAP
 static const uint8_t my_public_key[2 * ECC_CURVE_P_256_SIZE] = {
   0xf7, 0x40, 0x9d, 0x80, 0x9d, 0x77, 0xc2, 0x29,
@@ -117,6 +138,7 @@ static const uint8_t my_private_key[ECC_CURVE_P_256_SIZE] = {
   0xb6, 0xa6, 0xe2, 0xda, 0x6e, 0x6b, 0x2a, 0xe5,
   0x07, 0xd6, 0x05, 0x1f, 0x03, 0x3f, 0xfb, 0xae
 };
+#endif /* WITH_TINY_DICE */
 static const uint8_t root_of_trusts_public_key[] = {
   0x07, 0x97, 0x95, 0x76, 0x0f, 0x3e, 0xbd, 0x66,
   0xfd, 0x75, 0x38, 0xa6, 0x46, 0x17, 0x85, 0xa3,
@@ -142,17 +164,26 @@ static const uint8_t expected_tee_hash[] = {
 static const coap_rap_config_t rap_config = {
   resume,
   &middlebox_id,
+#ifdef WITH_TINY_DICE
+  tiny_dice_l1_private_key,
+  tiny_dice_l1_public_key,
+#else /* WITH_TINY_DICE */
   my_private_key,
 #if WITH_TRAP
   my_public_key,
 #endif /* WITH_TRAP */
+#endif /* WITH_TINY_DICE */
   root_of_trusts_public_key,
   expected_sm_hash,
   expected_tee_hash,
 #if WITH_IRAP
   1,
   1,
+#ifdef WITH_TINY_DICE
+  &tiny_dice_l1_cert_chain,
+#else /* WITH_TINY_DICE */
   NULL,
+#endif /* WITH_TINY_DICE */
 #endif /* WITH_IRAP */
   set_keying_material
 };
@@ -222,6 +253,44 @@ set_keying_material(const coap_bin_const_t *recipient_id,
 PROCESS_THREAD(filtering_client_process, ev, data)
 {
   PROCESS_BEGIN();
+
+#ifdef WITH_TINY_DICE
+  {
+    static tiny_dice_cert_chain_t cert_chain;
+    tiny_dice_init_cert_chain(&cert_chain, 2);
+    tiny_dice_rot_boot();
+
+    /* get Cert_L0 and s_L0 */
+    cert_chain.certs[0].subject_data = linkaddr_node_addr.u8;
+    cert_chain.certs[0].subject_size = LINKADDR_SIZE;
+    cert_chain.certs[0].tci_version = tci_l0_version;
+    int result;
+    static uint8_t s_l0[ECC_CURVE_P_256_SIZE];
+    PROCESS_PT_SPAWN(&tiny_dice_pt,
+                     tiny_dice_ca_request(cert_chain.certs, s_l0, &result));
+    if(result) {
+      LOG_ERR("tiny_dice_issue_cert_l0 failed\n");
+      PROCESS_EXIT();
+    }
+
+    /* get Cert_L1 and AKey_L0 */
+    tiny_dice_csprng_reset();
+    cert_chain.certs[1].subject_data = linkaddr_node_addr.u8;
+    cert_chain.certs[1].subject_size = LINKADDR_SIZE;
+    cert_chain.certs[1].tci_digest = tci_l1;
+    PROCESS_PT_SPAWN(&tiny_dice_pt,
+                     tiny_dice_l0_boot(&cert_chain, s_l0, &result));
+    if(result) {
+      LOG_ERR("tiny_dice_boot failed\n");
+      PROCESS_EXIT();
+    }
+    tiny_dice_compress_cert_chain(&tci_l1_mapping, &cert_chain);
+    if(!tiny_dice_l1_boot(&cert_chain)) {
+      LOG_ERR("tiny_dice_l1_boot failed\n");
+      PROCESS_EXIT();
+    }
+  }
+#endif /* WITH_TINY_DICE */
 
   context = coap_new_context(NULL);
   if(!context) {
