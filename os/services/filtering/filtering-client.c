@@ -50,6 +50,9 @@
 #include "net/mac/csl/csl.h"
 #include "net/mac/wake-up-counter.h"
 #include "net/packetbuf.h"
+#ifdef WITH_TINY_DICE
+#include "tiny-dice.h"
+#endif /* WITH_TINY_DICE */
 #include <string.h>
 
 #define WITH_CC2538_OPTIMIZATION \
@@ -99,6 +102,7 @@ static void on_got_otp_result(void *ptr);
 #endif /* AGGREGATOR */
 
 static const coap_bin_const_t middlebox_id = { 0, NULL };
+#ifndef WITH_TINY_DICE
 static const uint8_t my_private_key[ECC_CURVE_P_256_SIZE] = {
   0x64, 0x74, 0x92, 0xb6, 0xf6, 0x69, 0x8d, 0xc0,
   0x77, 0xb6, 0x52, 0x9a, 0xc1, 0xbd, 0x81, 0xe0,
@@ -117,6 +121,7 @@ static const uint8_t my_public_key[ECC_CURVE_P_256_SIZE * 2] = {
   0x73, 0x6b, 0x8b, 0xd5, 0x7c, 0x7d, 0x11, 0xc2
 };
 #endif /* WITH_TRAP */
+#endif /* !WITH_TINY_DICE */
 static const uint8_t root_of_trusts_public_key[ECC_CURVE_P_256_SIZE * 2] = {
   0x2a, 0xf1, 0xea, 0x01, 0xd2, 0xc2, 0x93, 0x21,
   0xbf, 0xdb, 0xf3, 0x1f, 0x92, 0x73, 0xf7, 0xc6,
@@ -142,17 +147,26 @@ static const uint8_t expected_tee_hash[SHA_256_DIGEST_LENGTH] = {
 static const coap_rap_config_t rap_config = {
   resume,
   &middlebox_id,
+#ifdef WITH_TINY_DICE
+  tiny_dice_private_key,
+  tiny_dice_public_key,
+#else /* WITH_TINY_DICE */
   my_private_key,
 #if WITH_TRAP
   my_public_key,
 #endif /* WITH_TRAP */
+#endif /* WITH_TINY_DICE */
   root_of_trusts_public_key,
   expected_sm_hash,
   expected_tee_hash,
 #if WITH_IRAP
   1,
   1,
+#ifdef WITH_TINY_DICE
+  &tiny_dice_cert_chain,
+#else /* WITH_TINY_DICE */
   NULL,
+#endif /* WITH_TINY_DICE */
 #endif /* WITH_IRAP */
   set_keying_material
 };
@@ -222,6 +236,27 @@ set_keying_material(const coap_bin_const_t *recipient_id,
 PROCESS_THREAD(filtering_client_process, ev, data)
 {
   PROCESS_BEGIN();
+
+#ifdef WITH_TINY_DICE
+  {
+    int result;
+    tiny_dice_set_subject_data(linkaddr_node_addr.u8, LINKADDR_SIZE);
+    PROCESS_PT_SPAWN(&tiny_dice_pt, tiny_dice_issue_cert_l0(&result));
+    if(result) {
+      LOG_ERR("tiny_dice_issue_cert_l0 failed\n");
+      PROCESS_EXIT();
+    }
+    PROCESS_PT_SPAWN(&tiny_dice_pt, tiny_dice_boot(&result));
+    if(result) {
+      LOG_ERR("tiny_dice_boot failed\n");
+      PROCESS_EXIT();
+    }
+    if(!tiny_dice_compress()) {
+      LOG_ERR("tiny_dice_compress failed\n");
+      PROCESS_EXIT();
+    }
+  }
+#endif /* WITH_TINY_DICE */
 
   context = coap_new_context(NULL);
   if(!context) {
