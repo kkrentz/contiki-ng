@@ -1,38 +1,123 @@
-<img src="https://github.com/contiki-ng/contiki-ng.github.io/blob/master/images/logo/Contiki_logo_2RGB.png" alt="Logo" width="256">
+This fork implements the following protocol stack:
 
-# Contiki-NG: The OS for Next Generation IoT Devices
+| Layer                 | Protocol(s)                                                                                         |
+| :---                  | :---                                                                                                |
+| Application           | CoAP, [OSCORE-NG](https://github.com/kkrentz/libcoap), TRAP                                         |
+| Transport             | UDP                                                                                                 |
+| Network               | IPv6                                                                                                |
+| Adaption              | 6LoWPAN (in mesh-under mode)                                                                        |
+| Medium access control | [CSL](#csl-coordinated-sampled-listening), [SMOR](#smor-secure-multipath-opportunistic-routing)     |
+| Physical              | IEEE 802.15.4                                                                                       |
 
-[![Github Actions](https://github.com/contiki-ng/contiki-ng/workflows/CI/badge.svg?branch=develop)](https://github.com/contiki-ng/contiki-ng/actions)
-[![Documentation Status](https://readthedocs.org/projects/contiki-ng/badge/?version=master)](https://contiki-ng.readthedocs.io/en/master/?badge=master)
-[![license](https://img.shields.io/badge/license-3--clause%20bsd-brightgreen.svg)](https://github.com/contiki-ng/contiki-ng/blob/master/LICENSE.md)
-[![Latest release](https://img.shields.io/github/release/contiki-ng/contiki-ng.svg)](https://github.com/contiki-ng/contiki-ng/releases/latest)
-[![GitHub Release Date](https://img.shields.io/github/release-date/contiki-ng/contiki-ng.svg)](https://github.com/contiki-ng/contiki-ng/releases/latest)
-[![Last commit](https://img.shields.io/github/last-commit/contiki-ng/contiki-ng.svg)](https://github.com/contiki-ng/contiki-ng/commit/HEAD)
+# CSL: Coordinated Sampled Listening
 
-[![Stack Overflow Tag](https://img.shields.io/badge/Stack%20Overflow%20tag-Contiki--NG-blue?logo=stackoverflow)](https://stackoverflow.com/questions/tagged/contiki-ng)
-[![Gitter](https://img.shields.io/badge/Gitter-Contiki--NG-blue?logo=gitter)](https://gitter.im/contiki-ng)
-[![Twitter](https://img.shields.io/badge/Twitter-%40contiki__ng-blue?logo=twitter)](https://twitter.com/contiki_ng)
+CSL is a standardized MAC protocol for IEEE 802.15.4 networks. Its rationale is to send a stream of wake-up frames prior to an actual payload frame. Each wake-up frame essentially contains the time when the transmission of the payload frame will begin. This hint enables the receiver of a wake-up frame to sleep until the transmission of the payload frame is about to begin.
 
-Contiki-NG is an open-source, cross-platform operating system for Next-Generation IoT devices. It focuses on dependable (secure and reliable) low-power communication and standard protocols, such as IPv6/6LoWPAN, 6TiSCH, RPL, and CoAP. Contiki-NG comes with extensive documentation, tutorials, a roadmap, release cycle, and well-defined development flow for smooth integration of community contributions.
+## Configuration
 
-Unless explicitly stated otherwise, Contiki-NG sources are distributed under
-the terms of the [3-clause BSD license](LICENSE.md). This license gives
-everyone the right to use and distribute the code, either in binary or
-source code format, as long as the copyright license is retained in
-the source code.
+There are two main ways to use our CSL implementation. First, it is possible to adhere to the IEEE 802.15.4 standard. However, due to security vulnerabilities (even when enabling IEEE 802.15.4 security), this configuration is only meant for testing and research purposes. Second, it is possible to enable additional security measures.
 
-Contiki-NG started as a fork of the Contiki OS and retains some of its original features.
+### IEEE 802.15.4-Compliant CSL
 
-Find out more:
+For the standards-compliant configuration, add the following line to your `project-conf.h`
+```c
+/* auto-configures the MAC layer */
+#include "net/mac/csl/csl-autoconf.inc"
+```
 
-* GitHub repository: https://github.com/contiki-ng/contiki-ng
-* Documentation: https://docs.contiki-ng.org/
-* List of releases and changes: https://github.com/contiki-ng/contiki-ng/releases
-* Web site: http://contiki-ng.org
+Finally, in your Makefile, insert:
+```
+MAKE_MAC = MAKE_MAC_CSL
+```
 
-Engage with the community:
+### Hasso Plattner Institute MAC (HPI-MAC)
 
-* Discussions on GitHub: https://github.com/contiki-ng/contiki-ng/discussions
-* Contiki-NG tag on Stack Overflow: https://stackoverflow.com/questions/tagged/contiki-ng
-* Gitter: https://gitter.im/contiki-ng
-* Twitter: https://twitter.com/contiki_ng
+For the secure configuration, aka HPI-MAC, add the following two lines to your `project-conf.h`:
+```c
+#define CSL_CONF_COMPLIANT 0
+#include "net/mac/csl/csl-autoconf.inc"
+```
+and the following lines to your Makefile:
+```c
+MAKE_MAC = MAKE_MAC_CSL
+MODULES += os/services/akes
+```
+
+For better reliability (at the cost of higher latencies), enable ML-based channel hopping:
+```c
+#define CSL_CHANNEL_SELECTOR_CONF_WITH_D_UCB 1
+```
+By default, blind channel hopping is used. Note, however, that ML-based channel hopping consumes a considerable amount of RAM.
+
+### Troubleshooting
+
+Two parameters might need to be adapted to your radio environment:
+
+```c
+/* If the CCA threshold is too low, IEEE 802.15.4 nodes may end up sending never. */
+#define CSL_CONF_CCA_THRESHOLD (-70) /* dBm */
+/* The output power controls the communication range. */
+#define CSL_CONF_OUTPUT_POWER (0) /* dBm */
+```
+
+Besides, I observed an abnormally many collisions when using a laptop and a USB hub. It seems that OpenMotes do not get enough current in this scenario. To fix this, either plug in the power cable of your laptop or connect your OpenMotes without a USB hub.
+
+## Features
+
+HPI-MAC features:
+- Low base energy consumption, e.g., 0.5% duty cycle when waking up eight times per second
+- Low energy consumption at the sender side by learning the wake-up times of neighboring nodes, as well as the clock drifts compared to neighboring nodes
+- Burst forwarding for better throughput
+- ML-based channel hopping and acknowledged broadcast frames for higher reliability
+- High MAC layer security
+  - Authentication and encryption of frames via pairwise session keys
+  - Strong freshness, i.e., even delayed frames are recognized as replayed
+  - Denial-of-sleep-resilient medium access control
+  - Denial-of-sleep-resilient pairwise session key establishment
+
+## Code structure
+
+- [os/services/akes](https://github.com/kkrentz/contiki-ng/tree/master/os/services/akes)
+  - Contains the adaptive key establishment scheme (AKES)
+- [os/net/mac/csl](https://github.com/kkrentz/contiki-ng/tree/master/os/net/mac/csl)
+  - Contains the CSL MAC protocol
+
+## Supported Platforms
+
+- CC2538-based platforms
+- [Cooja](https://github.com/kkrentz/cooja) motes
+
+## TODOs
+
+- Support newer platforms, such as CC13x4/CC26x4
+- Currently, this CSL implementation is limited to `macCslInterval=0`. This is to obviate data request frames and to minimize the duration of periodic wake ups. However, some platforms do not support `macCslInterval=0`. Support for `macCslInterval!=0` is hence desirable. For securing data request frames, we may echo truncated OTP bits
+- Autoconfigure CCA threshold
+- Autoconfigure output power
+- Disable or accelerate wake ups on mains-powered devices, such as border routers
+
+## Further Reading
+- [IEEE 802.15.4-compliant CSL](https://standards.ieee.org/ieee/802.15.4/11041/)
+- [HPI-MAC](https://doi.org/10.25932/publishup-43930)
+- [ML-based Channel Hopping](https://doi.org/10.1007/978-3-030-98978-1_3)
+
+# SMOR: Secure Multipath Opportunistic Routing
+
+## Comparison of SMOR with Requests for Comments (RFCs)
+
+| Feature                                | RPL                | AODV               | DSR                | SMOR               |
+| :---                                   | :---:              | :---:              | :---:              | :---:              |
+| Tolerance of node failures             | :white_circle:¹    | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| Migration to better links              | :white_circle:²    | :x:                | :x:                | :white_check_mark: |
+| Economy of broadcasts                  | :white_check_mark: | :x:                | :x:                | :white_check_mark: |
+| Support for point-to-point traffic     | :white_circle:³    | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| Resilience to node compromises         | :x:                | :x:                | :x:                | :white_check_mark: |
+
+¹ Failures of root nodes prevent network formation
+
+² As RPL does not assess unused links, it may miss opportunities to migrate to better links
+
+³ IPv6 packets may take detours via a root node or a common ancestor
+
+## Further Reading
+
+- [Paper](https://doi.org/10.1016/j.comcom.2024.01.024)
