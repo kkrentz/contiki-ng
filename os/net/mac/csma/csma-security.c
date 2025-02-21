@@ -149,14 +149,14 @@ aead(uint8_t hdrlen, int forward)
   CCM_STAR.aead(nonce,
       m, m_len,
       a, a_len,
-      result, MIC_LEN(packetbuf_attr(PACKETBUF_ATTR_SECURITY_LEVEL) & 0x07),
+      result, MIC_LEN(packetbuf_attr(PACKETBUF_ATTR_SECURITY_LEVEL)),
       forward);
 
   if(forward) {
-    packetbuf_set_datalen(packetbuf_datalen() + MIC_LEN(packetbuf_attr(PACKETBUF_ATTR_SECURITY_LEVEL) & 0x07));
+    packetbuf_set_datalen(packetbuf_datalen() + MIC_LEN(packetbuf_attr(PACKETBUF_ATTR_SECURITY_LEVEL)));
     return 1;
   } else {
-    return (memcmp(generated_mic, mic, MIC_LEN(packetbuf_attr(PACKETBUF_ATTR_SECURITY_LEVEL) & 0x07)) == 0);
+    return (memcmp(generated_mic, mic, MIC_LEN(packetbuf_attr(PACKETBUF_ATTR_SECURITY_LEVEL))) == 0);
   }
 }
 
@@ -222,7 +222,7 @@ length(void)
   if(packetbuf_attr(PACKETBUF_ATTR_SECURITY_LEVEL) > 0 &&
      LLSEC_KEY_INDEX != 0xffff) {
     return framer_802154.length() +
-      MIC_LEN(packetbuf_attr(PACKETBUF_ATTR_SECURITY_LEVEL) & 0x07);
+      MIC_LEN(packetbuf_attr(PACKETBUF_ATTR_SECURITY_LEVEL));
   }
   return framer_802154.length();
 }
@@ -277,12 +277,12 @@ parse(void)
     return FRAMER_FAILED;
   }
 
-  if(packetbuf_datalen() <= MIC_LEN(packetbuf_attr(PACKETBUF_ATTR_SECURITY_LEVEL) & 0x07)) {
+  if(packetbuf_datalen() <= MIC_LEN(packetbuf_attr(PACKETBUF_ATTR_SECURITY_LEVEL))) {
     LOG_ERR("MIC error - too little data in frame!\n");
     return FRAMER_FAILED;
   }
 
-  packetbuf_set_datalen(packetbuf_datalen() - MIC_LEN(packetbuf_attr(PACKETBUF_ATTR_SECURITY_LEVEL) & 0x07));
+  packetbuf_set_datalen(packetbuf_datalen() - MIC_LEN(packetbuf_attr(PACKETBUF_ATTR_SECURITY_LEVEL)));
   if(!aead(hdr_len, 0)) {
     LOG_INFO("received unauthentic frame %u from ",
              (unsigned int) anti_replay_get_counter());
