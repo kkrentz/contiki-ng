@@ -1,13 +1,13 @@
 IETF and IEEE protocols for low-power power and lossy networks (LLNs) lack critical security features. They fall short of compromise resilience, denial-of-sleep resilience, and/or strong freshness. Therefore, this fork focuses on implementing a security-enhanced protocol stack for LLNs.
 
-| Layer                 | Protocol(s)                                                                                         |
-| :---                  | :---                                                                                                |
-| Application           | CoAP, [OSCORE-NG](https://github.com/kkrentz/libcoap), TRAP                                         |
-| Transport             | UDP                                                                                                 |
-| Network               | IPv6                                                                                                |
-| Adaption              | 6LoWPAN (in mesh-under mode)                                                                        |
-| Medium access control | [CSL](#csl-coordinated-sampled-listening), [SMOR](#smor-secure-multipath-opportunistic-routing)     |
-| Physical              | IEEE 802.15.4                                                                                       |
+| Layer                 | Protocol(s)                                                                                                     |
+| :---                  | :---                                                                                                            |
+| Application           | CoAP, [OSCORE-NG](https://github.com/kkrentz/libcoap), TRAP, [IRAP](#irap-implicit-remote-attestation-protocol) |
+| Transport             | UDP                                                                                                             |
+| Network               | IPv6                                                                                                            |
+| Adaption              | 6LoWPAN (in mesh-under mode)                                                                                    |
+| Medium access control | [CSL](#csl-coordinated-sampled-listening), [SMOR](#smor-secure-multipath-opportunistic-routing)                 |
+| Physical              | IEEE 802.15.4                                                                                                   |
 
 # CSL: Coordinated Sampled Listening
 
@@ -123,3 +123,65 @@ Many state-of-the-art IoT technologies, such as Thread or Wi-SUN, employ the Rou
 ## Further Reading
 
 - [Paper](https://doi.org/10.1016/j.comcom.2024.01.024)
+
+# IRAP: Implicit Remote Attestation Protocol
+
+IRAP establishes an OSCORE-NG session between a client and a server. As its key exchange protocol, IRAP adopts Fully Hashed Menezes-Qu-Vanstone (FHMQV), which saves communication and processing overhead compared to Diffie-Hellman.
+
+Optionally, IRAP can establish attested channels, where the client, the server, or both are ensured of the other side's software integrity. This functionality is based on TinyDICE, a lightweight version of the Device Identifier Composition Engine (DICE).
+
+IRAP comprises three request-response pairs:
+1. The /kno request-response protects against denial-of-service attacks like in DTLS or WireGuard.
+2. The /reg request-response performs FHMQV and optionally the TinyDICE-based remote attestation.
+3. The final request-response pair serves for key confirmation and can carry application data already.
+
+The protocol details are shown below:
+
+```mermaid
+sequenceDiagram
+participant Layer m
+participant Client
+participant Server
+participant Layer n
+Note over Layer m: Highest boot layer at the client side
+Note over Client: Either a TEE or a subprocess of Layer m
+Note over Server: Either a TEE or a subprocess of Layer n
+Note over Layer n: Highest boot layer at the server side
+Client->>Server: /kno
+Server->>Client: cookie c
+Client->>Client: generate ephemeral key pair E/e
+Client->>Server: /reg
+Server->>Server: validate c
+Server->>Server: validate E
+opt Client uses TinyDICE
+    Server->>Server: validate certificates and TCIs
+    Server->>Server: reconstruct static public key D
+end
+Note over Server: Without TinyDICE, the server needs to know the client's static public key D
+Server->>Layer n: D, E
+Layer n->>Layer n: generate ephemeral key pair T/t
+Layer n->>Layer n: generate symmetric key K as per FHMQV using S/s, T/t, D, and E
+Note over Layer n: S/s is the static key pair of Layer n
+Layer n->>Server: K, attestation report
+Server->>Client: attestation report, OSCORE-NG authentication tag
+opt Server uses TinyDICE
+    Client->>Client: validate certificates and TCIs
+    Client->>Client: reconstruct static public key S
+end
+Note over Client: Without TinyDICE, the client needs to know the server's static public key S
+Client->>Layer m: E/e, S, T
+Layer m->>Layer m: generate K as per FHMQV using D/d, E/e, S, and T
+Layer m->>Client: K
+Client->>Client: Check OSCORE-NG authentication tag
+Client->>Server: /*
+Server->>Server: Perform OSCORE-NG processing
+Server->>Client: 
+Client->>Client: Perform OSCORE-NG processing
+```
+
+## Configuration
+
+On [this page](https://github.com/kkrentz/filtering-proxy), there are instructions for setting up a demo, where a Contiki-NG client establishes an attested channel with a Keystone TEE.
+
+## Further Reading
+- [DICE](https://www.microsoft.com/en-us/research/project/dice-device-identifier-composition-engine/)
