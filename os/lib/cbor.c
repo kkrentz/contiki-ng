@@ -355,7 +355,6 @@ read_byte_or_text_string(cbor_reader_state_t *state, size_t *size)
   uint64_t value;
 
   if((CBOR_SIZE_NONE == cbor_read_unsigned(state, &value))
-     || (value > SIZE_MAX)
      || (state->cbor_size < value)) {
     return NULL;
   }
