@@ -173,6 +173,17 @@ cbor_write_unsigned(cbor_writer_state_t *state, uint64_t value)
 }
 /*---------------------------------------------------------------------------*/
 void
+cbor_write_signed(cbor_writer_state_t *state, int64_t value)
+{
+  if(value >= 0) {
+    cbor_write_unsigned(state, (uint64_t)value);
+  } else {
+    write_first_byte(state, CBOR_MAJOR_TYPE_SIGNED);
+    insert_unsigned(state, state->buffer, (uint64_t)(-1 - value));
+  }
+}
+/*---------------------------------------------------------------------------*/
+void
 cbor_write_data(cbor_writer_state_t *state,
                 const uint8_t *data, size_t data_size)
 {
@@ -347,6 +358,28 @@ cbor_read_unsigned(cbor_reader_state_t *state, uint64_t *value)
     *value += *state->cbor++;
   }
   return size;
+}
+/*---------------------------------------------------------------------------*/
+cbor_size_t
+cbor_read_signed(cbor_reader_state_t *state, int64_t *value)
+{
+  uint64_t unsigned_value;
+  cbor_major_type_t type = cbor_peek_next(state);
+  cbor_size_t size = cbor_read_unsigned(state, &unsigned_value);
+  if(size == CBOR_SIZE_NONE || unsigned_value > INT64_MAX) {
+    return CBOR_SIZE_NONE;
+  }
+
+  switch(type) {
+  case CBOR_MAJOR_TYPE_UNSIGNED:
+    *value = (int64_t)unsigned_value;
+    return size;
+  case CBOR_MAJOR_TYPE_SIGNED:
+    *value = -(int64_t)(unsigned_value + 1);
+    return size;
+  default:
+    return CBOR_SIZE_NONE;
+  }
 }
 /*---------------------------------------------------------------------------*/
 static const uint8_t *

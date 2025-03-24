@@ -75,6 +75,7 @@
 typedef enum cbor_major_type_t {
   CBOR_MAJOR_TYPE_NONE = -1,
   CBOR_MAJOR_TYPE_UNSIGNED = 0x00,
+  CBOR_MAJOR_TYPE_SIGNED = 0x20,
   CBOR_MAJOR_TYPE_BYTE_STRING = 0x40,
   CBOR_MAJOR_TYPE_TEXT_STRING = 0x60,
   CBOR_MAJOR_TYPE_ARRAY = 0x80,
@@ -174,6 +175,14 @@ void cbor_write_object(cbor_writer_state_t *state,
  * \param value Unsigned integer.
  */
 void cbor_write_unsigned(cbor_writer_state_t *state, uint64_t value);
+
+/**
+ * Appends a signed integer.
+ *
+ * \param state State of the CBOR writer.
+ * \param value Signed integer.
+ */
+void cbor_write_signed(cbor_writer_state_t *state, int64_t value);
 
 /**
  * Appends a byte string.
@@ -296,6 +305,16 @@ bool cbor_end_reader(cbor_reader_state_t *state);
  * \return      Size of the unsigned integer or \c CBOR_SIZE_NONE on error.
  */
 cbor_size_t cbor_read_unsigned(cbor_reader_state_t *state, uint64_t *value);
+
+/**
+ * Reads a signed integer.
+ *
+ * \param state State of the CBOR reader.
+ * \param value Buffer to store the signed integer.
+ *
+ * \return      Size of the signed integer or \c CBOR_SIZE_NONE on error.
+ */
+cbor_size_t cbor_read_signed(cbor_reader_state_t *state, int64_t *value);
 
 /**
  * Reads a byte string.
