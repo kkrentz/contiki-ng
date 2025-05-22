@@ -46,6 +46,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <inttypes.h>
+
+#define FLASH_CONF_FW_ADDR 0x00200000
 /*---------------------------------------------------------------------------*/
 /* Include Project Specific conf */
 #ifdef PROJECT_CONF_PATH
