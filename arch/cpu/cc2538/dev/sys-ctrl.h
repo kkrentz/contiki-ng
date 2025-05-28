@@ -286,7 +286,7 @@
 #endif
 #define SYS_CTRL_SYS_DIV        SYS_CTRL_CONF_SYS_DIV
 #else
-#define SYS_CTRL_SYS_DIV        SYS_CTRL_CLOCK_CTRL_SYS_DIV_16MHZ
+#define SYS_CTRL_SYS_DIV        SYS_CTRL_CLOCK_CTRL_SYS_DIV_32MHZ
 #endif
 
 #ifdef SYS_CTRL_CONF_IO_DIV
@@ -295,7 +295,7 @@
 #endif
 #define SYS_CTRL_IO_DIV         SYS_CTRL_CONF_IO_DIV
 #else
-#define SYS_CTRL_IO_DIV         SYS_CTRL_CLOCK_CTRL_IO_DIV_16MHZ
+#define SYS_CTRL_IO_DIV         SYS_CTRL_CLOCK_CTRL_IO_DIV_32MHZ
 #endif
 
 /* Returns actual system clock in Hz */
