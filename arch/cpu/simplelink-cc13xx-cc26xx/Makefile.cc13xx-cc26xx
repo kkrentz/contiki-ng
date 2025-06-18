@@ -152,6 +152,11 @@ $(GENDIR)/ieee-addr-id.h.diffupdate: FORCE
 $(OBJECTDIR)/ieee-addr.o: CFLAGS += -I$(GENDIR)
 $(OBJECTDIR)/ieee-addr.o: $(GENDIR)/ieee-addr-id.h
 
+# Build SDK libs
+INTERNAL_DEPS += $(SDK_DEVICES)/driverlib/bin/gcc/driverlib.lib
+$(SDK_DEVICES)/driverlib/bin/gcc/driverlib.lib:
+	make -C $(CORE_SDK) build-gcc CMAKE=cmake GCC_ARMCOMPILER=$(shell dirname `which $(CC)`)/..
+
 ################################################################################
 ### Sub-family Makefile
 
