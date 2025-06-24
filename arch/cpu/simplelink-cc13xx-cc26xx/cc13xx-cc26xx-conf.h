@@ -311,15 +311,6 @@
  */
 
 /**
- * \brief  Configuration to set bitreverse of payload in Prop-mode.
- *         0 => keep bitorder
- *         1 => reverse bitorder - for 802.15.4g compliance.
- */
-#ifndef PROP_MODE_CONF_BITREV_PAYLOAD
-#define PROP_MODE_CONF_BITREV_PAYLOAD        0
-#endif
-
-/**
  * \brief  Configuration to set whitener in Prop-mode.
  *         0 => No whitener
  *         1 => Whitener.
