@@ -465,5 +465,17 @@ cbor_read_map(cbor_reader_state_t *state)
   return read_array_or_map(state);
 }
 /*---------------------------------------------------------------------------*/
+const uint8_t *
+cbor_get_position(cbor_reader_state_t *state)
+{
+  return state->cbor;
+}
+/*---------------------------------------------------------------------------*/
+size_t
+cbor_get_remaining(cbor_reader_state_t *state)
+{
+  return state->cbor_size;
+}
+/*---------------------------------------------------------------------------*/
 
 /** @} */

@@ -363,6 +363,24 @@ size_t cbor_read_array(cbor_reader_state_t *state);
  */
 size_t cbor_read_map(cbor_reader_state_t *state);
 
+/**
+ * Gets the current position in the CBOR buffer.
+ *
+ * \param state State of the CBOR reader.
+ *
+ * \return      Current position pointer or \c NULL on error.
+ */
+const uint8_t *cbor_get_position(cbor_reader_state_t *state);
+
+/**
+ * Gets the remaining bytes in the CBOR buffer.
+ *
+ * \param state State of the CBOR reader.
+ *
+ * \return      Number of remaining bytes.
+ */
+size_t cbor_get_remaining(cbor_reader_state_t *state);
+
 /** @} */
 /** @} */
 
