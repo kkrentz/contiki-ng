@@ -381,6 +381,23 @@ const uint8_t *cbor_get_position(cbor_reader_state_t *state);
  */
 size_t cbor_get_remaining(cbor_reader_state_t *state);
 
+/**
+ * Skips the next CBOR object in the buffer.
+ *
+ * This function advances the reader state past the next complete CBOR object,
+ * regardless of its type. It can handle all CBOR major types including:
+ * - Unsigned and signed integers
+ * - Byte strings and text strings
+ * - Arrays (recursively skips all elements)
+ * - Maps (recursively skips all key-value pairs)
+ * - Simple values (null, undefined, booleans, etc.)
+ *
+ * \param state State of the CBOR reader.
+ *
+ * \return      \c true if an object was successfully skipped, or \c false on error.
+ */
+bool cbor_skip_next(cbor_reader_state_t *state);
+
 /** @} */
 /** @} */
 

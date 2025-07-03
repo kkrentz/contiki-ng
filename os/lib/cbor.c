@@ -477,5 +477,72 @@ cbor_get_remaining(cbor_reader_state_t *state)
   return state->cbor_size;
 }
 /*---------------------------------------------------------------------------*/
+bool
+cbor_skip_next(cbor_reader_state_t *state)
+{
+  if(!state->cbor_size) {
+    return false;
+  }
+
+  uint64_t value;
+
+  switch(cbor_peek_next(state)) {
+  case CBOR_MAJOR_TYPE_UNSIGNED:
+  case CBOR_MAJOR_TYPE_SIGNED:
+    /* Skip unsigned or signed integer */
+    return cbor_read_unsigned(state, &value) != CBOR_SIZE_NONE;
+
+  case CBOR_MAJOR_TYPE_BYTE_STRING:
+  case CBOR_MAJOR_TYPE_TEXT_STRING:
+    /* Skip byte string or text string */
+    if(cbor_read_unsigned(state, &value) == CBOR_SIZE_NONE) {
+      return false;
+    }
+    if(value > state->cbor_size) {
+      return false;
+    }
+    state->cbor += value;
+    state->cbor_size -= value;
+    return true;
+
+  case CBOR_MAJOR_TYPE_ARRAY:
+    /* Skip array - recursively skip all elements */
+    if(cbor_read_unsigned(state, &value) == CBOR_SIZE_NONE) {
+      return false;
+    }
+    for(uint64_t i = 0; i < value; i++) {
+      if(!cbor_skip_next(state)) {
+        return false;
+      }
+    }
+    return true;
+
+  case CBOR_MAJOR_TYPE_MAP:
+    /* Skip map - recursively skip all key-value pairs */
+    if(cbor_read_unsigned(state, &value) == CBOR_SIZE_NONE) {
+      return false;
+    }
+    for(uint64_t i = 0; i < value * 2; i++) { /* Maps have key-value pairs */
+      if(!cbor_skip_next(state)) {
+        return false;
+      }
+    }
+    return true;
+
+  case CBOR_MAJOR_TYPE_SIMPLE:
+    /* Skip simple value (includes null, undefined, booleans) */
+    if(!state->cbor_size) {
+      return false;
+    }
+    state->cbor++;
+    state->cbor_size--;
+    return true;
+
+  case CBOR_MAJOR_TYPE_NONE:
+  default:
+    return false;
+  }
+}
+/*---------------------------------------------------------------------------*/
 
 /** @} */
