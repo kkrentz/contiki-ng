@@ -56,6 +56,8 @@
 #define LOG_MODULE "simplelink-aes-128"
 #define LOG_LEVEL LOG_LEVEL_NONE
 
+uint_fast8_t aes_128_active_key_area = KEY_AREA;
+
 /*---------------------------------------------------------------------------*/
 static bool
 set_key(const uint8_t key[static AES_128_KEY_LENGTH])
@@ -81,9 +83,9 @@ set_key(const uint8_t key[static AES_128_KEY_LENGTH])
    * because CRYPTO_KEYSIZE_SIZE_128_BIT is the reset value. Moreover,
    * writing CRYPTO_O_KEYSIZE would clear all other loaded keys. */
   /* clear key to write */
-  HWREG(CRYPTO_BASE + CRYPTO_O_KEYWRITTENAREA) = 1 << KEY_AREA;
+  HWREG(CRYPTO_BASE + CRYPTO_O_KEYWRITTENAREA) = 1 << aes_128_active_key_area;
   /* enable key to write */
-  HWREG(CRYPTO_BASE + CRYPTO_O_KEYWRITEAREA) = 1 << KEY_AREA;
+  HWREG(CRYPTO_BASE + CRYPTO_O_KEYWRITEAREA) = 1 << aes_128_active_key_area;
 
   /* configure DMAC */
   HWREG(CRYPTO_BASE + CRYPTO_O_DMACH0CTL) = CRYPTO_DMACH0CTL_EN; /* enable DMA channel 0 */
@@ -111,7 +113,7 @@ set_key(const uint8_t key[static AES_128_KEY_LENGTH])
 
   /* check that key was written */
   if(!(HWREG(CRYPTO_BASE + CRYPTO_O_KEYWRITTENAREA)
-       & (1 << KEY_AREA))) {
+       & (1 << aes_128_active_key_area))) {
     LOG_ERR("error at line %d\n", __LINE__);
     goto exit;
   }
@@ -151,7 +153,7 @@ encrypt(uint8_t plaintext_and_result[static AES_128_BLOCK_SIZE])
   HWREG(CRYPTO_BASE + CRYPTO_O_ALGSEL) = CRYPTO_ALGSEL_AES;
 
   /* configure the key store to provide pre-loaded AES key */
-  HWREG(CRYPTO_BASE + CRYPTO_O_KEYREADAREA) = KEY_AREA;
+  HWREG(CRYPTO_BASE + CRYPTO_O_KEYREADAREA) = aes_128_active_key_area;
 
   /* wait until the key is loaded to the AES module */
   while(HWREG(CRYPTO_BASE + CRYPTO_O_KEYREADAREA) & CRYPTO_KEYREADAREA_BUSY);
