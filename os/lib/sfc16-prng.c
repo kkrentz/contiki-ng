@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005, Swedish Institute of Computer Science
+ * Copyright (c) 2025, Konrad-Felix Krentz
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -35,57 +35,48 @@
  * @{
  *
  * \file
- *         Implements sfc32 of PractRand.
+ *         Implements sfc16 of PractRand.
  * \author
  *         Konrad Krentz <konrad.krentz@gmail.com>
  */
 
 #include "lib/random.h"
-#include <stdbool.h>
 
 enum {
-  BARREL_SHIFT = 21,
-  RSHIFT = 9,
+  BARREL_SHIFT = 6,
+  RSHIFT = 5,
   LSHIFT = 3
 };
 
-static bool cached;
-static uint32_t a;
-static uint32_t b;
-static uint32_t c;
-static uint32_t counter;
+static uint16_t a;
+static uint16_t b;
+static uint16_t c;
+static uint16_t counter;
 
 /*---------------------------------------------------------------------------*/
 static uint_fast16_t
 rand(void)
 {
-  static uint32_t tmp;
-  if(cached) {
-    cached = false;
-    return tmp >> 16;
-  }
-  tmp = a + b + counter++;
+  uint16_t tmp = a + b + counter++;
   a = b ^ (b >> RSHIFT);
   b = c + (c << LSHIFT);
-  c = ((c << BARREL_SHIFT) | (c >> (32 - BARREL_SHIFT))) + tmp;
-  cached = true;
-  return tmp & 0xFFFF;
+  c = ((c << BARREL_SHIFT) | (c >> (16 - BARREL_SHIFT))) + tmp;
+  return tmp;
 }
 /*---------------------------------------------------------------------------*/
 static void
 init(uint64_t seed)
 {
-  cached = false;
-  a = 0;
-  b = seed;
+  a = seed;
+  b = seed >> 16;
   c = seed >> 32;
-  counter = 1;
-  for(int i = 0; i < 24; i++) {
+  counter = seed >> 48;
+  for(int i = 0; i < 10; i++) {
     rand();
   }
 }
 /*---------------------------------------------------------------------------*/
-const struct random_prng random_prng = {
+const struct random_prng sfc16_prng = {
   init,
   rand
 };
