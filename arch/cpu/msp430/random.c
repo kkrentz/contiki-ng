@@ -25,30 +25,21 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * This file is part of the Contiki operating system.
- *
  */
-#ifndef RANDOM_H_
-#define RANDOM_H_
 
-#include <stdint.h>
+#include "lib/random.h"
+#include <stdlib.h>
 
-/*
- * Initialize the pseudo-random generator.
- *
- */
-void random_init(uint64_t seed);
-
-/*
- * Calculate a pseudo random number between 0 and 65535.
- *
- * \return A pseudo-random number between 0 and 65535.
- */
-unsigned short random_rand(void);
-
-/* In gcc int rand() uses RAND_MAX and long random() uses RANDOM_MAX */
-/* Since random_rand casts to unsigned short, we'll use this maxmimum */
-#define RANDOM_RAND_MAX 65535U
-
-#endif /* RANDOM_H_ */
+/*---------------------------------------------------------------------------*/
+void
+random_init(uint64_t seed)
+{
+  srand(seed);
+}
+/*---------------------------------------------------------------------------*/
+unsigned short
+random_rand(void)
+{
+  return rand();
+}
+/*---------------------------------------------------------------------------*/

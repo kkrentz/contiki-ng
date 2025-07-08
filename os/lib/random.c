@@ -30,23 +30,50 @@
  *
  */
 
-
 #include "lib/random.h"
-#include <stdlib.h>
+#include "sys/cc.h"
+#include <stdbool.h>
+#include <string.h>
+
+enum {
+  BARREL_SHIFT = 21,
+  RSHIFT = 9,
+  LSHIFT = 3
+};
+
+static bool cached;
+static uint32_t a;
+static uint32_t b;
+static uint32_t c;
+static uint32_t counter;
 
 /*---------------------------------------------------------------------------*/
 void
-random_init(unsigned short seed)
+random_init(uint64_t seed)
 {
-  srand(seed);
+  cached = false;
+  a = 0;
+  b = seed;
+  c = seed >> 32;
+  counter = 1;
+  for(int i = 0; i < 24; i++) {
+    random_rand();
+  }
 }
 /*---------------------------------------------------------------------------*/
 unsigned short
 random_rand(void)
 {
-/* In gcc int rand() uses RAND_MAX and long random() uses RANDOM_MAX=0x7FFFFFFF */
-/* RAND_MAX varies depending on the architecture */
-
-  return (unsigned short)rand();
+  static uint32_t tmp;
+  if(cached) {
+    cached = false;
+    return tmp >> 16;
+  }
+  tmp = a + b + counter++;
+  a = b ^ (b >> RSHIFT);
+  b = c + (c << LSHIFT);
+  c = ((c << BARREL_SHIFT) | (c >> (32 - BARREL_SHIFT))) + tmp;
+  cached = true;
+  return tmp;
 }
 /*---------------------------------------------------------------------------*/
