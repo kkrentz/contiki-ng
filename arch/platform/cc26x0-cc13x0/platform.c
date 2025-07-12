@@ -173,7 +173,6 @@ platform_init_stage_one()
   fade(LEDS_YELLOW);
 }
 /*---------------------------------------------------------------------------*/
-#if CSPRNG_ENABLED
 static void
 feed_csprng(void)
 {
@@ -188,15 +187,11 @@ feed_csprng(void)
   }
   csprng_feed(&seed);
 }
-#endif /* CSPRNG_ENABLED */
 /*---------------------------------------------------------------------------*/
 void
 platform_init_stage_two()
 {
-#if CSPRNG_ENABLED
   feed_csprng();
-#endif /* CSPRNG_ENABLED */
-  random_init(0x1234);
 
   /* Character I/O Initialisation */
 #if TI_UART_CONF_ENABLE
