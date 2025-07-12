@@ -49,6 +49,7 @@
 #include "dev/sys-ctrl.h"
 #include "dev/udma.h"
 #include "reg.h"
+#include "lib/assert.h"
 #include "lib/iq-seeder.h"
 
 #include <string.h>
@@ -629,7 +630,10 @@ init(void)
 
   set_poll_mode(poll_mode);
 
-  iq_seeder_seed();
+  if(!iq_seeder_seed()) {
+    LOG_ERR("iq_seeder_seed failed\n");
+    assert(0);
+  }
 
   process_start(&cc2538_rf_process, NULL);
 
