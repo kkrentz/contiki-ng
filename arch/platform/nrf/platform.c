@@ -45,6 +45,7 @@
 #include "dev/leds.h"
 #include "dev/serial-line.h"
 #include "lib/csprng.h"
+#include "net/linkaddr.h"
 
 #include "random.h"
 #include "int-master.h"
@@ -70,7 +71,7 @@ platform_init_stage_one(void)
   leds_init();
 }
 /*---------------------------------------------------------------------------*/
-#if defined(NRF_RNG) && CSPRNG_ENABLED
+#ifdef NRF_RNG
 static void
 feed_csprng(void)
 {
@@ -85,15 +86,12 @@ feed_csprng(void)
   NRF_RNG->TASKS_STOP = 1;
   csprng_feed(&seed);
 }
-#endif /* defined(NRF_RNG) && CSPRNG_ENABLED */
+#endif /* NRF_RNG */
 /*---------------------------------------------------------------------------*/
 void
 platform_init_stage_two(void)
 {
   button_hal_init();
-
-  /* Seed value is ignored since hardware RNG is used. */
-  random_init(0x5678);
 
   /* There are two images of everything when building with
    * TrustZone, and uarte can only be initialized once,
@@ -116,11 +114,18 @@ platform_init_stage_two(void)
 #endif /* PLATFORM_DBG_CONF_USB */
 #endif /* BUILD_WITH_SHELL */
 
-  populate_link_address();
+  uint8_t address[LINKADDR_ARCH_LEN];
+  populate_link_address(address);
+  memcpy(linkaddr_node_addr.u8,
+         &address[8 - LINKADDR_SIZE],
+         sizeof(linkaddr_node_addr.u8));
 
-#if defined(NRF_RNG) && CSPRNG_ENABLED
+#ifdef NRF_RNG
   feed_csprng();
-#endif /* defined(NRF_RNG) && CSPRNG_ENABLED */
+#else /* NRF_RNG */
+  /* fall back on MAC address */
+  random_init(*((const uint64_t *)address));
+#endif /* NRF_RNG */
 
   reset_debug();
 }

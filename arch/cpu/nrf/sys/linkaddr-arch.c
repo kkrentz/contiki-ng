@@ -45,8 +45,6 @@
  */
 #include "contiki.h"
 
-#include "linkaddr.h"
-
 #include "nrf.h"
 #include "nrf_ficr.h"
 
@@ -60,9 +58,8 @@
 #define NORDIC_SEMI_VENDOR_OUI 0xF4CE36
 /*---------------------------------------------------------------------------*/
 void
-populate_link_address(void)
+populate_link_address(uint8_t device_address[static LINKADDR_ARCH_LEN])
 {
-  uint8_t device_address[8];
   uint32_t device_address_low;
 
   /*
@@ -85,9 +82,6 @@ populate_link_address(void)
 #endif
 
   memcpy(&device_address[4], &device_address_low, sizeof(device_address_low));
-
-  memcpy(&linkaddr_node_addr, &device_address[8 - LINKADDR_SIZE],
-         LINKADDR_SIZE);
 }
 /*---------------------------------------------------------------------------*/
 /**
