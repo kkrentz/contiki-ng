@@ -41,6 +41,7 @@
 #include "contiki.h"
 
 #include "em_chip.h"
+#include "em_system.h"
 #include "sl_device_init_nvic.h"
 #include "sl_board_init.h"
 #include "sl_device_init_dcdc.h"
@@ -51,14 +52,17 @@
 #include "sl_board_control.h"
 #include "sl_power_manager.h"
 #include "sl_sleeptimer.h"
+#include "rail.h"
 
 #include "dev/gpio-hal.h"
 #include "dev/button-hal.h"
 #include "dev/leds.h"
 #include "dev/serial-line.h"
 #include "lib/random.h"
+#include "lib/csprng.h"
 #include "dev/uart-arch.h"
 #include "sys/linkaddr-arch.h"
+#include <stdbool.h>
 /*---------------------------------------------------------------------------*/
 /* Log configuration */
 #include "sys/log.h"
@@ -96,6 +100,20 @@ platform_init_stage_one(void)
   leds_init();
 }
 /*---------------------------------------------------------------------------*/
+static bool
+feed_csprng(void)
+{
+  struct csprng_seed seed;
+  uint16_t bytes = RAIL_GetRadioEntropy(RAIL_EFR32_HANDLE,
+                                        seed.u8,
+                                        sizeof(seed.u8));
+  if(bytes != sizeof(seed.u8)) {
+    return false;
+  }
+  csprng_feed(&seed);
+  return true;
+}
+/*---------------------------------------------------------------------------*/
 void
 platform_init_stage_two(void)
 {
@@ -103,7 +121,10 @@ platform_init_stage_two(void)
 
   button_hal_init();
 
-  random_init(0x5678);
+  if(!feed_csprng()) {
+    /* fall back on system number */
+    random_init(SYSTEM_GetUnique());
+  }
 
   uart_init();
   serial_line_init();
