@@ -144,7 +144,8 @@ platform_init_stage_two(void)
    * Hardware initialization done!
    */
 
-  random_init(ds2411_id[0]);
+  /* TODO generate random seed like described in Application Report SLAA338A */
+  random_init(*((const uint64_t *)ds2411_id));
 
   leds_off(LEDS_BLUE);
 

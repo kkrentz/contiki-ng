@@ -204,7 +204,8 @@ platform_init_stage_two(void)
   }
 #endif /* IEEE_802154_MAC_ADDRESS */
 
-  random_init(node_mac[6] + node_mac[7]);
+  /* TODO generate random seed like described in Application Report SLAA338A */
+  random_init(*((const uint64_t *)node_mac));
 
   set_lladdr();
 
