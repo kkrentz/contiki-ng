@@ -114,15 +114,21 @@ framer_802154_setup_params(packetbuf_attr_t (*get_attr)(uint8_t type),
   params->fcf.frame_pending = 0;
   if(dest_is_broadcast) {
     params->fcf.ack_required = 0;
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
     /* Suppress seqno on broadcast if supported (frame v2 or more) */
     params->fcf.sequence_number_suppression = FRAME802154_VERSION >= FRAME802154_IEEE802154_2015;
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
   } else {
     params->fcf.ack_required = get_attr(PACKETBUF_ATTR_MAC_ACK);
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
     params->fcf.sequence_number_suppression = FRAME802154_SUPPR_SEQNO;
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
   }
 
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
   /* Set IE Present bit */
   params->fcf.ie_list_present = get_attr(PACKETBUF_ATTR_MAC_METADATA);
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
 
   /* Insert IEEE 802.15.4 version bits. */
   params->fcf.frame_version = FRAME802154_VERSION;
@@ -223,11 +229,15 @@ parse(void)
       }
     }
     packetbuf_set_addr(PACKETBUF_ADDR_SENDER, (linkaddr_t *)&frame.src_addr);
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
     if(frame.fcf.sequence_number_suppression == 0) {
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
       packetbuf_set_attr(PACKETBUF_ATTR_MAC_SEQNO, frame.seq);
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
     } else {
       packetbuf_set_attr(PACKETBUF_ATTR_MAC_SEQNO, 0xffff);
     }
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
 
 #if LLSEC802154_USES_AUX_HEADER
     if(frame.fcf.security_enabled) {
