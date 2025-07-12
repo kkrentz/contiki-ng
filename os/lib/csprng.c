@@ -41,6 +41,7 @@
 
 #include "lib/csprng.h"
 #include "lib/aes-128.h"
+#include "lib/random.h"
 #include "sys/cc.h"
 #include <string.h>
 
@@ -74,7 +75,12 @@ csprng_feed(struct csprng_seed *new_seed)
   LOG_DBG_BYTES(seed.state, CSPRNG_STATE_LEN);
   LOG_DBG_("\n");
 
-  seeded = true;
+  if(!seeded) {
+    seeded = true;
+    uint64_t random_seed;
+    csprng_rand((uint8_t *)&random_seed, sizeof(random_seed));
+    random_init(random_seed);
+  }
 }
 /*---------------------------------------------------------------------------*/
 bool

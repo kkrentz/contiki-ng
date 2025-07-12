@@ -81,6 +81,7 @@ struct csprng_seed {
  *                 This function is called at start up and/or at runtime by
  *                 what we call a "seeder". Seeders generate seeds in arbi-
  *                 trary ways and feed this CSPRNG with their generated seeds.
+ *                 The very first invocation of csprng_feed does random_init.
  */
 void csprng_feed(struct csprng_seed *new_seed);
 
