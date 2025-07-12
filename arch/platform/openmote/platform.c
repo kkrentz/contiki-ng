@@ -144,9 +144,6 @@ platform_init_stage_two()
 
   board_init();
   
-  /* Initialise the H/W RNG engine. */
-  random_init(0);
-
   udma_init();
 
 #if CRYPTO_CONF_INIT
