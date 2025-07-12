@@ -158,20 +158,24 @@ typedef struct {
   uint8_t ack_required;      /**< 1 bit. Is an ack frame required? */
   uint8_t panid_compression; /**< 1 bit. Is this a compressed header? */
   /*   uint8_t reserved; */  /**< 1 bit. Unused bit */
-  uint8_t sequence_number_suppression; /**< 1 bit. Does the header omit sequence number?, see 802.15.4e */
-  uint8_t ie_list_present;   /**< 1 bit. Does the header contain Information Elements?, see 802.15.4e */
   uint8_t dest_addr_mode;    /**< 2 bit. Destination address mode, see 802.15.4 */
   uint8_t frame_version;     /**< 2 bit. 802.15.4 frame version */
   uint8_t src_addr_mode;     /**< 2 bit. Source address mode, see 802.15.4 */
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
+  uint8_t sequence_number_suppression; /**< 1 bit. Does the header omit sequence number?, see 802.15.4e */
+  uint8_t ie_list_present;   /**< 1 bit. Does the header contain Information Elements?, see 802.15.4e */
   uint8_t long_frame_control;/**< 1 bit. True if the Long Frame Control field is set */
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
 } frame802154_fcf_t;
 
 /** \brief 802.15.4 security control bitfield.  See section 7.6.2.2.1 in 802.15.4 specification */
 typedef struct {
   uint8_t  security_level; /**< 3 bit. security level      */
   uint8_t  key_id_mode;    /**< 2 bit. Key identifier mode */
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
   uint8_t  frame_counter_suppression;  /**< 1 bit. Frame counter suppression */
   uint8_t  frame_counter_size;  /**< 1 bit. Frame counter size (0: 4 bytes, 1: 5 bytes) */
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
   uint8_t  reserved;       /**< 3 bit. Reserved bits       */
 } frame802154_scf_t;
 
