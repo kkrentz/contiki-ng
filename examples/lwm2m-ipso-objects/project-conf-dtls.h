@@ -59,9 +59,6 @@
 /* These platforms do not yet implement the CSPRNG --
    use an insecure PRNG for testing. */
 #define COAP_DTLS_CONF_PRNG_INSECURE 1
-#else
-/* Use the cryptographically-secure pseudo random number generator. */
-#define CSPRNG_CONF_ENABLED 1
 #endif
 
 #ifdef COAP_DTLS_CONF_WITH_CERT

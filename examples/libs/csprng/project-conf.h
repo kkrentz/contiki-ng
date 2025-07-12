@@ -31,8 +31,6 @@
 #ifndef PROJECT_CONF_H_
 #define PROJECT_CONF_H_
 
-#undef CSPRNG_CONF_ENABLED
-#define CSPRNG_CONF_ENABLED 1
 #undef LPM_CONF_MAX_PM
 #define LPM_CONF_MAX_PM 2
 

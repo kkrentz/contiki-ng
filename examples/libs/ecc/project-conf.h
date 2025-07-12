@@ -39,7 +39,6 @@
 #define PROJECT_CONF_H_
 
 #define ECC_CONF_ENABLED 1
-#define CSPRNG_CONF_ENABLED 1
 #define LPM_CONF_MAX_PM 2
 
 #endif /* PROJECT_CONF_H_ */
