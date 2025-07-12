@@ -80,13 +80,17 @@ static uint16_t mac_pan_id = IEEE802154_PANID;
  *  in the 802.15.4 header.  This structure is used in \ref frame802154_create()
  */
 typedef struct {
-  uint8_t frame_ctrl_len;  /**<  Length (in bytes) of the frame control field */
-  uint8_t seqno_len;       /**<  Length (in bytes) of sequence number field */
   uint8_t dest_pid_len;    /**<  Length (in bytes) of destination PAN ID field */
   uint8_t dest_addr_len;   /**<  Length (in bytes) of destination address field */
   uint8_t src_pid_len;     /**<  Length (in bytes) of source PAN ID field */
   uint8_t src_addr_len;    /**<  Length (in bytes) of source address field */
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
+  uint8_t frame_ctrl_len;  /**<  Length (in bytes) of the frame control field */
+  uint8_t seqno_len;       /**<  Length (in bytes) of sequence number field */
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
+#if LLSEC802154_USES_AUX_HEADER
   uint8_t aux_sec_len;     /**<  Length (in bytes) of aux security header field */
+#endif /* LLSEC802154_USES_AUX_HEADER */
 } field_length_t;
 
 /*----------------------------------------------------------------------------*/
@@ -146,6 +150,7 @@ frame802154_has_panid(frame802154_fcf_t *fcf, int *has_src_pan_id, int *has_dest
     return;
   }
 
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
   if(fcf->frame_version == FRAME802154_IEEE802154_2015) {
     if(fcf->frame_type == FRAME802154_MPFRAME) {
       *has_src_pan_id = 0;
@@ -187,7 +192,9 @@ frame802154_has_panid(frame802154_fcf_t *fcf, int *has_src_pan_id, int *has_dest
       src_pan_id = 1;
     }
 
-  } else {
+  } else
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
+  {
     /* No PAN ID in ACK */
     if(fcf->frame_type != FRAME802154_ACKFRAME) {
       if(!fcf->panid_compression && (fcf->src_addr_mode & 3)) {
@@ -301,6 +308,7 @@ field_len(frame802154_t *p, field_length_t *flen)
   /* init flen to zeros */
   memset(flen, 0, sizeof(field_length_t));
 
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
   flen->frame_ctrl_len =
       (p->fcf.frame_type == FRAME802154_MPFRAME) && !p->fcf.long_frame_control
       ? 1
@@ -310,6 +318,7 @@ field_len(frame802154_t *p, field_length_t *flen)
   if((p->fcf.sequence_number_suppression & 1) == 0) {
     flen->seqno_len = 1;
   }
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
 
   /* IEEE802.15.4e changes the meaning of PAN ID Compression (see Table 2a).
    * In this case, we leave the decision whether to compress PAN ID or not
@@ -337,6 +346,7 @@ field_len(frame802154_t *p, field_length_t *flen)
 #if LLSEC802154_USES_AUX_HEADER
   /* Aux security header */
   if(p->fcf.security_enabled & 1) {
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
     flen->aux_sec_len = 1; /* FCF + possibly frame counter and key ID */
     if(p->aux_hdr.security_control.frame_counter_suppression == 0) {
       if(p->aux_hdr.security_control.frame_counter_size == 1) {
@@ -345,6 +355,9 @@ field_len(frame802154_t *p, field_length_t *flen)
         flen->aux_sec_len += 4;
       }
     }
+#else /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
+    flen->aux_sec_len = 5;
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
 #if LLSEC802154_USES_EXPLICIT_KEYS
     flen->aux_sec_len += get_key_id_len(p->aux_hdr.security_control.key_id_mode);
 #endif /* LLSEC802154_USES_EXPLICIT_KEYS */
@@ -366,13 +379,22 @@ frame802154_hdrlen(frame802154_t *p)
 {
   field_length_t flen;
   field_len(p, &flen);
-  return flen.frame_ctrl_len
+  return
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
+         flen.frame_ctrl_len
          + flen.seqno_len
+#else /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
+         2   /* frame control */
+         + 1 /* sequence number */
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
          + flen.dest_pid_len
          + flen.dest_addr_len
          + flen.src_pid_len
          + flen.src_addr_len
-         + flen.aux_sec_len;
+#if LLSEC802154_USES_AUX_HEADER
+         + flen.aux_sec_len
+#endif /* LLSEC802154_USES_AUX_HEADER */
+         ;
 }
 /*----------------------------------------------------------------------------*/
 int
@@ -403,8 +425,12 @@ frame802154_create_fcf(frame802154_fcf_t *fcf, uint8_t *buf)
     ((fcf->frame_pending & 1) << 4) |
     ((fcf->ack_required & 1) << 5) |
     ((fcf->panid_compression & 1) << 6);
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
   buf[1] = ((fcf->sequence_number_suppression & 1)) |
     ((fcf->ie_list_present & 1)) << 1 |
+#else /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
+  buf[1] =
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
     ((fcf->dest_addr_mode & 3) << 2) |
     ((fcf->frame_version & 3) << 4) |
     ((fcf->src_addr_mode & 3) << 6);
@@ -438,9 +464,13 @@ frame802154_create(frame802154_t *p, uint8_t *buf)
   unsigned int pos = frame802154_create_fcf(&p->fcf, buf);
 
   /* Sequence number */
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
   if(flen.seqno_len == 1) {
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
     buf[pos++] = p->seq;
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
   }
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
 
   /* Destination PAN ID */
   if(flen.dest_pid_len == 2) {
@@ -470,17 +500,23 @@ frame802154_create(frame802154_t *p, uint8_t *buf)
 #if LLSEC802154_USES_EXPLICIT_KEYS
       | (p->aux_hdr.security_control.key_id_mode << 3)
 #endif /* LLSEC802154_USES_EXPLICIT_KEYS */
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
       | (p->aux_hdr.security_control.frame_counter_suppression << 5)
       | (p->aux_hdr.security_control.frame_counter_size << 6)
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
     ;
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
     if(p->aux_hdr.security_control.frame_counter_suppression == 0) {
       /* We support only 4-byte counters */
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
       memcpy(buf + pos, p->aux_hdr.frame_counter.u8, 4);
       pos += 4;
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
       if(p->aux_hdr.security_control.frame_counter_size == 1) {
         pos++;
       }
     }
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
 
 #if LLSEC802154_USES_EXPLICIT_KEYS
     key_id_mode = p->aux_hdr.security_control.key_id_mode;
@@ -505,6 +541,7 @@ frame802154_parse_fcf(const uint8_t *data, frame802154_fcf_t *pfcf)
 
   switch(pfcf->frame_type) {
   case FRAME802154_MPFRAME:
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
     /* parse MP Frame Control field */
     pfcf->long_frame_control = (data[0] >> 3) & 1;
     pfcf->dest_addr_mode = (data[0] >> 4) & 3;
@@ -521,6 +558,9 @@ frame802154_parse_fcf(const uint8_t *data, frame802154_fcf_t *pfcf)
     pfcf->ack_required = (data[1] >> 6) & 1;
     pfcf->ie_list_present = (data[1] >> 7) & 1;
     return 2;
+#else /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
+    return -1;
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
   default:
     /* parse Frame Control field */
     pfcf->security_enabled = (data[0] >> 3) & 1;
@@ -528,10 +568,15 @@ frame802154_parse_fcf(const uint8_t *data, frame802154_fcf_t *pfcf)
     pfcf->ack_required = (data[0] >> 5) & 1;
     pfcf->panid_compression = (data[0] >> 6) & 1;
 
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
     pfcf->sequence_number_suppression = data[1] & 1;
     pfcf->ie_list_present = (data[1] >> 1) & 1;
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
     pfcf->dest_addr_mode = (data[1] >> 2) & 3;
     pfcf->frame_version = (data[1] >> 4) & 3;
+    if(FRAME802154_VERSION < pfcf->frame_version) {
+      return -1;
+    }
     pfcf->src_addr_mode = (data[1] >> 6) & 3;
     return 2;
   }
@@ -564,12 +609,20 @@ frame802154_parse(uint8_t *data, int len, frame802154_t *pf)
   p = data;
 
   /* decode the FCF */
-  p += frame802154_parse_fcf(p, &pf->fcf);
+  int fcf_len = frame802154_parse_fcf(p, &pf->fcf);
+  if(fcf_len < 0) {
+    return 0;
+  }
+  p += fcf_len;
 
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
   if(pf->fcf.sequence_number_suppression == 0) {
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
     pf->seq = p[0];
     p++;
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
   }
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
 
   frame802154_has_panid(&pf->fcf, &has_src_panid, &has_dest_panid);
 
@@ -636,17 +689,23 @@ frame802154_parse(uint8_t *data, int len, frame802154_t *pf)
 #if LLSEC802154_USES_EXPLICIT_KEYS
     pf->aux_hdr.security_control.key_id_mode = (p[0] >> 3) & 3;
 #endif /* LLSEC802154_USES_EXPLICIT_KEYS */
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
     pf->aux_hdr.security_control.frame_counter_suppression = p[0] >> 5;
     pf->aux_hdr.security_control.frame_counter_size = p[0] >> 6;
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
     p += 1;
 
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
     if(pf->aux_hdr.security_control.frame_counter_suppression == 0) {
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
       memcpy(pf->aux_hdr.frame_counter.u8, p, 4);
       p += 4;
+#if FRAME802154_VERSION == FRAME802154_IEEE802154_2015
       if(pf->aux_hdr.security_control.frame_counter_size == 1) {
         p ++;
       }
     }
+#endif /* FRAME802154_VERSION == FRAME802154_IEEE802154_2015 */
 
 #if LLSEC802154_USES_EXPLICIT_KEYS
     key_id_mode = pf->aux_hdr.security_control.key_id_mode;
