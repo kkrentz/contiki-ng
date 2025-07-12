@@ -95,7 +95,6 @@ platform_init_stage_one(void)
   leds_init();
 }
 /*---------------------------------------------------------------------------*/
-#if CSPRNG_ENABLED
 static void
 feed_csprng(void)
 {
@@ -110,7 +109,6 @@ feed_csprng(void)
   NRF_RNG->TASKS_STOP = 1;
   csprng_feed(&seed);
 }
-#endif /* CSPRNG_ENABLED */
 /*---------------------------------------------------------------------------*/
 void
 platform_init_stage_two(void)
@@ -119,11 +117,7 @@ platform_init_stage_two(void)
   button_hal_init();
 #endif
 
-#if CSPRNG_ENABLED
   feed_csprng();
-#endif /* CSPRNG_ENABLED */
-  /* Seed value is ignored since hardware RNG is used. */
-  random_init(0);
 
 #if UART0_ENABLED
   uart0_init();
