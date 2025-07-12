@@ -48,12 +48,14 @@
 #define FACTORY_ARCH_H_
 /*---------------------------------------------------------------------------*/
 #include "contiki.h"
+
+#define LINKADDR_ARCH_LEN 8
 /*---------------------------------------------------------------------------*/
 /**
  * @brief Populates the link address using factory information
  * 
  */
-void populate_link_address(void);
+void populate_link_address(uint8_t device_address[static LINKADDR_ARCH_LEN]);
 /*---------------------------------------------------------------------------*/
 #endif /* FACTORY_ARCH_H_ */
 /*---------------------------------------------------------------------------*/
