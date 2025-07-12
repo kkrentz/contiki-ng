@@ -54,6 +54,7 @@
 
 #include "contiki.h"
 #include "lib/aes-128.h"
+#include "sys/cc.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -79,6 +80,9 @@ struct csprng_seed {
     uint8_t u8[CSPRNG_SEED_LEN]; /**< for convenience */
   };
 };
+
+static_assert(sizeof(struct csprng_seed) == CSPRNG_SEED_LEN,
+              "unexpected structure packing\n");
 
 /**
  * \brief          Mixes a new seed with the current one.
