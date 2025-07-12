@@ -304,10 +304,6 @@
  *
  * @{
  */
-#ifndef CRYPTO_CONF_INIT
-#define CRYPTO_CONF_INIT        1 /**< Whether to init cryptoprocessor */
-#endif
-
 #ifndef AES_128_CONF
 #define AES_128_CONF            cc2538_aes_128_driver /**< AES-128 driver */
 #endif

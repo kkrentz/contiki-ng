@@ -48,7 +48,6 @@
 #include "dev/slip.h"
 #include "dev/cc2538-rf.h"
 #include "dev/udma.h"
-#include "dev/crypto.h"
 #include "dev/button-hal.h"
 #include "usb/usb-serial.h"
 #include "lib/random.h"
@@ -144,15 +143,7 @@ platform_init_stage_two()
 
   board_init();
   
-  /* Initialise the H/W RNG engine. */
-  random_init(0);
-
   udma_init();
-
-#if CRYPTO_CONF_INIT
-  crypto_init();
-  crypto_disable();
-#endif
 
   /* Populate linkaddr_node_addr */
   ieee_addr_cpy_to(linkaddr_node_addr.u8, LINKADDR_SIZE);

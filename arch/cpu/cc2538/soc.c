@@ -36,6 +36,7 @@
  * Implementation of the cc2538 SoC driver
  */
 #include "contiki.h"
+#include "dev/crypto.h"
 #include "dev/rom-util.h"
 #include "dev/sys-ctrl.h"
 #include "dev/ioc.h"
@@ -126,9 +127,12 @@ soc_init()
   lpm_init();
   rtimer_init();
   gpio_hal_init();
-#if CSPRNG_ENABLED && LPM_CONF_ENABLE && (LPM_CONF_MAX_PM >= LPM_PM2)
+
+  crypto_init();
+#if LPM_CONF_ENABLE && (LPM_CONF_MAX_PM >= LPM_PM2)
   cc2538_sram_seeder_seed();
-#endif /* CSPRNG_ENABLED && LPM_CONF_ENABLE && (LPM_CONF_MAX_PM >= LPM_PM2) */
+#endif /* LPM_CONF_ENABLE && (LPM_CONF_MAX_PM >= LPM_PM2) */
+  crypto_disable();
 }
 /*----------------------------------------------------------------------------*/
 /** @} */
