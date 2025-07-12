@@ -99,7 +99,6 @@ platform_init_stage_one(void)
   leds_init();
 }
 /*---------------------------------------------------------------------------*/
-#if CSPRNG_ENABLED
 static void
 feed_csprng(void)
 {
@@ -108,11 +107,12 @@ feed_csprng(void)
                                         seed.u8,
                                         sizeof(seed.u8));
   if(bytes != sizeof(seed.u8)) {
+    /* fall back on system number */
+    random_init(SYSTEM_GetUnique());
     return;
   }
   csprng_feed(&seed);
 }
-#endif /* CSPRNG_ENABLED */
 /*---------------------------------------------------------------------------*/
 void
 platform_init_stage_two(void)
@@ -121,10 +121,7 @@ platform_init_stage_two(void)
 
   button_hal_init();
 
-#if CSPRNG_ENABLED
   feed_csprng();
-#endif /* CSPRNG_ENABLED */
-  random_init(0x5678);
 
   uart_init();
   serial_line_init();
