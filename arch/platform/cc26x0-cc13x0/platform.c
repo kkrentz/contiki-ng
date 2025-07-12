@@ -51,6 +51,7 @@
 #include "dev/leds.h"
 #include "dev/gpio-hal.h"
 #include "dev/oscillators.h"
+#include "dev/soc-trng.h"
 #include "ieee-addr.h"
 #include "ble-addr.h"
 #include "vims.h"
@@ -172,7 +173,8 @@ platform_init_stage_one()
 void
 platform_init_stage_two()
 {
-  random_init(0x1234);
+  soc_trng_init();
+  random_init(soc_trng_rand_synchronous());
 
   /* Character I/O Initialisation */
 #if TI_UART_CONF_ENABLE
