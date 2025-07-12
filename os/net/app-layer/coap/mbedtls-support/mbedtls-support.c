@@ -88,10 +88,6 @@
 #endif
 #endif /* COAP_DTLS_CONF_WITH_CERT */
 
-#if !defined(COAP_DTLS_PRNG_INSECURE) && !CSPRNG_ENABLED
-#error CSPRNG module needs to be enabled for DTLS. Set CSPRNG_CONF_ENABLED to 1.
-#endif
-
 #if defined(MBEDTLS_ECDSA_VERIFY_ALT) || \
   defined(MBEDTLS_ECDH_COMPUTE_SHARED_ALT)
 #include "nrf_crypto.h"
@@ -140,10 +136,6 @@ random_number_generator(void *ctx, unsigned char *buffer, size_t length)
 
   return 0;
 #else /* COAP_DTLS_PRNG_INSECURE */
-#if !CSPRNG_ENABLED
-#error CSPRNG module needs to be enabled for DTLS. Set CSPRNG_CONF_ENABLED to 1.
-#endif /* !CSPRNG_ENABLED */
-
   if(!csprng_rand(buffer, length)) {
     LOG_ERR("Failed to generate %zu bytes of random values\n", length);
     return MBEDTLS_ERR_CTR_DRBG_ENTROPY_SOURCE_FAILED;

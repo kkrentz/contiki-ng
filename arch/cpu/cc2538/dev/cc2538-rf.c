@@ -629,9 +629,7 @@ init(void)
 
   set_poll_mode(poll_mode);
 
-#if CSPRNG_ENABLED
   iq_seeder_seed();
-#endif /* CSPRNG_ENABLED */
 
   process_start(&cc2538_rf_process, NULL);
 

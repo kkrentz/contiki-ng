@@ -39,7 +39,6 @@
  */
 
 #define ECC_CONF_ENABLED 1
-#define CSPRNG_CONF_ENABLED 1
 #define uECC_ENABLE_VLI_API 1
 #define uECC_SUPPORTS_secp160r1 0
 #define uECC_SUPPORTS_secp192r1 1
