@@ -105,7 +105,11 @@
 #ifdef NETSTACK_CONF_FRAMER
 #define NETSTACK_FRAMER NETSTACK_CONF_FRAMER
 #else /* NETSTACK_CONF_FRAMER */
+#if MAC_CONF_WITH_CSMA
+#define NETSTACK_FRAMER   framer_802154_2006
+#else /* MAC_CONF_WITH_CSMA */
 #define NETSTACK_FRAMER   framer_802154
+#endif /* MAC_CONF_WITH_CSMA */
 #endif /* NETSTACK_CONF_FRAMER */
 
 #include "net/mac/mac.h"
