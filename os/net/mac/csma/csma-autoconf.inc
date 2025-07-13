@@ -44,7 +44,7 @@
 /* configure AKES */
 #define AKES_MAC_CONF_DECORATED_MAC csma_driver
 #define NETSTACK_CONF_FRAMER akes_mac_framer
-#define AKES_MAC_CONF_DECORATED_FRAMER framer_802154
+#define AKES_MAC_CONF_DECORATED_FRAMER framer_802154_2006
 
 /* configure AKES_STRATEGY */
 #include "os/services/akes/akes-strategy-autoconf.inc"
