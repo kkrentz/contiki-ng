@@ -51,6 +51,7 @@
 #include "dev/leds.h"
 #include "dev/gpio-hal.h"
 #include "dev/oscillators.h"
+#include "dev/soc-trng.h"
 #include "ieee-addr.h"
 #include "ble-addr.h"
 #include "vims.h"
@@ -60,10 +61,12 @@
 #include "rf-core/rf-core.h"
 #include "sys_ctrl.h"
 #include "uart.h"
+#include "sys/cc.h"
 #include "sys/clock.h"
 #include "sys/rtimer.h"
 #include "sys/node-id.h"
 #include "sys/platform.h"
+#include "lib/csprng.h"
 #include "lib/random.h"
 #include "lib/sensors.h"
 #include "button-sensor.h"
@@ -75,6 +78,7 @@
 #include "driverlib/driverlib_release.h"
 
 #include <stdio.h>
+#include <string.h>
 /*---------------------------------------------------------------------------*/
 /* Log configuration */
 #include "sys/log.h"
@@ -169,9 +173,29 @@ platform_init_stage_one()
   fade(LEDS_YELLOW);
 }
 /*---------------------------------------------------------------------------*/
+#if CSPRNG_ENABLED
+static void
+feed_csprng(void)
+{
+  struct csprng_seed seed;
+  size_t pos = 0;
+
+  soc_trng_init();
+  while(pos < sizeof(seed.u8)) {
+    /* soc_trng_rand_synchronous will succeed as no asynchronous task runs */
+    uint64_t trn = soc_trng_rand_synchronous();
+    memcpy(seed.u8 + pos, &trn, MIN(sizeof(trn), sizeof(seed.u8) - pos));
+  }
+  csprng_feed(&seed);
+}
+#endif /* CSPRNG_ENABLED */
+/*---------------------------------------------------------------------------*/
 void
 platform_init_stage_two()
 {
+#if CSPRNG_ENABLED
+  feed_csprng();
+#endif /* CSPRNG_ENABLED */
   random_init(0x1234);
 
   /* Character I/O Initialisation */
