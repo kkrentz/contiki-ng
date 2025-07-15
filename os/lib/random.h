@@ -75,10 +75,9 @@ struct random_prng {
 extern const struct random_prng RANDOM_PRNG;
 
 /*
- * Initialize the pseudo-random generator.
- *
+ * Seeds RANDOM_PRNG using the CSPRNG if enabled and else with the MAC address.
  */
-void random_init(unsigned short seed);
+void random_init(void);
 
 /*
  * Calculate a pseudo random number between 0 and 65535.
