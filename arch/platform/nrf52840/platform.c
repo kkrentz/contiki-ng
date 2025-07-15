@@ -100,9 +100,6 @@ platform_init_stage_two(void)
   button_hal_init();
 #endif
 
-  /* Seed value is ignored since hardware RNG is used. */
-  random_init(0);
-
 #if UART0_ENABLED
   uart0_init();
   serial_line_init();

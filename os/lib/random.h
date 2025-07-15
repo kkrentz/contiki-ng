@@ -78,7 +78,7 @@ extern const struct random_prng RANDOM_PRNG;
  * Initialize the pseudo-random generator.
  *
  */
-void random_init(unsigned short seed);
+void random_init(void);
 
 /*
  * Calculate a pseudo random number between 0 and 65535.
