@@ -55,6 +55,9 @@
 void
 random_init(void)
 {
+#if CONTIKI_TARGET_COOJA
+  /* Cooja seeds in moteid.c */
+#else /* CONTIKI_TARGET_COOJA */
   uint64_t seed;
 #if CSPRNG_ENABLED
   if(csprng_rand((uint8_t *)&seed, sizeof(seed))) {
@@ -76,6 +79,7 @@ random_init(void)
     }
   }
   RANDOM_PRNG.seed(seed);
+#endif /* CONTIKI_TARGET_COOJA */
 }
 /*---------------------------------------------------------------------------*/
 
