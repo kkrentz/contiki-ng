@@ -218,8 +218,10 @@ main(void)
 
   NETSTACK_RADIO.init();
 
+#if RANDOM_WITH_AUTO_SEEDING
   /* at this point, the CSPRNG may have been fed with radio noise */
   random_init();
+#endif /* RANDOM_WITH_AUTO_SEEDING */
 
   NETSTACK_MAC.init();
   NETSTACK_NETWORK.init();

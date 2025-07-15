@@ -121,6 +121,9 @@ typedef unsigned short uip_stats_t;
 
 #define PLATFORM_CONF_SUPPORTS_STACK_CHECK  0
 
+/* We seed in moteid.c */
+#define RANDOM_CONF_WITH_AUTO_SEEDING 0
+
 /*---------------------------------------------------------------------------*/
 /* Support for the new GPIO HAL */
 #define GPIO_HAL_CONF_ARCH_HDR_PATH      "dev/gpio-hal-arch.h"
