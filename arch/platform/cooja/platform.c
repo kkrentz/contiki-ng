@@ -48,7 +48,8 @@
 #define LOG_MODULE "Cooja"
 #define LOG_LEVEL LOG_LEVEL_MAIN
 
-#include "lib/random.h"
+#include "lib/csprng.h"
+#include "lib/sha-256.h"
 #include "lib/simEnvChange.h"
 
 #include "net/netstack.h"
@@ -59,7 +60,6 @@
 #include "dev/button-sensor.h"
 #include "dev/pir-sensor.h"
 #include "dev/vib-sensor.h"
-#include "dev/moteid.h"
 #include "dev/button-hal.h"
 #include "dev/gpio-hal.h"
 
@@ -70,6 +70,10 @@
 
 /* Sensors */
 SENSORS(&pir_sensor, &vib_sensor);
+
+/* Cooja variables */
+int simMoteID;
+int simRandomSeed;
 
 /*---------------------------------------------------------------------------*/
 /* Needed since the new LEDs API does not provide this prototype */
@@ -104,6 +108,14 @@ platform_init_stage_one()
 {
   gpio_hal_init();
   leds_arch_init();
+#if CSPRNG_ENABLED
+  struct csprng_seed csprng_seed;
+  sha_256_hkdf(NULL, 0,
+               (const uint8_t *)&simRandomSeed, sizeof(simRandomSeed),
+               NULL, 0,
+               csprng_seed.u8, sizeof(csprng_seed.u8));
+  csprng_feed(&csprng_seed);
+#endif /* CSPRNG_ENABLED */
 }
 /*---------------------------------------------------------------------------*/
 void

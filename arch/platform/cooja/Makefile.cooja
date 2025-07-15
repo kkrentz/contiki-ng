@@ -59,7 +59,7 @@ vpath %.c $(COOJA_SOURCEDIRS)
 
 COOJA_BASE	= cooja_mt.c rtimer-arch.c watchdog.c int-master.c
 
-COOJA_INTFS	= beep.c ip.c leds-arch.c moteid.c \
+COOJA_INTFS	= beep.c ip.c leds-arch.c \
 		    pir-sensor.c rs232.c vib-sensor.c \
 		    clock.c cooja-log.c cfs-cooja.c cooja-radio.c \
 			eeprom.c slip-arch.c
