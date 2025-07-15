@@ -45,7 +45,6 @@
 #include "dev/leds.h"
 #include "dev/serial-line.h"
 
-#include "random.h"
 #include "int-master.h"
 #include "sensors.h"
 #include "uarte-arch.h"
@@ -72,9 +71,6 @@ void
 platform_init_stage_two(void)
 {
   button_hal_init();
-
-  /* Seed value is ignored since hardware RNG is used. */
-  random_init(0x5678);
 
   /* There are two images of everything when building with
    * TrustZone, and uarte can only be initialized once,
