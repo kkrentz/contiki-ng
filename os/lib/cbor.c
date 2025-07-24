@@ -375,7 +375,7 @@ cbor_read_signed(cbor_reader_state_t *state, int64_t *value)
     *value = (int64_t)unsigned_value;
     return size;
   case CBOR_MAJOR_TYPE_SIGNED:
-    *value = -(int64_t)(unsigned_value + 1);
+    *value = -(int64_t)unsigned_value - 1;
     return size;
   default:
     return CBOR_SIZE_NONE;
