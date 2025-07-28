@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, Texas Instruments Incorporated - http://www.ti.com/
+ * Copyright (c) 2023, RISE Research Institutes of Sweden AB
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,62 +26,64 @@
  * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * This file is part of the Contiki operating system.
- *
  */
-/*---------------------------------------------------------------------------*/
+
 /**
- * \addtogroup openmote-b
+ * \addtogroup bitrev
  * @{
- *
- * \file
- *  Board-initialisation for the OpenMote-B platform
  */
+
+/**
+ * \file
+ *         Bit reversal library implementation
+ * \author
+ *         Joakim Eriksson <joakim.eriksson@ri.se>
+ */
+
+#include "bitrev.h"
 /*---------------------------------------------------------------------------*/
-#include "contiki.h"
-#include "antenna.h"
-#include "dev/gpio.h"
-#include "dev/ioc.h"
-#include <stdint.h>
-#include <string.h>
+/*
+ * Lookup table for bit reversal
+ *
+ * This precomputed lookup table allows O(1) bit reversal for each byte.
+ * The table is generated using the bit manipulation technique where:
+ * - R2(n) generates 4 entries: n, n+128, n+64, n+192  
+ * - R4(n) generates 16 entries by applying R2 to 4 different bases
+ * - R6(n) generates 64 entries by applying R4 to 4 different bases
+ * - Final call generates all 256 entries
+ */
+static const uint8_t bitrev_lookup_table[256] = {
+  #define R2(n)   n,     n + 2*64,   n + 1*64,   n + 3*64
+  #define R4(n)   R2(n), R2(n + 2*16), R2(n + 1*16), R2(n + 3*16)
+  #define R6(n)   R4(n), R4(n + 2*4),  R4(n + 1*4),  R4(n + 3*4)
+  R6(0), R6(2), R6(1), R6(3)
+  #undef R2
+  #undef R4
+  #undef R6
+};
 /*---------------------------------------------------------------------------*/
-/* Log configuration */
-#include "sys/log.h"
-#define LOG_MODULE "OpenMote-B"
-#define LOG_LEVEL LOG_LEVEL_MAIN
-/*---------------------------------------------------------------------------*/
-static void
-configure_unused_pins(void)
+uint8_t
+bitrev_byte(uint8_t byte)
 {
-  /* FIXME */
+  return bitrev_lookup_table[byte];
 }
 /*---------------------------------------------------------------------------*/
 void
-board_init()
+bitrev_array(uint8_t *data, size_t len)
 {
-  antenna_init();
-
-#if OPENMOTEB_USE_ATMEL_RADIO
-  LOG_INFO("Atmel radio connected to the 2.4 GHz antenna connector\n");
-  antenna_select_at86rf215();
-#else
-  LOG_INFO("TI radio connected to the 2.4 GHz antenna connector\n");
-  antenna_select_cc2538();
-#endif
-
-  configure_unused_pins();
-
-  /* configure bootloader pin as input */
-  GPIO_SOFTWARE_CONTROL(GPIO_PORT_TO_BASE(GPIO_A_NUM),
-      GPIO_PIN_MASK(FLASH_CCA_CONF_BOOTLDR_BACKDOOR_PORT_A_PIN));
-  GPIO_SET_INPUT(GPIO_PORT_TO_BASE(GPIO_A_NUM),
-      GPIO_PIN_MASK(FLASH_CCA_CONF_BOOTLDR_BACKDOOR_PORT_A_PIN));
-  ioc_set_over(GPIO_A_NUM,
-      FLASH_CCA_CONF_BOOTLDR_BACKDOOR_PORT_A_PIN,
-      IOC_OVERRIDE_ANA);
+  size_t i;
+  for(i = 0; i < len; i++) {
+    data[i] = bitrev_lookup_table[data[i]];
+  }
 }
 /*---------------------------------------------------------------------------*/
-/**
- * @}
- */
+void
+bitrev_array_copy(const uint8_t *input, uint8_t *output, size_t len)
+{
+  size_t i;
+  for(i = 0; i < len; i++) {
+    output[i] = bitrev_lookup_table[input[i]];
+  }
+}
+/*---------------------------------------------------------------------------*/
+/** @} */
