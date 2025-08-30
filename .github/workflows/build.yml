@@ -82,11 +82,7 @@ jobs:
     - name: install macOS software
       if: matrix.os == 'macos-13'
       run: |
-        brew install coreutils make mosquitto mtr rlwrap
-        # Doxygen version needs to be in sync with Doxyfile.
-        wget https://github.com/Homebrew/homebrew-core/raw/f434ee2dce9ae11b27d7450a7cfb7af775a47719/Formula/d/doxygen.rb
-        brew install doxygen.rb
-        rm doxygen.rb
+        brew install coreutils doxygen make mosquitto mtr rlwrap 
         python3 -m pip -q install matplotlib
         python3 -m pip -q install -r tools/docker/files/rtd_requirements.txt
         wget -nv https://github.com/pjonsson/msp430gcc-binary/releases/download/v1.1/mspgcc-4.7.4-macos-x86_64.tar.bz2
