@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, RISE SICS.
+ * Copyright (c) 2025, Siemens AG.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -14,10 +14,10 @@
  *    contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDER AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE
  * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
@@ -29,32 +29,20 @@
  */
 
 /**
+ * \addtogroup cc2538-rom-util
+ * @{
+ *
  * \file
- *         Log support for CoAP
+ *         Implementation of the cc2538 ROM utility function library driver.
  * \author
- *         Niclas Finne <niclas.finne@ri.se>
- *         Joakim Eriksson <joakim.eriksson@ri.se>
+ *         Konrad Krentz <konrad.krentz@gmail.com>
  */
+
+#include "rom-util.h"
+
+const struct rom_util_api *const rom_util_api =
+    (struct rom_util_api *)0x00000048;
 
 /**
- * \addtogroup coap
- * @{
+ * @}
  */
-
-#include "coap-log.h"
-/*---------------------------------------------------------------------------*/
-void
-coap_log_string(const char *text, size_t len)
-{
-  int i;
-  if(text == NULL) {
-    LOG_OUTPUT("(NULL STR)");
-    return;
-  }
-
-  for(i = 0; i < len && *text != '\0'; i++, text++) {
-    LOG_OUTPUT("%c", *text);
-  }
-}
-/*---------------------------------------------------------------------------*/
-/** @} */
