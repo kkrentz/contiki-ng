@@ -37,6 +37,7 @@
 #include "dev/radio/cc1200/cc1200-arch.h"
 #include "dev/radio/cc1200/cc1200-rf-cfg.h"
 
+#include "net/mac/framer/frame802154.h"
 #include "net/netstack.h"
 #include "net/packetbuf.h"
 #include "dev/watchdog.h"
