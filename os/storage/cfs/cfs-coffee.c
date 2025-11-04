@@ -223,6 +223,57 @@ read_header(struct file_header *hdr, coffee_page_t page)
   }
 }
 /*---------------------------------------------------------------------------*/
+static int
+header_is_valid(const struct file_header *hdr, coffee_page_t page)
+{
+  /* Check 1: max_pages must be non-zero and reasonable */
+  if(hdr->max_pages == 0) {
+    /* Likely uninitialized/erased flash (0x00 or 0xFF) */
+    PRINTF("Coffee: Invalid header at page %u: max_pages is zero\n",
+           (unsigned)page);
+    return 0;
+  }
+
+  if(hdr->max_pages > COFFEE_PAGE_COUNT) {
+    /* Corrupted value larger than entire filesystem */
+    PRINTF("Coffee: Invalid header at page %u: max_pages %u exceeds total pages %u\n",
+           (unsigned)page, (unsigned)hdr->max_pages, (unsigned)COFFEE_PAGE_COUNT);
+    return 0;
+  }
+
+  /* Check 2: File must not extend beyond storage bounds */
+  if(page > COFFEE_PAGE_COUNT - hdr->max_pages) {
+    PRINTF("Coffee: Invalid header at page %u: file extends beyond storage\n",
+           (unsigned)page);
+    return 0;
+  }
+
+  /* Check 3: Log page must be valid if file is modified */
+  if(HDR_MODIFIED(*hdr)) {
+    if(hdr->log_page >= COFFEE_PAGE_COUNT) {
+      PRINTF("Coffee: Invalid header at page %u: log_page %u out of bounds\n",
+             (unsigned)page, (unsigned)hdr->log_page);
+      return 0;
+    }
+  }
+
+  /* Check 4: Log record size must fit in a page */
+  if(hdr->log_record_size > COFFEE_PAGE_SIZE) {
+    PRINTF("Coffee: Invalid header at page %u: log_record_size %u exceeds page size\n",
+           (unsigned)page, (unsigned)hdr->log_record_size);
+    return 0;
+  }
+
+  /* Check 5: Flag consistency for active files */
+  if(HDR_ACTIVE(*hdr) && !HDR_VALID(*hdr)) {
+    PRINTF("Coffee: Invalid header at page %u: active but not marked valid\n",
+           (unsigned)page);
+    return 0;
+  }
+
+  return 1;
+}
+/*---------------------------------------------------------------------------*/
 static cfs_offset_t
 absolute_offset(coffee_page_t page, cfs_offset_t offset)
 {
