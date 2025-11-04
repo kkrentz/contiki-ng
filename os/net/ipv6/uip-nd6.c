@@ -478,7 +478,7 @@ na_input(void)
   /* Options processing: we handle TLLAO, and must ignore others */
   nd6_opt_offset = UIP_ND6_NA_LEN;
   nd6_opt_llao = NULL;
-  while(uip_l3_icmp_hdr_len + nd6_opt_offset < uip_len) {
+  while(uip_l3_icmp_hdr_len + nd6_opt_offset + UIP_ND6_OPT_HDR_LEN < uip_len) {
     if(ND6_OPT_HDR_BUF(nd6_opt_offset)->len == 0) {
       LOG_ERR("Discarding invalid NA\n");
       goto discard;
@@ -619,7 +619,7 @@ rs_input(void)
   nd6_opt_offset = UIP_ND6_RS_LEN;
   nd6_opt_llao = NULL;
 
-  while(uip_l3_icmp_hdr_len + nd6_opt_offset < uip_len) {
+  while(uip_l3_icmp_hdr_len + nd6_opt_offset + UIP_ND6_OPT_HDR_LEN < uip_len) {
     if(ND6_OPT_HDR_BUF(nd6_opt_offset)->len == 0) {
       LOG_ERR("Discarding invalid RS\n");
       goto discard;
@@ -868,7 +868,7 @@ ra_input(void)
 
   /* Options processing */
   nd6_opt_offset = UIP_ND6_RA_LEN;
-  while(uip_l3_icmp_hdr_len + nd6_opt_offset < uip_len) {
+  while(uip_l3_icmp_hdr_len + nd6_opt_offset + UIP_ND6_OPT_HDR_LEN < uip_len) {
     if(ND6_OPT_HDR_BUF(nd6_opt_offset)->len == 0) {
       LOG_ERR("Discarding invalid RA");
       goto discard;
