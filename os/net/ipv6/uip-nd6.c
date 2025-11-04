@@ -1000,6 +1000,28 @@ ra_input(void)
 #if UIP_ND6_RA_RDNSS
     case UIP_ND6_OPT_RDNSS:
       LOG_DBG("Processing RDNSS option\n");
+
+      /*
+       * Validate that the option length is sufficient for at least
+       * one address.
+       *
+       * Minimum: type(1) + len(1) + reserved(2) + lifetime(4) + address(16) =
+       *          24 bytes
+       */
+      if(ND6_OPT_RDNSS_BUF(nd6_opt_offset)->len < 3) {
+        LOG_ERR("RDNSS option too short (len=%u)\n",
+                ND6_OPT_RDNSS_BUF(nd6_opt_offset)->len);
+        goto discard;
+      }
+
+      /* Ensure that the full option fits within packet bounds. */
+      uint16_t opt_full_len = ND6_OPT_RDNSS_BUF(nd6_opt_offset)->len << 3;
+      if(uip_l3_icmp_hdr_len + nd6_opt_offset + opt_full_len > uip_len) {
+        LOG_ERR("RDNSS option extends beyond packet boundary\n");
+        goto discard;
+      }
+
+      /* Calculate number of addresses based on validated length */
       uint8_t naddr = (ND6_OPT_RDNSS_BUF(nd6_opt_offset)->len - 1) / 2;
       uip_ipaddr_t *ip = (uip_ipaddr_t *)(&ND6_OPT_RDNSS_BUF(nd6_opt_offset)->ip);
       LOG_DBG("got %d nameservers\n", naddr);
