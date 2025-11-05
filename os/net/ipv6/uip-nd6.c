@@ -486,6 +486,11 @@ na_input(void)
 
     switch(ND6_OPT_HDR_BUF(nd6_opt_offset)->type) {
     case UIP_ND6_OPT_TLLAO:
+      /* Validate that the full TLLAO option fits within packet bounds */
+      if(uip_l3_icmp_hdr_len + nd6_opt_offset + UIP_ND6_OPT_LLAO_LEN > uip_len) {
+        LOG_ERR("TLLAO option extends beyond packet boundary\n");
+        goto discard;
+      }
       nd6_opt_llao = (uint8_t *)ND6_OPT_HDR_BUF(nd6_opt_offset);
       break;
     default:
@@ -627,6 +632,11 @@ rs_input(void)
 
     switch(ND6_OPT_HDR_BUF(nd6_opt_offset)->type) {
     case UIP_ND6_OPT_SLLAO:
+      /* Validate that the full SLLAO option fits within packet bounds */
+      if(uip_l3_icmp_hdr_len + nd6_opt_offset + UIP_ND6_OPT_LLAO_LEN > uip_len) {
+        LOG_ERR("SLLAO option extends beyond packet boundary\n");
+        goto discard;
+      }
       nd6_opt_llao = (uint8_t *)ND6_OPT_HDR_BUF(nd6_opt_offset);
       break;
     default:
@@ -876,6 +886,13 @@ ra_input(void)
     switch(ND6_OPT_HDR_BUF(nd6_opt_offset)->type) {
     case UIP_ND6_OPT_SLLAO:
       LOG_DBG("Processing SLLAO option in RA\n");
+
+      /* Validate that the full SLLAO option fits within packet bounds */
+      if(uip_l3_icmp_hdr_len + nd6_opt_offset + UIP_ND6_OPT_LLAO_LEN > uip_len) {
+        LOG_ERR("SLLAO option extends beyond packet boundary\n");
+        goto discard;
+      }
+
       nd6_opt_llao = (uint8_t *)ND6_OPT_HDR_BUF(nd6_opt_offset);
       nbr = uip_ds6_nbr_lookup(&UIP_IP_BUF->srcipaddr);
       if(!extract_lladdr_from_llao_aligned(&lladdr_aligned)) {
@@ -908,11 +925,32 @@ ra_input(void)
       break;
     case UIP_ND6_OPT_MTU:
       LOG_DBG("Processing MTU option in RA\n");
+
+      /* Validate that the full MTU option (8 bytes) fits within packet bounds */
+      if(uip_l3_icmp_hdr_len + nd6_opt_offset + UIP_ND6_OPT_MTU_LEN > uip_len) {
+        LOG_ERR("MTU option extends beyond packet boundary\n");
+        goto discard;
+      }
+
       uip_ds6_if.link_mtu =
         uip_ntohl(((uip_nd6_opt_mtu *)ND6_OPT_HDR_BUF(nd6_opt_offset))->mtu);
       break;
     case UIP_ND6_OPT_PREFIX_INFO:
       LOG_DBG("Processing PREFIX option in RA\n");
+
+      /* Validate that the full PREFIX_INFO option (32 bytes) fits within packet bounds */
+      if(uip_l3_icmp_hdr_len + nd6_opt_offset + UIP_ND6_OPT_PREFIX_INFO_LEN > uip_len) {
+        LOG_ERR("PREFIX_INFO option extends beyond packet boundary\n");
+        goto discard;
+      }
+
+      /* Also validate the option len field matches expected PREFIX_INFO length */
+      if(ND6_OPT_HDR_BUF(nd6_opt_offset)->len != UIP_ND6_OPT_PREFIX_INFO_LEN / 8) {
+        LOG_ERR("PREFIX_INFO option has invalid length field (len=%u, expected=%u)\n",
+                ND6_OPT_HDR_BUF(nd6_opt_offset)->len, UIP_ND6_OPT_PREFIX_INFO_LEN / 8);
+        goto discard;
+      }
+
       nd6_opt_prefix_info = (uip_nd6_opt_prefix_info *)ND6_OPT_HDR_BUF(nd6_opt_offset);
       if((uip_ntohl(nd6_opt_prefix_info->validlt) >=
           uip_ntohl(nd6_opt_prefix_info->preferredlt))
