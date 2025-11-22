@@ -412,14 +412,15 @@ UNIT_TEST(sha_256_hash_with_checkpoint)
     sha_256_checkpoint_t checkpoint;
     SHA_256.create_checkpoint(&checkpoint);
     for(size_t j = 0; j < ARRAY_LENGTH(hashes[i].data); j++) {
-      SHA_256.restore_checkpoint(&checkpoint);
       if(!hashes[i].data[j]) {
         continue;
       }
+      SHA_256.restore_checkpoint(&checkpoint);
       SHA_256.update((const uint8_t *)hashes[i].data[j],
                      strlen(hashes[i].data[j]));
       SHA_256.create_checkpoint(&checkpoint);
     }
+    SHA_256.restore_checkpoint(&checkpoint);
     uint8_t sha256[SHA_256_DIGEST_LENGTH];
     SHA_256.finalize(sha256);
     UNIT_TEST_ASSERT(!memcmp(sha256, hashes[i].hash, sizeof(sha256)));
