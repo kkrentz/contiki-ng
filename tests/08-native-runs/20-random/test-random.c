@@ -29,16 +29,10 @@
 
 #include "contiki.h"
 #include "lib/random.h"
+#include "sys/array-length.h"
 #include "unit-test/unit-test.h"
 #include <stdio.h>
 #include <string.h>
-
-/**
- * \brief       Counts the number of elements of an array.
- * \param array The array.
- * \return      The number of elements of the array.
- */
-#define ARRAY_LENGTH(array) (sizeof(array) / sizeof((array)[0]))
 
 PROCESS(test_random_process, "test");
 AUTOSTART_PROCESSES(&test_random_process);
