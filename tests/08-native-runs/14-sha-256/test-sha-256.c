@@ -32,6 +32,7 @@
 #include "unit-test.h"
 #include "lib/sha-256.h"
 #include "lib/hexconv.h"
+#include "sys/array-length.h"
 #include <stddef.h>
 #include <string.h>
 #include <stdio.h>
@@ -342,11 +343,9 @@ UNIT_TEST(sha_256_hash_stepwise)
 {
   UNIT_TEST_BEGIN();
 
-  for(size_t i = 0; i < sizeof(hashes) / sizeof(hashes[0]); i++) {
+  for(size_t i = 0; i < ARRAY_LENGTH(hashes); i++) {
     SHA_256.init();
-    for(size_t j = 0;
-        j < sizeof(hashes[i].data) / sizeof(hashes[i].data[0]);
-        j++) {
+    for(size_t j = 0; j < ARRAY_LENGTH(hashes[i].data); j++) {
       if(!hashes[i].data[j]) {
         continue;
       }
@@ -366,13 +365,11 @@ UNIT_TEST(sha_256_hash_with_checkpoint)
 {
   UNIT_TEST_BEGIN();
 
-  for(size_t i = 0; i < sizeof(hashes) / sizeof(hashes[0]); i++) {
+  for(size_t i = 0; i < ARRAY_LENGTH(hashes); i++) {
     SHA_256.init();
     sha_256_checkpoint_t checkpoint;
     SHA_256.create_checkpoint(&checkpoint);
-    for(size_t j = 0;
-        j < sizeof(hashes[i].data) / sizeof(hashes[i].data[0]);
-        j++) {
+    for(size_t j = 0; j < ARRAY_LENGTH(hashes[i].data); j++) {
       SHA_256.restore_checkpoint(&checkpoint);
       if(!hashes[i].data[j]) {
         continue;
@@ -394,12 +391,10 @@ UNIT_TEST(sha_256_hash_shorthand)
 {
   UNIT_TEST_BEGIN();
 
-  for(size_t i = 0; i < sizeof(hashes) / sizeof(hashes[0]); i++) {
+  for(size_t i = 0; i < ARRAY_LENGTH(hashes); i++) {
     uint8_t buf[256];
     size_t buf_len = 0;
-    for(size_t j = 0;
-        j < sizeof(hashes[i].data) / sizeof(hashes[i].data[0]);
-        j++) {
+    for(size_t j = 0; j < ARRAY_LENGTH(hashes[i].data); j++) {
       if(!hashes[i].data[j]) {
         continue;
       }
@@ -419,7 +414,7 @@ UNIT_TEST(sha_256_hmac)
 {
   UNIT_TEST_BEGIN();
 
-  for(size_t i = 0; i < sizeof(hmacs) / sizeof(hmacs[0]); i++) {
+  for(size_t i = 0; i < ARRAY_LENGTH(hmacs); i++) {
     uint8_t hmac[SHA_256_DIGEST_LENGTH];
     sha_256_hmac((uint8_t *)hmacs[i].key, hmacs[i].keylen,
                  hmacs[i].data, hmacs[i].datalen,
@@ -435,7 +430,7 @@ UNIT_TEST(sha_256_hkdf)
 {
   UNIT_TEST_BEGIN();
 
-  for(size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); i++) {
+  for(size_t i = 0; i < ARRAY_LENGTH(keys); i++) {
     uint8_t prk[SHA_256_DIGEST_LENGTH];
     sha_256_hkdf_extract(keys[i].salt, keys[i].salt_len,
                          keys[i].ikm, keys[i].ikm_len,
