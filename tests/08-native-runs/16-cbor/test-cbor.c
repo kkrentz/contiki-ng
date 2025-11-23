@@ -37,6 +37,7 @@
 #include "contiki.h"
 #include "lib/cbor.h"
 #include "unit-test.h"
+#include "sys/array-length.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -80,12 +81,12 @@ UNIT_TEST(test_write_read)
     cbor_write_data(&writer, foo, sizeof(foo));
     array_size++;
     /* unsigned values */
-    for(int i = 0; i < sizeof(unsigned_values) / sizeof(int64_t); i++) {
+    for(int i = 0; i < ARRAY_LENGTH(unsigned_values); i++) {
       cbor_write_unsigned(&writer, unsigned_values[i]);
       array_size++;
     }
     /* signed values */
-    for(int i = 0; i < sizeof(signed_values) / sizeof(int64_t); i++) {
+    for(int i = 0; i < ARRAY_LENGTH(signed_values); i++) {
       cbor_write_signed(&writer, signed_values[i]);
       array_size++;
     }
@@ -146,12 +147,12 @@ UNIT_TEST(test_write_read)
     UNIT_TEST_ASSERT(data_size == sizeof(foo));
     UNIT_TEST_ASSERT(!memcmp(foo, data, data_size));
     uint64_t value;
-    for(int i = 0; i < sizeof(unsigned_values) / sizeof(uint64_t); i++) {
+    for(int i = 0; i < ARRAY_LENGTH(unsigned_values); i++) {
       UNIT_TEST_ASSERT(CBOR_SIZE_NONE != cbor_read_unsigned(&reader, &value));
       UNIT_TEST_ASSERT(unsigned_values[i] == value);
     }
     int64_t signed_value;
-    for(int i = 0; i < sizeof(signed_values) / sizeof(uint64_t); i++) {
+    for(int i = 0; i < ARRAY_LENGTH(signed_values); i++) {
       UNIT_TEST_ASSERT(CBOR_SIZE_NONE != cbor_read_signed(&reader, &signed_value));
       UNIT_TEST_ASSERT(signed_values[i] == signed_value);
     }

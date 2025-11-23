@@ -47,6 +47,7 @@
 #include "db-options.h"
 #include "index.h"
 #include "storage.h"
+#include "sys/array-length.h"
 
 static index_api_t *index_components[] = {&index_inline,
 	&index_maxheap};
@@ -62,7 +63,7 @@ find_index_api(index_type_t index_type)
 {
   int i;
 
-  for(i = 0; i < sizeof(index_components) / sizeof(index_components[0]); i++) {
+  for(i = 0; i < ARRAY_LENGTH(index_components); i++) {
       if(index_components[i]->type == index_type) {
 	return index_components[i];
       }
