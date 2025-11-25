@@ -1047,7 +1047,7 @@ PT_THREAD(ecc_generate_key_pair(uint8_t *public_key,
                                    curve_g_offset,
                                    public_key_offset,
                                    result));
-    if(*result == PKA_SHIFT_POINT_AT_INFINITY) {
+    if(*result == PKA_STATUS_POINT_AT_INFINITY) {
       LOG_WARN("public key at infinity\n");
       continue;
     }
