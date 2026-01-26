@@ -274,6 +274,47 @@ uip_add32(uint8_t *op32, uint16_t op16)
     }
   }
 }
+
+/*---------------------------------------------------------------------------*/
+/* TCP sequence number and window validation functions */
+static inline uint32_t
+seq_to_uint32(uint8_t *seq)
+{
+  return ((uint32_t)seq[0] << 24) | ((uint32_t)seq[1] << 16) |
+         ((uint32_t)seq[2] << 8) | seq[3];
+}
+
+/*
+ * Segment acceptability test per RFC 9293 Section 3.10.7.4, Table 6.
+ *
+ * A segment is acceptable if any part of it falls within the receive
+ * window. For segments with data, this means either the beginning or
+ * end of the segment must be in [RCV.NXT, RCV.NXT + RCV.WND).
+ */
+static inline int
+seg_in_window(uint8_t *seq, uint16_t seg_len, uint8_t *rcv_nxt,
+              uint16_t window)
+{
+  int32_t start_diff = (int32_t)(seq_to_uint32(seq) - seq_to_uint32(rcv_nxt));
+
+  if(seg_len == 0) {
+    if(window == 0) {
+      return start_diff == 0;
+    }
+    return start_diff >= 0 && start_diff < (int32_t)window;
+  }
+
+  if(window == 0) {
+    return 0;
+  }
+
+  /* SEG.LEN > 0, RCV.WND > 0: accept if beginning OR end is in window */
+  if(start_diff >= 0 && start_diff < (int32_t)window) {
+    return 1;
+  }
+  int32_t end_diff = start_diff + (int32_t)(seg_len - 1);
+  return end_diff >= 0 && end_diff < (int32_t)window;
+}
 #endif /* UIP_TCP */
 
 #if ! UIP_ARCH_CHKSUM
@@ -1882,31 +1923,72 @@ uip_process(uint8_t flag)
      c) and the length of the IP header (20 bytes). */
   uip_len = uip_len - c - UIP_IPH_LEN;
 
-  /* First, check if the sequence number of the incoming packet is
-     what we're expecting next. If not, we send out an ACK with the
-     correct numbers in, unless we are in the SYN_RCVD state and
-     receive a SYN, in which case we should retransmit our SYNACK
-     (which is done futher down). */
+  /*
+   * Accept segments within the receive window and handle overlapping data.
+   *
+   * Out-of-order segments are dropped and an ACK is sent to trigger
+   * retransmission.
+   */
   if(!((((uip_connr->tcpstateflags & UIP_TS_MASK) == UIP_SYN_SENT) &&
         ((UIP_TCP_BUF->flags & TCP_CTL) == (TCP_SYN | TCP_ACK))) ||
        (((uip_connr->tcpstateflags & UIP_TS_MASK) == UIP_SYN_RCVD) &&
         ((UIP_TCP_BUF->flags & TCP_CTL) == TCP_SYN)))) {
-    if((uip_len > 0 || ((UIP_TCP_BUF->flags & (TCP_SYN | TCP_FIN)) != 0)) &&
-       (UIP_TCP_BUF->seqno[0] != uip_connr->rcv_nxt[0] ||
-        UIP_TCP_BUF->seqno[1] != uip_connr->rcv_nxt[1] ||
-        UIP_TCP_BUF->seqno[2] != uip_connr->rcv_nxt[2] ||
-        UIP_TCP_BUF->seqno[3] != uip_connr->rcv_nxt[3])) {
+    if((uip_len > 0 || ((UIP_TCP_BUF->flags & (TCP_SYN | TCP_FIN)) != 0))) {
 
-      if((UIP_TCP_BUF->flags & TCP_SYN)) {
-        if((uip_connr->tcpstateflags & UIP_TS_MASK) == UIP_SYN_RCVD) {
-          goto tcp_send_synack;
-#if UIP_ACTIVE_OPEN
-        } else if((uip_connr->tcpstateflags & UIP_TS_MASK) == UIP_SYN_SENT) {
-          goto tcp_send_syn;
-#endif
-        }
+      /* Compute effective segment length: FIN occupies one sequence number */
+      uint16_t eff_seg_len = uip_len;
+      if(UIP_TCP_BUF->flags & TCP_FIN) {
+        eff_seg_len++;
       }
-      goto tcp_send_ack;
+
+      /* Check segment acceptability per RFC 9293 Table 6 */
+      if(!seg_in_window(UIP_TCP_BUF->seqno, eff_seg_len,
+                        uip_connr->rcv_nxt, UIP_RECEIVE_WINDOW)) {
+        /* Segment outside receive window - send ACK and drop */
+        if((UIP_TCP_BUF->flags & TCP_SYN)) {
+          if((uip_connr->tcpstateflags & UIP_TS_MASK) == UIP_SYN_RCVD) {
+            goto tcp_send_synack;
+#if UIP_ACTIVE_OPEN
+          } else if((uip_connr->tcpstateflags & UIP_TS_MASK) == UIP_SYN_SENT) {
+            goto tcp_send_syn;
+#endif
+          }
+        }
+        goto tcp_send_ack;
+      }
+
+      /* Handle overlapping segments by trimming to new data only.
+         Use signed comparison for correct wraparound handling. */
+      uint32_t seg_seq = seq_to_uint32(UIP_TCP_BUF->seqno);
+      uint32_t expected_seq = seq_to_uint32(uip_connr->rcv_nxt);
+      int32_t seq_diff = (int32_t)(seg_seq - expected_seq);
+
+      if(seq_diff < 0) {
+        /* Overlapping segment - trim already received data */
+        uint32_t overlap = (uint32_t)(-seq_diff);
+        if(overlap >= uip_len) {
+          /* Entire segment is old data - just ACK */
+          goto tcp_send_ack;
+        }
+
+        LOG_DBG("TCP: trimming %lu bytes of overlap from segment\n",
+                (unsigned long)overlap);
+
+        /* Trim the overlapping portion */
+        uip_len -= overlap;
+        uip_appdata += overlap;
+        /* Update packet sequence number to reflect trimmed segment */
+        UIP_TCP_BUF->seqno[0] = (expected_seq >> 24) & 0xff;
+        UIP_TCP_BUF->seqno[1] = (expected_seq >> 16) & 0xff;
+        UIP_TCP_BUF->seqno[2] = (expected_seq >> 8) & 0xff;
+        UIP_TCP_BUF->seqno[3] = expected_seq & 0xff;
+      } else if(seq_diff > 0) {
+        /* Out-of-order segment: send ACK to trigger retransmission */
+        LOG_DBG("TCP: out-of-order segment (gap of %lu bytes), sending ACK\n",
+                (unsigned long)(uint32_t)seq_diff);
+        goto tcp_send_ack;
+      }
+      /* If seg_seq == expected_seq, process normally */
     }
   }
 
