@@ -1,0 +1,3 @@
+### Platform source files
+
+include $(CONTIKI_NG_RELOC_PLATFORM_DIR)/msp430fr5969/Makefile.common

@@ -1,0 +1,62 @@
+### Architecture source files
+### Note: uart0.c and msp430.c are platform-specific (eUSCI and CS for FR5xxx)
+ARCH = leds-arch.c sensors.c \
+       uart-putchar.c \
+       platform.c
+
+### Platform-specific drivers that don't conflict with CPU files
+PLATFORM_DRIVERS = uart0.c
+
+### Platform-specific drivers that OVERRIDE CPU files (added after filter)
+PLATFORM_OVERRIDE_DRIVERS = msp430.c watchdog.c
+
+PUTCHAR_FUN ?= uart0_writeb
+
+$(OBJECTDIR)/uart-putchar.o: CFLAGS += -DUART_WRITEB=$(PUTCHAR_FUN)
+
+CONTIKI_TARGET_DIRS = . dev
+CONTIKI_TARGET_SOURCEFILES += $(ARCH) $(PLATFORM_DRIVERS)
+
+### MSP430FR5969 - FR5xxx family with MSP430X architecture
+MCU = msp430fr5969
+CPU_HAS_MSP430X = 1
+
+### Disable networking by default - FR5969 has no radio and only 2KB SRAM
+MAKE_NET ?= MAKE_NET_NULLNET
+MAKE_ROUTING ?= MAKE_ROUTING_NULLROUTING
+
+### Override MSP430 source files to exclude msp430.c (we provide our own for CS module)
+### This must be set before including the CPU Makefile
+MSP430_OVERRIDE = flash.c clock.c leds.c leds-arch.c watchdog.c lpm.c rtimer-arch.c int-master.c
+
+### Include CPU makefile
+include $(CONTIKI_NG_RELOC_CPU_DIR)/msp430/Makefile.msp430
+
+### Override the MSP430 source files after include (workaround)
+### Remove files that are incompatible with FR5xxx:
+### - msp430.c (we provide our own with CS module instead of UCS)
+### - flash.c (FR5969 uses FRAM, not Flash)
+### - watchdog.c (FR5969 uses different register names)
+CONTIKI_TARGET_SOURCEFILES := $(filter-out msp430.c flash.c watchdog.c,$(CONTIKI_TARGET_SOURCEFILES))
+
+### Now add platform-specific override drivers (after the filter removed CPU versions)
+CONTIKI_TARGET_SOURCEFILES += $(PLATFORM_OVERRIDE_DRIVERS)
+
+### Linker flags for NVM section that can be used for intermittent computing.
+### Place .nvm section at top of FRAM (0xF800), before interrupt vectors.
+### This reserves 2 kB for persistent state across power cycles.
+ifeq ($(IPT_ENABLED),1)
+  NVM_START ?= 0xF800
+  LDFLAGS += -Wl,--section-start=.nvm=$(NVM_START)
+  LDFLAGS += -Wl,--defsym=_nvm_start=$(NVM_START)
+  LDFLAGS += -Wl,--defsym=_nvm_size=0x780
+endif
+
+### Upload support using mspdebug
+%.upload: $(BUILD_DIR_BOARD)/%.$(TARGET)
+	mspdebug tilib "prog $<"
+
+### Reset the device using mspdebug
+.PHONY: reset
+reset:
+	timeout 10 mspdebug tilib "reset" "exit"
