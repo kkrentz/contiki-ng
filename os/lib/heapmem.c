@@ -602,9 +602,10 @@ heapmem_zone_stats(heapmem_zone_t *zone, heapmem_stats_t *stats)
   for(chunk_t *chunk = (chunk_t *)zone->heap_base;
       (char *)chunk < zone->heap_base + zone->heap_usage;
       chunk = NEXT_CHUNK(chunk)) {
+    stats->overhead += sizeof(chunk_t);
     if(chunk->allocated) {
       stats->allocated += chunk->size;
-      stats->overhead += sizeof(chunk_t);
+      stats->chunks++;
     } else {
       coalesce_chunks(zone, chunk);
       stats->available += chunk->size;
@@ -613,7 +614,6 @@ heapmem_zone_stats(heapmem_zone_t *zone, heapmem_stats_t *stats)
   stats->available += zone->arena_size - zone->heap_usage;
   stats->heap_usage = zone->heap_usage;
   stats->max_heap_usage = zone->max_heap_usage;
-  stats->chunks = stats->overhead / sizeof(chunk_t);
 }
 
 /* heapmem_zone_print_debug_info: Print statistics and optionally
