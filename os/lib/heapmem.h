@@ -77,19 +77,34 @@
 #define HEAPMEM_H
 
 #include "contiki.h"
+#include "sys/cc.h"
 
-#include <stddef.h>
+#include <stdlib.h>
 /*****************************************************************************/
 #ifndef HEAPMEM_DEBUG
 #define HEAPMEM_DEBUG 0
 #endif
 /*****************************************************************************/
+/* Alignment configuration. */
+#if __STDC_VERSION__ >= 201112L
+#include <stdalign.h>
+#define HEAPMEM_DEFAULT_ALIGNMENT alignof(max_align_t)
+#else
+#define HEAPMEM_DEFAULT_ALIGNMENT sizeof(size_t)
+#endif
+
+#ifdef HEAPMEM_CONF_ALIGNMENT
+#define HEAPMEM_ALIGNMENT HEAPMEM_CONF_ALIGNMENT
+#else
+#define HEAPMEM_ALIGNMENT HEAPMEM_DEFAULT_ALIGNMENT
+#endif /* HEAPMEM_CONF_ALIGNMENT */
+/*****************************************************************************/
 typedef struct heapmem_stats {
   size_t allocated;
   size_t overhead;
   size_t available;
-  size_t footprint;
-  size_t max_footprint;
+  size_t heap_usage;
+  size_t max_heap_usage;
   size_t chunks;
 } heapmem_stats_t;
 /*****************************************************************************/
@@ -226,12 +241,6 @@ void heapmem_stats(heapmem_stats_t *stats);
  *                     all allocated chunks.
  */
 void heapmem_print_debug_info(bool print_chunks);
-
-/**
- * \brief       Obtain the minimum alignment of allocated addresses.
- * \return      The alignment value, which is a power of two.
- */
-size_t heapmem_alignment(void);
 
 #endif /* !HEAPMEM_H */
 

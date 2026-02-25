@@ -36,6 +36,7 @@
  * 	Nicolas Tsiftes <nvt@acm.org>
  */
 
+#include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -51,14 +52,13 @@
 #define LOG_MODULE "HeapMem"
 #define LOG_LEVEL LOG_LEVEL_WARN
 
-/* The HEAPMEM_CONF_PRINTF function determines which function to use for
-   printing debug information. */
-#ifndef HEAPMEM_CONF_PRINTF
-#include <stdio.h>
-#define HEAPMEM_PRINTF printf
+/* The HEAPMEM_CONF_PRINTF parameter determines which function to use for
+   printing debug information. It defaults to LOG_OUTPUT. */
+#ifdef HEAPMEM_CONF_PRINTF
+#define HEAPMEM_PRINTF(...) HEAPMEM_CONF_PRINTF(__VA_ARGS__)
 #else
-#define HEAPMEM_PRINTF HEAPMEM_CONF_PRINTF
-#endif /* !HEAPMEM_CONF_PRINTF */
+#define HEAPMEM_PRINTF(...) LOG_OUTPUT(__VA_ARGS__)
+#endif /* HEAPMEM_CONF_PRINTF */
 
 /* The HEAPMEM_CONF_ARENA_SIZE parameter determines the size of the
    space that will be statically allocated in this module. */
@@ -76,33 +76,16 @@
 #define CHUNK_SEARCH_MAX 16
 #endif /* HEAPMEM_CONF_SEARCH_MAX */
 
-/*
- * The HEAPMEM_CONF_REALLOC parameter determines whether
- * heapmem_realloc() is enabled (non-zero value) or not (zero value).
- */
-#ifdef HEAPMEM_CONF_REALLOC
-#define HEAPMEM_REALLOC HEAPMEM_CONF_REALLOC
-#else
-#define HEAPMEM_REALLOC 1
-#endif /* HEAPMEM_CONF_REALLOC */
+static inline size_t
+align_size(size_t size)
+{
+  if(size > SIZE_MAX - (HEAPMEM_ALIGNMENT - 1)) {
+    return 0;
+  }
+  return ((size + (HEAPMEM_ALIGNMENT - 1)) & ~(HEAPMEM_ALIGNMENT - 1));
+}
 
-#if __STDC_VERSION__ >= 201112L
-#include <stdalign.h>
-#define HEAPMEM_DEFAULT_ALIGNMENT alignof(max_align_t)
-#else
-#define HEAPMEM_DEFAULT_ALIGNMENT sizeof(size_t)
-#endif
-
-/* The HEAPMEM_CONF_ALIGNMENT parameter determines the minimum
-   alignment for allocated data. */
-#ifdef HEAPMEM_CONF_ALIGNMENT
-#define HEAPMEM_ALIGNMENT HEAPMEM_CONF_ALIGNMENT
-#else
-#define HEAPMEM_ALIGNMENT HEAPMEM_DEFAULT_ALIGNMENT
-#endif /* HEAPMEM_CONF_ALIGNMENT */
-
-#define ALIGN(size)						\
-  (((size) + (HEAPMEM_ALIGNMENT - 1)) & ~(HEAPMEM_ALIGNMENT - 1))
+#define ALIGN(size) align_size(size)
 
 /* Macros for chunk iteration. */
 #define NEXT_CHUNK(chunk)						\
@@ -116,14 +99,6 @@
   ((chunk_t *)((char *)(ptr) - sizeof(chunk_t)))
 #define GET_PTR(chunk)				\
   (char *)((chunk) + 1)
-
-/* Macros for determining the status of a chunk. */
-#define CHUNK_FLAG_ALLOCATED            0x1
-
-#define CHUNK_ALLOCATED(chunk)			\
-  ((chunk)->flags & CHUNK_FLAG_ALLOCATED)
-#define CHUNK_FREE(chunk)			\
-  (~(chunk)->flags & CHUNK_FLAG_ALLOCATED)
 
 /*
  * A heapmem zone denotes a logical subdivision of the heap that is
@@ -160,11 +135,11 @@ static struct heapmem_zone zones[HEAPMEM_MAX_ZONES] = {
  * compared to a single-linked list, but with the advantage of having
  * much faster list removals.
  */
-typedef struct chunk {
-  struct chunk *prev;
-  struct chunk *next;
+typedef struct heapmem_chunk {
+  struct heapmem_chunk *prev;
+  struct heapmem_chunk *next;
   size_t size;
-  uint8_t flags;
+  bool allocated;
   heapmem_zone_t zone;
 #if HEAPMEM_DEBUG
   const char *file;
@@ -206,7 +181,7 @@ extend_space(size_t size)
 static void
 free_chunk(chunk_t * const chunk)
 {
-  chunk->flags &= ~CHUNK_FLAG_ALLOCATED;
+  chunk->allocated = false;
 
   if(IS_LAST_CHUNK(chunk)) {
     /* Release the chunk back into the wilderness. */
@@ -254,7 +229,7 @@ split_chunk(chunk_t * const chunk, size_t offset)
   if(offset + sizeof(chunk_t) < chunk->size) {
     chunk_t *new_chunk = (chunk_t *)(GET_PTR(chunk) + offset);
     new_chunk->size = chunk->size - sizeof(chunk_t) - offset;
-    new_chunk->flags = 0;
+    new_chunk->allocated = false;
     free_chunk(new_chunk);
 
     chunk->size = offset;
@@ -268,7 +243,7 @@ static void
 coalesce_chunks(chunk_t *chunk)
 {
   for(chunk_t *next = NEXT_CHUNK(chunk);
-      (char *)next < &heap_base[heap_usage] && CHUNK_FREE(next);
+      (char *)next < &heap_base[heap_usage] && !next->allocated;
       next = NEXT_CHUNK(next)) {
     chunk->size += sizeof(chunk_t) + next->size;
     LOG_DBG("Coalesce chunk of %zu bytes\n", next->size);
@@ -400,6 +375,10 @@ heapmem_zone_alloc(heapmem_zone_t zone, size_t size)
   }
 
   size = ALIGN(size);
+  if(size == 0) {
+    LOG_ERR("Size overflow in alignment\n");
+    return NULL;
+  }
 
   if(sizeof(chunk_t) + size >
      zones[zone].zone_size - zones[zone].allocated) {
@@ -416,7 +395,7 @@ heapmem_zone_alloc(heapmem_zone_t zone, size_t size)
     chunk->size = size;
   }
 
-  chunk->flags = CHUNK_FLAG_ALLOCATED;
+  chunk->allocated = true;
 
 #if HEAPMEM_DEBUG
   chunk->file = file;
@@ -457,7 +436,7 @@ heapmem_free(void *ptr)
   }
 
   chunk_t *chunk = GET_CHUNK(ptr);
-  if(!CHUNK_ALLOCATED(chunk)) {
+  if(!chunk->allocated) {
     LOG_WARN("%s: ptr %p has already been deallocated\n", __func__, ptr);
     return false;
   }
@@ -473,7 +452,6 @@ heapmem_free(void *ptr)
   return true;
 }
 
-#if HEAPMEM_REALLOC
 /*
  * heapmem_realloc: Reallocate an object with a different size,
  * possibly moving it in memory. In case of success, the function
@@ -524,7 +502,7 @@ heapmem_realloc(void *ptr, size_t size)
   }
 
   chunk_t *chunk = GET_CHUNK(ptr);
-  if(!CHUNK_ALLOCATED(chunk)) {
+  if(!chunk->allocated) {
     LOG_WARN("%s: ptr %p is not allocated\n", __func__, ptr);
     return NULL;
   }
@@ -535,6 +513,11 @@ heapmem_realloc(void *ptr, size_t size)
 #endif
 
   size = ALIGN(size);
+  if(size == 0) {
+    LOG_ERR("Size overflow in alignment\n");
+    return NULL;
+  }
+
   int size_adj = size - chunk->size;
 
   if(size_adj <= 0) {
@@ -589,7 +572,6 @@ heapmem_realloc(void *ptr, size_t size)
 
   return newptr;
 }
-#endif /* HEAPMEM_REALLOC */
 
 /* heapmem_calloc: Allocates memory for a zero-initialized array. */
 void *
@@ -623,7 +605,7 @@ heapmem_stats(heapmem_stats_t *stats)
   for(chunk_t *chunk = (chunk_t *)heap_base;
       (char *)chunk < &heap_base[heap_usage];
       chunk = NEXT_CHUNK(chunk)) {
-    if(CHUNK_ALLOCATED(chunk)) {
+    if(chunk->allocated) {
       stats->allocated += chunk->size;
       stats->overhead += sizeof(chunk_t);
     } else {
@@ -632,8 +614,8 @@ heapmem_stats(heapmem_stats_t *stats)
     }
   }
   stats->available += HEAPMEM_ARENA_SIZE - heap_usage;
-  stats->footprint = heap_usage;
-  stats->max_footprint = max_heap_usage;
+  stats->heap_usage = heap_usage;
+  stats->max_heap_usage = max_heap_usage;
   stats->chunks = stats->overhead / sizeof(chunk_t);
 }
 
@@ -648,8 +630,8 @@ heapmem_print_debug_info(bool print_chunks)
   HEAPMEM_PRINTF("* HeapMem statistics\n");
   HEAPMEM_PRINTF("* Allocated memory: %zu\n", stats.allocated);
   HEAPMEM_PRINTF("* Available memory: %zu\n", stats.available);
-  HEAPMEM_PRINTF("* Heap usage: %zu\n", stats.footprint);
-  HEAPMEM_PRINTF("* Max heap usage: %zu\n", stats.max_footprint);
+  HEAPMEM_PRINTF("* Heap usage: %zu\n", stats.heap_usage);
+  HEAPMEM_PRINTF("* Max heap usage: %zu\n", stats.max_heap_usage);
   HEAPMEM_PRINTF("* Allocated chunks: %zu\n", stats.chunks);
   HEAPMEM_PRINTF("* Chunk size: %zu\n", sizeof(chunk_t));
   HEAPMEM_PRINTF("* Total chunk overhead: %zu\n", stats.overhead);
@@ -659,26 +641,19 @@ heapmem_print_debug_info(bool print_chunks)
     for(chunk_t *chunk = (chunk_t *)heap_base;
         (char *)chunk < &heap_base[heap_usage];
         chunk = NEXT_CHUNK(chunk)) {
-      if(CHUNK_ALLOCATED(chunk)) {
+      if(chunk->allocated) {
 #if HEAPMEM_DEBUG
-        HEAPMEM_PRINTF("* Chunk: heap offset %"PRIuPTR", obj %p, flags 0x%x (%s:%u)\n",
+        HEAPMEM_PRINTF("* Chunk: heap offset %"PRIuPTR", obj %p, size %zu (%s:%u)\n",
                        (uintptr_t)((char *)chunk - (char *)heap_base),
-                       GET_PTR(chunk), chunk->flags, chunk->file, chunk->line);
+                       GET_PTR(chunk), chunk->size, chunk->file, chunk->line);
 #else
-        HEAPMEM_PRINTF("* Chunk: heap offset %"PRIuPTR", obj %p, flags 0x%x\n",
+        HEAPMEM_PRINTF("* Chunk: heap offset %"PRIuPTR", obj %p, size %zu\n",
                        (uintptr_t)((char *)chunk - (char *)heap_base),
-                       GET_PTR(chunk), chunk->flags);
+                       GET_PTR(chunk), chunk->size);
 #endif /* HEAPMEM_DEBUG */
       }
     }
   }
-}
-
-/* heapmem_alignment: Returns the minimum alignment of allocated addresses. */
-size_t
-heapmem_alignment(void)
-{
-  return HEAPMEM_ALIGNMENT;
 }
 
 #endif /* HEAPMEM_CONF_ARENA_SIZE */

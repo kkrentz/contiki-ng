@@ -79,7 +79,7 @@ UNIT_TEST(do_many_allocations)
   unsigned failed_allocations = 0;
   unsigned failed_deallocations = 0;
   unsigned misalignments = 0;
-  unsigned min_alignment = heapmem_alignment();
+  unsigned min_alignment = HEAPMEM_ALIGNMENT;
 
   /* The minimum alignment value must be a power of two */
   UNIT_TEST_ASSERT(min_alignment != 0);
@@ -168,7 +168,7 @@ UNIT_TEST(max_alloc)
 
   heapmem_stats_t stats_before;
   heapmem_stats(&stats_before);
-  printf("Old max footprint: %zu\n", stats_before.max_footprint);
+  printf("Old max heap usage: %zu\n", stats_before.max_heap_usage);
 
   /* The test uses a much smaller size than the theoretical maximum because
      the heapmem module is not yet supporting such large allocations. */
@@ -181,15 +181,15 @@ UNIT_TEST(max_alloc)
 
   heapmem_stats_t stats_after;
   heapmem_stats(&stats_after);
-  printf("New max footprint: %zu\n", stats_after.max_footprint);
+  printf("New max heap usage: %zu\n", stats_after.max_heap_usage);
 
   UNIT_TEST_ASSERT(stats_before.allocated == stats_after.allocated);
   UNIT_TEST_ASSERT(stats_before.overhead == stats_after.overhead);
   UNIT_TEST_ASSERT(stats_before.available == stats_after.available);
-  UNIT_TEST_ASSERT(stats_before.footprint == stats_after.footprint);
-  UNIT_TEST_ASSERT(stats_before.max_footprint < stats_after.max_footprint);
+  UNIT_TEST_ASSERT(stats_before.heap_usage == stats_after.heap_usage);
+  UNIT_TEST_ASSERT(stats_before.max_heap_usage < stats_after.max_heap_usage);
   UNIT_TEST_ASSERT(stats_before.chunks == stats_after.chunks);
-  UNIT_TEST_ASSERT(stats_after.max_footprint >= test_alloc_size);
+  UNIT_TEST_ASSERT(stats_after.max_heap_usage >= test_alloc_size);
 
   UNIT_TEST_END();
 }
@@ -278,15 +278,15 @@ UNIT_TEST(stats_check)
   heapmem_stats(&stats);
 
   printf("* allocated %zu\n* overhead %zu\n* available %zu\n"
-	 "* footprint %zu\n* max footprint %zu\n* chunks %zu\n",
+	 "* heap usage %zu\n* max heap usage %zu\n* chunks %zu\n",
          stats.allocated, stats.overhead, stats.available,
-         stats.footprint, stats.max_footprint, stats.chunks);
+         stats.heap_usage, stats.max_heap_usage, stats.chunks);
 
   UNIT_TEST_ASSERT(stats.allocated == 0);
   UNIT_TEST_ASSERT(stats.overhead == 0);
   UNIT_TEST_ASSERT(stats.available == HEAPMEM_CONF_ARENA_SIZE);
-  UNIT_TEST_ASSERT(stats.footprint == 0);
-  UNIT_TEST_ASSERT(stats.max_footprint > stats.available / 2);
+  UNIT_TEST_ASSERT(stats.heap_usage == 0);
+  UNIT_TEST_ASSERT(stats.max_heap_usage > stats.available / 2);
   UNIT_TEST_ASSERT(stats.chunks == 0);
 
   UNIT_TEST_END();
