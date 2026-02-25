@@ -70,6 +70,9 @@
 #define CHUNK_SEARCH_MAX 16
 #endif /* HEAPMEM_CONF_SEARCH_MAX */
 
+_Static_assert((HEAPMEM_ALIGNMENT & (HEAPMEM_ALIGNMENT - 1)) == 0,
+               "HEAPMEM_ALIGNMENT must be a power of 2");
+
 static inline size_t
 align_size(size_t size)
 {
