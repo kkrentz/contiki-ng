@@ -113,6 +113,9 @@ typedef struct heapmem_chunk {
 #endif
 } chunk_t;
 
+_Static_assert(sizeof(chunk_t) % HEAPMEM_ALIGNMENT == 0,
+               "sizeof(chunk_t) must be a multiple of HEAPMEM_ALIGNMENT");
+
 /* The general zone with a statically allocated arena. */
 #ifdef HEAPMEM_CONF_ARENA_SIZE
 #define HEAPMEM_ARENA_SIZE HEAPMEM_CONF_ARENA_SIZE
