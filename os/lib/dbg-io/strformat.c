@@ -132,7 +132,7 @@ typedef uint32_t FormatFlags;
 #define FLOAT_HEX       (((uint32_t)0x0003) << FLOAT_SHIFT)
 #define FLOAT_MASK      MAKE_MASK(FLOAT_SHIFT, FLOAT_SIZE)
 /*---------------------------------------------------------------------------*/
-#define CHECKCB(res) { if((res) != STRFORMAT_OK) { va_end(ap); return -1; } }
+#define CHECKCB(res) { if((res) != STRFORMAT_OK) { return -1; } }
 /*---------------------------------------------------------------------------*/
 #define MAXCHARS_HEX ((sizeof(LARGEST_UNSIGNED) * 8) / 4)
 
@@ -315,14 +315,12 @@ format_str_v(const strformat_context_t *ctxt, const char *format, va_list ap)
     }
 
     if(*pos == '\0') {
-      va_end(ap);
       return written;
     }
 
     pos++;
 
     if(*pos == '\0') {
-      va_end(ap);
       return written;
     }
 
@@ -447,7 +445,6 @@ format_str_v(const strformat_context_t *ctxt, const char *format, va_list ap)
       flags |= CONV_PERCENT;
       break;
     case '\0':
-      va_end(ap);
       return written;
     }
     pos++;
