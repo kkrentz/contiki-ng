@@ -439,7 +439,6 @@ format_str_v(const strformat_context_t *ctxt, const char *format, va_list ap)
       flags |= CONV_POINTER;
       break;
     case 'n':
-      flags |= CONV_WRITTEN;
       break;
     case '%':
       flags |= CONV_PERCENT;
@@ -699,12 +698,6 @@ format_str_v(const strformat_context_t *ctxt, const char *format, va_list ap)
         CHECKCB(fill_space(ctxt, field_fill));
       }
       written += field_fill;
-    }
-    break;
-    case CONV_WRITTEN:
-    {
-      int *p = va_arg(ap, int *);
-      *p = written;
     }
     break;
     }
