@@ -336,7 +336,7 @@ format_str_v(const strformat_context_t *ctxt, const char *format, va_list ap)
 
       if(w < 0) {
         flags |= JUSTIFY_LEFT;
-        minwidth = w;
+        minwidth = -w;
       } else {
         minwidth = w;
       }
