@@ -693,7 +693,6 @@ format_str_v(const strformat_context_t *ctxt, const char *format, va_list ap)
 
       if((flags & JUSTIFY_MASK) == JUSTIFY_RIGHT) {
         CHECKCB(fill_space(ctxt, field_fill));
-        written += field_fill;
       }
 
       CHECKCB(ctxt->write_str(ctxt->user_data, &ch, 1));
