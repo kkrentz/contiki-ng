@@ -87,9 +87,20 @@ setup(void)
     return NULL;
   }
 
+  if(system_reset_cfg() != TFM_PLAT_ERR_SUCCESS) {
+    LOG_ERR("Failed to configure system reset\n");
+    return NULL;
+  }
+
   enum tfm_plat_err_t tfm_err = nvic_interrupt_target_state_cfg();
   if(tfm_err != TFM_PLAT_ERR_SUCCESS) {
-    LOG_DBG("Interrupt state: 0x%x\n", tfm_err);
+    LOG_ERR("Failed to configure NVIC interrupt target state: 0x%x\n", tfm_err);
+    return NULL;
+  }
+
+  if(nvic_interrupt_enable() != TFM_PLAT_ERR_SUCCESS) {
+    LOG_ERR("Failed to enable secure interrupts\n");
+    return NULL;
   }
 
   uintptr_t *vtor_ns = (uintptr_t *)NS_CODE_START;
