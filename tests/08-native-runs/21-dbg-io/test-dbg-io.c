@@ -784,6 +784,7 @@ PROCESS_THREAD(run_tests, ev, data)
 {
   PROCESS_BEGIN();
 
+  printf("Run unit-test\n");
   printf("\nRunning dbg-io unit tests\n");
 
   /* Part 1: Bug regression tests */
