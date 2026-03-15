@@ -68,13 +68,13 @@ static uint16_t dbg_pos;
 int
 dbg_putchar(int c)
 {
-  if(dbg_pos < DBG_BUF_SIZE) {
+  if(dbg_pos < DBG_BUF_SIZE - 1) {
     dbg_buf[dbg_pos++] = c;
   }
 
   if(c == '\n' || dbg_pos >= DBG_BUF_SIZE - 1) {
-    dbg_buf[MIN(dbg_pos - 1, DBG_BUF_SIZE - 1)] = '\0';
-    tz_api_println(dbg_buf);
+    dbg_buf[dbg_pos] = '\0';
+    tz_api_println(dbg_buf, dbg_pos);
     dbg_pos = 0;
   }
 

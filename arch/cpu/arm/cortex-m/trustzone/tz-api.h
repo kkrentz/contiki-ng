@@ -121,6 +121,7 @@ extern uint32_t __nsc_size;
 
 #else /* TRUSTZONE_SECURE */
 
+#define CC_TRUSTZONE_SECURE_CALL
 #define CC_TRUSTZONE_NONSECURE_CALL
 
 #endif /* TRUSTZONE_SECURE */
@@ -150,9 +151,10 @@ bool tz_api_poll(void);
 
 /**
  * \brief        Print the specified message via the secure world.
- *
+ * \param text   A pointer to the message text in non-secure memory.
+ * \param len    The length of the message in bytes.
  */
-void tz_api_println(const char *text);
+void tz_api_println(const char *text, size_t len);
 
 /**
  * \brief        Request poll from normal world.
