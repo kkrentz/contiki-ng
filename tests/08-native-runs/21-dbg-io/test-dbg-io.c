@@ -291,6 +291,71 @@ UNIT_TEST(test_percent_n_disabled)
   UNIT_TEST_END();
 }
 /*---------------------------------------------------------------------------*/
+
+/*
+ * Bug fix: negative dynamic precision via * must be treated as omitted.
+ */
+UNIT_TEST_REGISTER(test_negative_star_precision,
+                   "Negative * precision treated as omitted (C99)");
+UNIT_TEST(test_negative_star_precision)
+{
+  UNIT_TEST_BEGIN();
+
+  /* Negative precision => treat as no precision; default integer precision 1 */
+  UNIT_TEST_ASSERT(test_format("42", "%.*d", -5, 42));
+  /* Negative precision => string not truncated */
+  UNIT_TEST_ASSERT(test_format("hello", "%.*s", -3, "hello"));
+  /* Zero precision with zero value => empty output */
+  UNIT_TEST_ASSERT(test_format("", "%.*d", 0, 0));
+
+  UNIT_TEST_END();
+}
+/*---------------------------------------------------------------------------*/
+
+/*
+ * Bug fix: float format specifiers must consume the double argument
+ * even though formatting is not implemented, to keep va_list aligned.
+ */
+UNIT_TEST_REGISTER(test_float_va_list_consumed,
+                   "Float specifiers consume argument without corrupting va_list");
+UNIT_TEST(test_float_va_list_consumed)
+{
+  UNIT_TEST_BEGIN();
+
+  /* %f is not rendered, but the double must be consumed so that %d reads 42 */
+  UNIT_TEST_ASSERT(test_format("42", "%f%d", 3.14, 42));
+  UNIT_TEST_ASSERT(test_format("hello", "%e%s", 2.718, "hello"));
+  /* Multiple floats followed by an integer */
+  UNIT_TEST_ASSERT(test_format("99", "%g%f%d", 1.0, 2.0, 99));
+
+  UNIT_TEST_END();
+}
+/*---------------------------------------------------------------------------*/
+
+/*
+ * Bug fix: %p must output "0x..." not "#0x...".
+ */
+UNIT_TEST_REGISTER(test_pointer_format,
+                   "%%p outputs 0x prefix without spurious #");
+UNIT_TEST(test_pointer_format)
+{
+  char buf[32];
+  int ret;
+
+  UNIT_TEST_BEGIN();
+
+  ret = snprintf(buf, sizeof(buf), "%p", (void *)0);
+  /* NULL pointer should be "0x0" */
+  UNIT_TEST_ASSERT(strcmp(buf, "0x0") == 0);
+  UNIT_TEST_ASSERT(ret == 3);
+
+  ret = snprintf(buf, sizeof(buf), "%p", (void *)0xff);
+  UNIT_TEST_ASSERT(strcmp(buf, "0xff") == 0);
+  UNIT_TEST_ASSERT(ret == 4);
+
+  UNIT_TEST_END();
+}
+/*---------------------------------------------------------------------------*/
 /*
  * Part 2: General unit test suite for the formatting engine
  */
@@ -795,6 +860,9 @@ PROCESS_THREAD(run_tests, ev, data)
   UNIT_TEST_RUN(test_negative_star_width);
   UNIT_TEST_RUN(test_char_field_fill);
   UNIT_TEST_RUN(test_percent_n_disabled);
+  UNIT_TEST_RUN(test_negative_star_precision);
+  UNIT_TEST_RUN(test_float_va_list_consumed);
+  UNIT_TEST_RUN(test_pointer_format);
 
   /* Part 2: General formatting tests */
   printf("\n--- General formatting tests ---\n");
@@ -829,6 +897,9 @@ PROCESS_THREAD(run_tests, ev, data)
      !UNIT_TEST_PASSED(test_negative_star_width) ||
      !UNIT_TEST_PASSED(test_char_field_fill) ||
      !UNIT_TEST_PASSED(test_percent_n_disabled) ||
+     !UNIT_TEST_PASSED(test_negative_star_precision) ||
+     !UNIT_TEST_PASSED(test_float_va_list_consumed) ||
+     !UNIT_TEST_PASSED(test_pointer_format) ||
      !UNIT_TEST_PASSED(test_integer_formats) ||
      !UNIT_TEST_PASSED(test_integer_width_padding) ||
      !UNIT_TEST_PASSED(test_integer_sign_flags) ||
