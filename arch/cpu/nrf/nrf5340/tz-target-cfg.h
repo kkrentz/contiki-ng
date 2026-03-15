@@ -92,13 +92,6 @@ struct platform_data_t {
 };
 
 /**
- * \brief Configures memory permissions via the System Protection Unit.
- *
- * \return Returns values as specified by the \ref tfm_plat_err_t
- */
-enum tfm_plat_err_t spu_init_cfg(void);
-
-/**
  * \brief Configures peripheral permissions via the System Protection Unit.
  *
  * The function does the following:
@@ -131,11 +124,6 @@ void spu_periph_configure_to_non_secure(uint32_t periph_num);
 void spu_periph_config_uarte(void);
 
 /**
- * \brief Clears SPU interrupt.
- */
-void spu_clear_irq(void);
-
-/**
  * \brief Configures SAU and IDAU.
  */
 void sau_and_idau_cfg(void);
@@ -144,21 +132,6 @@ void sau_and_idau_cfg(void);
  * \brief Configure rom, ram and peripherials non-secure
  */
 void non_secure_configuration(void);
-
-/**
- * \brief Get non-secure vector table.
- */
-uint32_t tfm_spm_hal_get_ns_VTOR(void);
-
-/**
- * \brief Get non-secure MSP location.
- */
-uint32_t tfm_spm_hal_get_ns_MSP(void);
-
-/**
- * \brief Get entry point location.
- */
-uint32_t tfm_spm_hal_get_ns_entry_point(void);
 
 /**
  * \brief Enables the fault handlers and sets priorities.
@@ -173,13 +146,6 @@ enum tfm_plat_err_t enable_fault_handlers(void);
  * \return Returns values as specified by the \ref tfm_plat_err_t
  */
 enum tfm_plat_err_t system_reset_cfg(void);
-
-/**
- * \brief Configures the system debug properties.
- *
- * \return Returns values as specified by the \ref tfm_plat_err_t
- */
-enum tfm_plat_err_t init_debug(void);
 
 /**
  * \brief Configures all external interrupts to target the
@@ -199,4 +165,4 @@ enum tfm_plat_err_t nvic_interrupt_target_state_cfg(void);
  */
 enum tfm_plat_err_t nvic_interrupt_enable(void);
 
-#endif /* __TARGET_CFG_H__ */
+#endif /* __TZ_TARGET_CFG_H__ */

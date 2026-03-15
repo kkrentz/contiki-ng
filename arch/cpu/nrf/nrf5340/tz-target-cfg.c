@@ -112,6 +112,15 @@ nvic_interrupt_enable(void)
   return TFM_PLAT_ERR_SUCCESS;
 }
 /******************************************************************************/
+/*----------------- SPU interrupt handler ------------------------------------*/
+void
+SPU_IRQHandler(void)
+{
+  LOG_ERR("SPU security violation detected!\n");
+  spu_clear_events();
+  NVIC_SystemReset();
+}
+/******************************************************************************/
 /*------------------- SAU/IDAU configuration functions -----------------------*/
 void
 sau_and_idau_cfg(void)
@@ -164,10 +173,7 @@ spu_periph_init_cfg(void)
   NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_TIMER0));
   spu_peripheral_config_non_secure((uint32_t)NRF_TIMER0, false);
 
-#if 0
-  NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_TIMER1));
-  spu_peripheral_config_non_secure((uint32_t)NRF_TIMER1, false);
-#endif
+  /* TIMER1 is kept secure: used by the secure world for rtimer. */
 
   NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_TIMER2));
   spu_peripheral_config_non_secure((uint32_t)NRF_TIMER2, false);
@@ -175,10 +181,7 @@ spu_periph_init_cfg(void)
   NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_RTC0));
   spu_peripheral_config_non_secure((uint32_t)NRF_RTC0, false);
 
-#if 0
-  NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_RTC1));
-  spu_peripheral_config_non_secure((uint32_t)NRF_RTC1, false);
-#endif
+  /* RTC1 is kept secure: used by the secure world for the clock. */
 
   NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_DPPIC));
   spu_peripheral_config_non_secure((uint32_t)NRF_DPPIC, false);
@@ -275,7 +278,6 @@ spu_periph_init_cfg(void)
   spu_peripheral_config_non_secure((uint32_t)NRF_UARTE1, false);
 #endif /* SECURE_UART1 */
 
-  /* Skip this one because it is secure explicitly. */
   NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_UARTE2));
   spu_peripheral_config_non_secure((uint32_t)NRF_UARTE2, false);
 
