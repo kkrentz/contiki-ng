@@ -1,35 +1,74 @@
 # Contiki-NG TrustZone example
 
-This example contains two different projects for the secure-world and
-the normal-world. Each project are compiled and linked into separate
-firmware images, which are then merged into a single hex filed that is
-used to program the IoT device.
+This example contains two projects for the secure world and the normal
+world. Each project is compiled and linked into a separate firmware
+image, which are then merged into a single hex file for programming the
+IoT device.
 
-At the moment, the only supported platform is the Nordic Semiconductor
-nRF5340. This platform has an application processor that runs the
-merged TrustZone firmware, and a network processor which handles
-communication. There is currently no support for the network processor
-in Contiki-NG when running with TrustZone enabled, however.
+The only supported platform is the Nordic Semiconductor nRF5340. The
+application processor runs the merged TrustZone firmware; the network
+processor runs the IPC radio service which provides 802.15.4 radio
+access. Radio operations from the normal world pass through the secure
+world's NSC entry points, enabling communication policy enforcement at
+the TrustZone boundary.
 
 ## Getting started
 
-Run `make` to build secure and normal world firmwares, and
-merge the hex files.
+Run `make` to build the secure and normal world firmwares and merge
+the hex files. The merged hex is placed in
+`secure-world/build/nrf/nrf5340/dk/application/tz-merged.hex`.
 
-Run `make clean` to remove the secure and normal world builds.
+The network core must also be flashed with the IPC radio service:
 
-To flash to the nRF5340, run `make upload`. A specific serial port can
-be chosen by adding `PORT=/dev/<port>` as an argument on the command line.
-
-Optionally, one can change directory into secure-world and run:
 ```sh
-make TARGET=nrf BOARD=nrf5340/dk/application tz-merged.upload PORT=/dev/<PORT>
+make -C ../ipc-radio-service TARGET=nrf BOARD=nrf5340/dk/network ipc-radio-service.upload
 ```
 
-To login and see serial output from an IoT device on a particular serial port:
+Then flash the merged TrustZone firmware:
+
+```sh
+make upload
+```
+
+A specific serial port can be chosen with `PORT=/dev/<port>`.
+
+To see serial output:
+
 ```sh
 make login PORT=/dev/<PORT>
 ```
+
+## Using a different normal-world application
+
+The default normal world is a minimal example. To run any Contiki-NG
+application (e.g., RPL UDP) in the normal world, use the `normal-world/`
+Makefile as a template. The key settings are:
+
+- `TRUSTZONE_SECURE_BUILD = 0`
+- `TRUSTZONE_SECURE_WORLD_PATH` pointing to the secure-world directory
+
+For example, to build RPL UDP as the normal world:
+
+```sh
+make -C examples/rpl-udp TARGET=nrf BOARD=nrf5340/dk/application \
+     TRUSTZONE_SECURE_BUILD=0 \
+     TRUSTZONE_SECURE_WORLD_PATH=../../examples/platform-specific/nrf/trustzone/secure-world \
+     udp-server
+```
+
+The `tz_radio_driver` is selected automatically in the normal-world
+build. Then merge with the secure world:
+
+```sh
+make -C examples/platform-specific/nrf/trustzone/secure-world
+
+srec_cat \
+  examples/platform-specific/nrf/trustzone/secure-world/build/nrf/nrf5340/dk/application/secure-world-example.hex -Intel \
+  examples/rpl-udp/build/nrf/nrf5340/dk/application/udp-server.hex -Intel \
+  -o merged.hex -Intel
+```
+
+Flash the network core and `merged.hex` to the application core.
 
 ## GDB setup for nRF (Linux)
 

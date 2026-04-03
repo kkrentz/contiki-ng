@@ -49,6 +49,7 @@
 #include "net/packetbuf.h"
 #include "nrf-ipc.h"
 #include "nrf.h"
+#include "nrfx.h"
 #include <inttypes.h>
 #include <string.h>
 #ifdef TRUSTZONE_SECURE
@@ -214,15 +215,14 @@ ipc_radio_init(void)
   /*
    * In TrustZone mode, this runs inside an NSC call where
    * clock_time() may not advance (RTC interrupt preempted).
-   * Use a spin-based timeout instead.
+   * Use NRFX_WAIT_FOR which provides calibrated microsecond delays.
    */
   {
-    volatile uint32_t spin = 0;
-    while(!shm->net_ready) {
-      if(++spin > 64000000UL) {
-        LOG_ERR("Network core init timeout\n");
-        return 0;
-      }
+    bool ready;
+    NRFX_WAIT_FOR(shm->net_ready, NET_CORE_INIT_TIMEOUT_MS, 1000, ready);
+    if(!ready) {
+      LOG_ERR("Network core init timeout\n");
+      return 0;
     }
   }
 #else

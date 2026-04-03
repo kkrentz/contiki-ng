@@ -88,8 +88,15 @@ nvic_interrupt_target_state_cfg(void)
     NVIC->ITNS[i] = 0xffffffff;
   }
 
-  /* Make sure that the SPU is targeted to S state */
+  /* Keep secure-world peripherals targeting secure state. */
   NVIC_ClearTargetState(NRFX_IRQ_NUMBER_GET(NRF_SPU));
+
+  /* IPC IRQ must target secure state since IPC is a secure peripheral. */
+  NVIC_ClearTargetState(NRFX_IRQ_NUMBER_GET(NRF_IPC));
+
+  /* RTC1 and TIMER1 are used by the secure world's clock/rtimer. */
+  NVIC_ClearTargetState(NRFX_IRQ_NUMBER_GET(NRF_RTC1));
+  NVIC_ClearTargetState(NRFX_IRQ_NUMBER_GET(NRF_TIMER1));
 
 #ifdef SECURE_UART0
   /* UARTE0 is a secure peripheral, so its IRQ has to target S state */
@@ -289,8 +296,7 @@ spu_periph_init_cfg(void)
   NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_I2S0));
   spu_peripheral_config_non_secure((uint32_t)NRF_I2S0, false);
 
-  NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_IPC));
-  spu_peripheral_config_non_secure((uint32_t)NRF_IPC, false);
+  /* IPC remains secure so the radio driver runs in the secure world. */
 
   NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_QSPI));
   spu_peripheral_config_non_secure((uint32_t)NRF_QSPI, false);
@@ -339,8 +345,7 @@ spu_periph_init_cfg(void)
   NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_TWIM2));
   spu_peripheral_config_non_secure((uint32_t)NRF_TWIM2, false);
 
-  NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_IPC_S));
-  spu_peripheral_config_non_secure((uint32_t)NRF_IPC_S, false);
+  /* IPC_S remains secure (see IPC comment above). */
 
   NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_VMC_S));
   spu_peripheral_config_non_secure((uint32_t)NRF_VMC_S, false);
