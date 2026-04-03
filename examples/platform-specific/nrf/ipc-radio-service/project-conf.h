@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Yago Fontoura do Rosario <yago.rosario@hotmail.com.br>
+ * Copyright (c) 2026, RISE Research Institutes of Sweden AB.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -28,63 +28,26 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 /*---------------------------------------------------------------------------*/
-/**
- * \addtogroup nrf
- * @{
- *
- * \addtogroup nrf-dev Device drivers
- * @{
- *
- * \addtogroup nrf-uarte UARTE driver
- * @{
- *
- * \file
- *         UARTE header file for the nRF.
- * \author
- *         Yago Fontoura do Rosario <yago.rosario@hotmail.com.br>
- *
+#ifndef PROJECT_CONF_H_
+#define PROJECT_CONF_H_
+/*---------------------------------------------------------------------------*/
+/* Minimal logging for the network core. */
+#define LOG_CONF_LEVEL_MAIN LOG_LEVEL_INFO
+/*---------------------------------------------------------------------------*/
+/*
+ * Use the IPC MAC driver which forwards received frames to the
+ * application core via shared memory. This replaces NULLMAC and
+ * enables fully interrupt-driven frame reception.
  */
+extern const struct mac_driver ipc_mac_driver;
+#define NETSTACK_CONF_MAC ipc_mac_driver
 /*---------------------------------------------------------------------------*/
-#ifndef UARTE_ARCH_H
-#define UARTE_ARCH_H
-/*---------------------------------------------------------------------------*/
-#include "contiki.h"
-/*---------------------------------------------------------------------------*/
-/**
- * @brief Initializa the UARTE driver
- *
+/*
+ * Disable UARTE on the network core. All debug output is forwarded
+ * to the application core via the IPC log ring buffer, so the net
+ * core must not initialize its UARTE or touch the shared GPIO pins.
  */
-void uarte_init(void);
+#undef NRF_HAS_UARTE
+#define NRF_HAS_UARTE 0
 /*---------------------------------------------------------------------------*/
-/**
- * @brief Tear down the UARTE driver, releasing the peripheral.
- *
- *        Used during TrustZone handoff so the secure world can release
- *        UART ownership before the SPU re-targets the peripheral to the
- *        normal world.
- */
-void uarte_uninit(void);
-/*---------------------------------------------------------------------------*/
-/**
- * @brief Writes to the UARTE driver
- * 
- * @param data character to be transfered
- * 
- * @pre @ref uarte_init must have been called
- */
-void uarte_write(unsigned char data);
-/*---------------------------------------------------------------------------*/
-/**
- * @brief Sets the input handler called in the event handler
- * 
- * @param input character that has been read
- */
-void uarte_set_input(int (*input)(unsigned char c));
-/*---------------------------------------------------------------------------*/
-#endif /* UARTE_ARCH_H */
-/*---------------------------------------------------------------------------*/
-/**
- * @}
- * @}
- * @}
- */
+#endif /* PROJECT_CONF_H_ */
