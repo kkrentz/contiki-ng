@@ -138,6 +138,11 @@ struct tz_api {
  * \retval false Error (apip pointed to invalid memory,
  *               or the API has been initialized already.)
  * \retval true  Success.
+ *
+ * \note         Must be called from the normal world before any
+ *               normal-world scheduling begins, since the secure side
+ *               posts trustzone_init_event to autostart processes
+ *               from inside this call.
  */
 bool tz_api_init(struct tz_api *apip);
 
@@ -163,11 +168,20 @@ bool tz_api_poll(void);
 void tz_api_println(const char *text, size_t len);
 
 /**
- * \brief        Request poll from normal world.
+ * \brief        Mark the normal world as needing another poll cycle.
  *
- *               Only called from secure world.
+ *               Called from the secure world (e.g. via the Contiki-NG
+ *               process module's PROCESS_CONF_POLL_REQUESTED hook)
+ *               when secure-side state changes that the normal world
+ *               needs to react to. The flag is observed by the next
+ *               tz_api_poll(), which then returns true so the NS
+ *               caller reschedules itself.
+ *
+ *               This is a secure-internal helper, not a secure
+ *               gateway entry, and must not be called from the
+ *               normal world.
  */
-bool tz_api_request_poll_from_ns(void);
+bool tz_api_request_ns_poll(void);
 
 #endif /* !TZ_API_H */
 /** @} */

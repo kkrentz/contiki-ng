@@ -145,7 +145,7 @@ tz_api_println(const char *text, size_t len)
 }
 /*---------------------------------------------------------------------------*/
 bool
-tz_api_request_poll_from_ns(void)
+tz_api_request_ns_poll(void)
 {
   if(!initialized) {
     return false;
