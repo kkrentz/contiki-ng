@@ -137,6 +137,7 @@ void
 platform_main_loop(void)
 {
   tz_fault_init();
+  spu_report_violation();
 
   /* Process all events before switching to non-secure */
   process_num_events_t r;

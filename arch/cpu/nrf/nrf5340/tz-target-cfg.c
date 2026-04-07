@@ -117,11 +117,46 @@ nvic_interrupt_enable(void)
   return TFM_PLAT_ERR_SUCCESS;
 }
 /******************************************************************************/
+/*----------------- SPU violation diagnostics --------------------------------*/
+#define SPU_VIOLATION_MAGIC 0x5BADACCEUL
+struct spu_violation_info {
+  uint32_t magic;
+  uint32_t flashaccerr;
+  uint32_t ramaccerr;
+  uint32_t periphaccerr;
+};
+__attribute__((section(".noinit"))) static volatile struct spu_violation_info
+  spu_violation_info;
+
+void
+spu_report_violation(void)
+{
+  if(spu_violation_info.magic != SPU_VIOLATION_MAGIC) {
+    return;
+  }
+  spu_violation_info.magic = 0;
+
+  LOG_WARN("Reboot caused by SPU violation:%s%s%s\n",
+           spu_violation_info.flashaccerr ? " FLASHACCERR" : "",
+           spu_violation_info.ramaccerr ? " RAMACCERR" : "",
+           spu_violation_info.periphaccerr ? " PERIPHACCERR" : "");
+}
+/******************************************************************************/
 /*----------------- SPU interrupt handler ------------------------------------*/
 void
 SPU_IRQHandler(void)
 {
-  LOG_ERR("SPU security violation detected!\n");
+  /*
+   * Stash the violation type in .noinit for spu_report_violation() to
+   * print on the next boot. No log call here: the UARTE TX path would
+   * block waiting for an ENDTX ISR that cannot run while this handler
+   * is active.
+   */
+  spu_violation_info.flashaccerr = NRF_SPU->EVENTS_FLASHACCERR;
+  spu_violation_info.ramaccerr = NRF_SPU->EVENTS_RAMACCERR;
+  spu_violation_info.periphaccerr = NRF_SPU->EVENTS_PERIPHACCERR;
+  spu_violation_info.magic = SPU_VIOLATION_MAGIC;
+
   spu_clear_events();
   NVIC_SystemReset();
 }

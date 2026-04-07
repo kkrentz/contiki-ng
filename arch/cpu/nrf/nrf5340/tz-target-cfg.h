@@ -165,4 +165,11 @@ enum tfm_plat_err_t nvic_interrupt_target_state_cfg(void);
  */
 enum tfm_plat_err_t nvic_interrupt_enable(void);
 
+/**
+ * \brief Report and clear any SPU violation captured by the previous
+ *        boot's SPU_IRQHandler. Should be called early in secure
+ *        initialization to surface the cause of an unexpected reset.
+ */
+void spu_report_violation(void);
+
 #endif /* __TZ_TARGET_CFG_H__ */
