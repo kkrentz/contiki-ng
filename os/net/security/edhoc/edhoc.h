@@ -97,7 +97,6 @@ typedef struct edhoc_state {
   uint8_t prk_3e2m[HASH_LEN];
   uint8_t prk_4e3m[HASH_LEN];
   uint8_t gx[ECC_KEY_LEN];
-  uint8_t gy[ECC_KEY_LEN];
 } edhoc_state_t;
 
 typedef struct edhoc_buffers {
@@ -438,7 +437,7 @@ uint8_t edhoc_calc_mac(const edhoc_context_t *ctx, uint8_t mac_num,
 /**
  * \brief Print EDHOC session configuration summary
  * \param ctx EDHOC context
- * 
+ *
  * Prints a comprehensive summary of the current EDHOC session configuration
  * including role, method, cipher suite, and key information.
  */

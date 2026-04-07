@@ -63,13 +63,15 @@ bool ecdh_generate_keypair(uint8_t curve_id,
  * \brief             Computes an ECDH shared secret.
  * \param curve_id    The EDHOC curve identifier (e.g. \c EDHOC_CURVE_P256).
  * \param peer_x      The peer's public-key x-coordinate (\c ECC_KEY_LEN bytes).
- * \param peer_y      The peer's public-key y-coordinate (\c ECC_KEY_LEN bytes).
+ *                    The y-coordinate is recovered from \p peer_x using
+ *                    point decompression (odd-y branch), so EDHOC's
+ *                    x-only on-wire encoding can be passed in directly.
  * \param private_key Our private key (\c ECC_KEY_LEN bytes).
  * \param ikm         Output buffer for the shared secret (\c ECC_KEY_LEN bytes).
  * \return            true on success, false on error.
  */
 bool ecdh_generate_ikm(uint8_t curve_id,
-                       const uint8_t *peer_x, const uint8_t *peer_y,
+                       const uint8_t *peer_x,
                        const uint8_t *private_key, uint8_t *ikm);
 
 #endif /* _ECDH_H_ */

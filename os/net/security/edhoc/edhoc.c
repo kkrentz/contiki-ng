@@ -550,7 +550,6 @@ gen_gxy(edhoc_context_t *ctx, uint8_t *ikm)
 {
   bool success = ecdh_generate_ikm(ctx->config.ecdh_curve,
                                    ctx->state.gx,
-                                   ctx->state.gy,
                                    ctx->creds.ephemeral_key.priv,
                                    ikm);
   if(!success) {
@@ -607,7 +606,6 @@ edhoc_generate_prk_3e2m(edhoc_context_t *ctx, const ecc_key_t *auth_key, uint8_t
   if(gen) {
     success = ecdh_generate_ikm(ctx->config.ecdh_curve,
                                 ctx->state.gx,
-                                ctx->state.gy,
                                 auth_key->priv,
                                 grx);
   } else {
@@ -615,7 +613,6 @@ edhoc_generate_prk_3e2m(edhoc_context_t *ctx, const ecc_key_t *auth_key, uint8_t
     EDHOC_DBG_VALUE("Static auth key Y", auth_key->pub.y, ECC_KEY_LEN);
     success = ecdh_generate_ikm(ctx->config.ecdh_curve,
                                 auth_key->pub.x,
-                                auth_key->pub.y,
                                 ctx->creds.ephemeral_key.priv,
                                 grx);
   }
@@ -652,13 +649,11 @@ edhoc_generate_prk_4e3m(edhoc_context_t *ctx, const ecc_key_t *auth_key, uint8_t
   if(gen) {
     success = ecdh_generate_ikm(ctx->config.ecdh_curve,
                                 auth_key->pub.x,
-                                auth_key->pub.y,
                                 ctx->creds.ephemeral_key.priv,
                                 giy);
   } else {
     success = ecdh_generate_ikm(ctx->config.ecdh_curve,
                                 ctx->state.gx,
-                                ctx->state.gy,
                                 auth_key->priv,
                                 giy);
   }

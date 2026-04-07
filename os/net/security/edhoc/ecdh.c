@@ -121,7 +121,7 @@ ecdh_generate_keypair(uint8_t curve_id,
 /*---------------------------------------------------------------------------*/
 bool
 ecdh_generate_ikm(uint8_t curve_id,
-                  const uint8_t *peer_x, const uint8_t *peer_y,
+                  const uint8_t *peer_x,
                   const uint8_t *private_key, uint8_t *ikm)
 {
   const ecc_curve_t *curve = get_curve(curve_id);
@@ -132,11 +132,29 @@ ecdh_generate_ikm(uint8_t curve_id,
     return false;
   }
 
+  /*
+   * EDHOC encodes peer ephemeral keys as the x-coordinate only. Recover
+   * the full point by decompressing the (0x03 || x) compressed encoding.
+   * The 0x03 sign-byte (odd y) matches the convention used by the
+   * reference implementations and the EDHOC test vectors.
+   */
+  uint8_t compressed[1 + ECC_KEY_LEN];
   uint8_t public_key[2 * ECC_KEY_LEN];
-  memcpy(public_key, peer_x, ECC_KEY_LEN);
-  memcpy(public_key + ECC_KEY_LEN, peer_y, ECC_KEY_LEN);
+  compressed[0] = 0x03;
+  memcpy(compressed + 1, peer_x, ECC_KEY_LEN);
 
   int result = -1;
+  PT_INIT(ecc_get_protothread());
+  while(PT_SCHEDULE(ecc_decompress_public_key(compressed, public_key,
+                                              &result))) {
+    watchdog_periodic();
+  }
+  if(result != 0) {
+    LOG_ERR("ecc_decompress_public_key() failed (%d)\n", result);
+    ecc_disable();
+    return false;
+  }
+
   PT_INIT(ecc_get_protothread());
   while(PT_SCHEDULE(ecc_generate_shared_secret(public_key, private_key,
                                                ikm, &result))) {
