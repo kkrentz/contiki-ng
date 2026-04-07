@@ -38,7 +38,6 @@
 
 #include "contiki.h"
 #include "sys/autostart.h"
-#include "sys/int-master.h"
 #include "tz-api.h"
 
 #include <arm_cmse.h>
@@ -106,11 +105,19 @@ tz_api_poll(void)
   }
   is_poll_running = true;
 
+  /*
+   * Clear ns_poll_pending before draining the queue so that any
+   * secure ISR that fires during or after the loop is captured by
+   * the final read below. The NS caller reschedules itself when we
+   * return true, so no cross-boundary callback is needed here.
+   */
+  ns_poll_pending = false;
+
   process_num_events_t event_count = process_nevents();
 
   if(event_count > 0) {
-    LOG_DBG("Processing %u event%s at %lu\n", event_count,
-	    event_count == 1 ? "" : "s", (unsigned long)clock_time());
+    LOG_DBG("Processing %u event%s at %" CLOCK_PRI "\n", event_count,
+            event_count == 1 ? "" : "s", clock_time());
   }
 
   while(event_count-- > 0) {
@@ -120,12 +127,7 @@ tz_api_poll(void)
 
   is_poll_running = false;
 
-  if(ns_poll_pending) {
-    ns_poll_pending = false;
-    tz_api.request_poll();
-  }
-
-  return process_nevents() > 0;
+  return ns_poll_pending || process_nevents() > 0;
 }
 /*---------------------------------------------------------------------------*/
 #define TZ_API_PRINTLN_MAX_LEN 256
@@ -144,6 +146,11 @@ tz_api_println(const char *text, size_t len)
   printf("n> %.*s\n", (int)len, text);
 }
 /*---------------------------------------------------------------------------*/
+__attribute__((weak)) void
+tz_arch_signal_ns(void)
+{
+}
+/*---------------------------------------------------------------------------*/
 bool
 tz_api_request_ns_poll(void)
 {
@@ -151,6 +158,7 @@ tz_api_request_ns_poll(void)
     return false;
   }
   ns_poll_pending = true;
+  tz_arch_signal_ns();
   return true;
 }
 /*---------------------------------------------------------------------------*/

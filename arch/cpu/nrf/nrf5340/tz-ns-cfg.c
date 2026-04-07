@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, RISE Research Institutes of Sweden
+ * Copyright (c) 2026, RISE Research Institutes of Sweden
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,88 +31,31 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*
+/**
  * \file
- *   TrustZone API setup for normal world.
- * \author
- *   Niclas Finne <niclas.finne@ri.se>
- *   Nicolas Tsiftes <nicolas.tsiftes@ri.se>
+ *   Normal-world nRF5340 hooks for the TrustZone API.
+ *
+ *   Provides the NS-side wake mechanism that the secure side pends
+ *   via tz_arch_signal_ns. EGU0_IRQn is borrowed as a software-only
+ *   doorbell: the EGU peripheral itself is unused, only its NVIC slot.
  */
 
 #include "contiki.h"
-#include "sys/platform.h"
-#include "trustzone/tz-api.h"
 #include "trustzone/normal/tz-normal.h"
 
-/*---------------------------------------------------------------------------*/
-#include "sys/log.h"
-#define LOG_MODULE "TZNormalWorld"
-#define LOG_LEVEL LOG_LEVEL_INFO
-/*---------------------------------------------------------------------------*/
-static volatile bool is_poll_requested;
+#include <nrfx.h>
 
-PROCESS(tz_normal_process, "TZ normal process");
 /*---------------------------------------------------------------------------*/
-bool
-tz_normal_request_poll(void)
-{
-  is_poll_requested = true;
-  process_poll(&tz_normal_process);
-  return true;
-}
-/*---------------------------------------------------------------------------*/
-__attribute__((weak)) void
+void
 tz_arch_init_ns_signal(void)
 {
-}
-/*---------------------------------------------------------------------------*/
-static void
-init_tz_api(void)
-{
-  struct tz_api tz_api = {0};
-
-  tz_api.request_poll = tz_normal_request_poll;
-  bool result = tz_api_init(&tz_api);
-  LOG_INFO("Initialize TrustZone API: %s\n",
-           result ? "SUCCESS" : "FAILURE");
-
-  tz_arch_init_ns_signal();
-}
-/*---------------------------------------------------------------------------*/
-PROCESS_THREAD(tz_normal_process, ev, data)
-{
-  PROCESS_BEGIN();
-
-  while(true) {
-    PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_POLL);
-    if(is_poll_requested) {
-      is_poll_requested = false;
-      LOG_DBG("> Poll secure world\n");
-      if(tz_api_poll()) {
-        tz_normal_request_poll();
-      }
-      LOG_DBG("< Poll secure world %s!\n",
-              is_poll_requested ? "waiting" : "done");
-    }
-  }
-
-  PROCESS_END();
+  NVIC_ClearPendingIRQ(EGU0_IRQn);
+  NVIC_EnableIRQ(EGU0_IRQn);
 }
 /*---------------------------------------------------------------------------*/
 void
-platform_main_loop(void)
+EGU0_IRQHandler(void)
 {
-  init_tz_api();
-  process_start(&tz_normal_process, NULL);
-
-  while(1) {
-    process_num_events_t r;
-    do {
-      r = process_run();
-      watchdog_periodic();
-    } while(r > 0);
-
-    platform_idle();
-  }
+  tz_normal_request_poll();
 }
 /*---------------------------------------------------------------------------*/

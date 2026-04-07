@@ -21,6 +21,7 @@
 
 #include "tz-target-cfg.h"
 #include "region_defs.h"
+#include "trustzone/tz-api.h"
 
 #include <spu.h>
 #include <nrfx.h>
@@ -108,6 +109,19 @@ nvic_interrupt_enable(void)
 
   NVIC_ClearPendingIRQ(NRFX_IRQ_NUMBER_GET(NRF_SPU));
   NVIC_EnableIRQ(NRFX_IRQ_NUMBER_GET(NRF_SPU));
+}
+/******************************************************************************/
+/*----------------- TrustZone API platform hooks -----------------------------*/
+/*
+ * Borrow EGU0_IRQn as a software-pended doorbell to wake the normal
+ * world from a secure ISR. The EGU peripheral itself is left unused;
+ * we only need an NS-targeted NVIC slot. EGU0 is configured non-secure
+ * and the ITNS bit is set by nvic_interrupt_target_state_cfg above.
+ */
+void
+tz_arch_signal_ns(void)
+{
+  TZ_NVIC_SetPendingIRQ_NS(EGU0_IRQn);
 }
 /******************************************************************************/
 /*----------------- SPU violation diagnostics --------------------------------*/

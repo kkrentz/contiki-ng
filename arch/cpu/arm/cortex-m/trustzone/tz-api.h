@@ -117,6 +117,16 @@ extern uint32_t __sg_end;
 
 /* Secure Gateway region size, aligned to the next 32 byte boundary. */
 extern uint32_t __nsc_size;
+
+/**
+ * \brief Pend an NS-targeted IRQ to wake the normal world.
+ *
+ *        Called from secure context (including secure ISRs) by
+ *        tz_api_request_ns_poll after setting ns_poll_pending.
+ *        Implemented by the platform; weakly defined as a no-op in
+ *        tz-api.c so platforms without a wake mechanism still link.
+ */
+void tz_arch_signal_ns(void);
 /******************************************************************************/
 
 #else /* TRUSTZONE_SECURE */
@@ -148,9 +158,12 @@ bool tz_api_init(struct tz_api *apip);
 
 /**
  * \brief        Poll the secure world and process all events in the queue.
- * \retval true  If the secure world has more events to process.
- * \retval false If the secure world has no more events to process, or
- *               the call was rejected (see note).
+ * \retval true  If the secure world has more work to do — either residual
+ *               events in the queue, or a deferred poll request raised by
+ *               the secure side during the call. The NS caller should
+ *               reschedule itself.
+ * \retval false If the secure world has nothing more to do, or the call
+ *               was rejected (see note).
  *
  * \note         Must be called only from NS thread mode. The function
  *               runs process_run() and is not reentrant; calls from a
