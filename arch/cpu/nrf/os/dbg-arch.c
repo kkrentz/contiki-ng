@@ -73,8 +73,11 @@ dbg_putchar(int c)
   }
 
   if(c == '\n' || dbg_pos >= DBG_BUF_SIZE - 1) {
-    dbg_buf[dbg_pos] = '\0';
-    tz_api_println(dbg_buf, dbg_pos);
+    /* Strip the trailing newline; tz_api_println adds one. */
+    uint16_t len = (dbg_pos > 0 && dbg_buf[dbg_pos - 1] == '\n')
+                   ? dbg_pos - 1 : dbg_pos;
+    dbg_buf[len] = '\0';
+    tz_api_println(dbg_buf, len);
     dbg_pos = 0;
   }
 
