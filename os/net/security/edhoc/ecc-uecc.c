@@ -92,31 +92,32 @@ uecc_generate_key(ecc_key_t *key, ecc_curve_t curve)
 
 /*----------------------------------------------------------------------------*//*TODO: Check further */
 bool
-uecc_generate_ikm(const uint8_t *gx_in, const uint8_t *gy_in,
+uecc_generate_ikm(const uint8_t *public_x, const uint8_t *public_y,
                   const uint8_t *private_key, uint8_t *ikm, ecc_curve_t crv)
 {
+  (void)public_y; /* Recovered via decompression below */
   uint8_t compressed[ECC_KEY_LEN + 1];
   static uint8_t pub[2 * ECC_KEY_LEN];
-  uint8_t *gy;
+  uint8_t *recovered_y;
 
-  /* Prepare the compressed format (first byte is 0x03, followed by gx) */
+  /* Prepare the compressed format (first byte is 0x03, followed by x) */
   compressed[0] = 0x03;
-  memcpy(compressed + 1, gx_in, ECC_KEY_LEN);    /* Use gx_in for input gx */
+  memcpy(compressed + 1, public_x, ECC_KEY_LEN);
 
-  /* Decompress */
+  /* Decompress to recover the y-coordinate */
   uECC_decompress(compressed, pub, crv.curve);
-  gy = pub + ECC_KEY_LEN;
+  recovered_y = pub + ECC_KEY_LEN;
 
-  /* Now prepare the public key using gx and gy */
+  /* Assemble the uncompressed public key */
   uint8_t public[2 * ECC_KEY_LEN];
-  memcpy(public, gx_in, ECC_KEY_LEN);
-  memcpy(public + ECC_KEY_LEN, gy, ECC_KEY_LEN);
+  memcpy(public, public_x, ECC_KEY_LEN);
+  memcpy(public + ECC_KEY_LEN, recovered_y, ECC_KEY_LEN);
 
   LOG_DBG("ECDH - Public Key X (%d bytes): ", ECC_KEY_LEN);
-  LOG_DBG_BYTES(gx_in, ECC_KEY_LEN);
+  LOG_DBG_BYTES(public_x, ECC_KEY_LEN);
   LOG_DBG_("\n");
   LOG_DBG("ECDH - Public Key Y (%d bytes): ", ECC_KEY_LEN);
-  LOG_DBG_BYTES(gy, ECC_KEY_LEN);
+  LOG_DBG_BYTES(recovered_y, ECC_KEY_LEN);
   LOG_DBG_("\n");
   LOG_DBG("ECDH - Private Key (%d bytes): ", ECC_KEY_LEN);
   LOG_DBG_BYTES(private_key, ECC_KEY_LEN);

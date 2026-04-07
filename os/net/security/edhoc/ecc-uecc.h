@@ -67,18 +67,19 @@ uint8_t uecc_generate_key(ecc_key_t *key, ecc_curve_t curve);
 
 /**
  * \brief Generate IKM using ECC shared secret
- * \param gx_in The x-coordinate of the ECC public point
- * \param gy_in The y-coordinate of the ECC public point
+ * \param public_x The x-coordinate of the peer's ECC public point
+ * \param public_y The y-coordinate of the peer's ECC public point
  * \param private_key The private key used for ECC shared secret calculation
  * \param ikm Output buffer where the generated IKM will be stored
  * \param crv The ECC curve information used for the operation
  * \return true for success or false for failure
  *
  * This function generates the IKM by performing ECC point multiplication
- * using the public point coordinates (gx, gy) and the private key. The public point is first uncompressed,
- * and the ECC shared secret is computed using the uECC library. The result is stored in the output buffer `ikm`.
+ * using the peer's public point coordinates and the private key. The public
+ * point is first uncompressed, and the ECC shared secret is computed using
+ * the uECC library. The result is stored in the output buffer `ikm`.
  */
-bool uecc_generate_ikm(const uint8_t *gx_in, const uint8_t *gy_in,
+bool uecc_generate_ikm(const uint8_t *public_x, const uint8_t *public_y,
                        const uint8_t *private_key, uint8_t *ikm,
                        ecc_curve_t crv);
 
