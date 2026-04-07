@@ -38,37 +38,58 @@ To see serial output:
 make login PORT=/dev/<PORT>
 ```
 
-## Using a different normal-world application
+## Running any Contiki-NG application in the normal world
 
-The default normal world is a minimal example. To run any Contiki-NG
-application (e.g., RPL UDP) in the normal world, use the `normal-world/`
-Makefile as a template. The key settings are:
+Any Contiki-NG application built for `nrf5340/dk/application` can be
+turned into a TrustZone normal world by passing `TRUSTZONE=1` on the
+command line. This automatically:
 
-- `TRUSTZONE_SECURE_BUILD = 0`
-- `TRUSTZONE_SECURE_WORLD_PATH` pointing to the secure-world directory
+- selects the normal-world linker script and `tz_radio_driver`,
+- recursively (re)builds the secure world,
+- links the normal world against the secure world's CMSE import library,
+- merges both images into a `*.tz.hex` file,
+- and redirects standard upload targets such as `%.upload` to flash that
+  merged image.
 
-For example, to build RPL UDP as the normal world:
+The application core depends on the network core's IPC radio service,
+so flash that first (one-time per board). For example, to run RPL UDP
+`udp-server` as the normal world:
 
 ```sh
+# Network core (one-time per board)
+make -C examples/platform-specific/nrf/ipc-radio-service \
+     TARGET=nrf BOARD=nrf5340/dk/network NRF_UPLOAD_SN=$SN \
+     ipc-radio-service.upload
+
+# Application core, with TrustZone
 make -C examples/rpl-udp TARGET=nrf BOARD=nrf5340/dk/application \
-     TRUSTZONE_SECURE_BUILD=0 \
-     TRUSTZONE_SECURE_WORLD_PATH=../../examples/platform-specific/nrf/trustzone/secure-world \
-     udp-server
+     TRUSTZONE=1 NRF_UPLOAD_SN=$SN udp-server.upload
 ```
 
-The `tz_radio_driver` is selected automatically in the normal-world
-build. Then merge with the secure world:
+Available knobs (all optional except `TRUSTZONE` itself):
 
-```sh
-make -C examples/platform-specific/nrf/trustzone/secure-world
+| Variable                       | Default                                                            | Purpose                                  |
+|--------------------------------|--------------------------------------------------------------------|------------------------------------------|
+| `TRUSTZONE`                    | unset                                                              | `1` enables the TrustZone build and merge |
+| `TRUSTZONE_SECURE_WORLD_PATH`  | `$(CONTIKI)/examples/platform-specific/nrf/trustzone/secure-world` | Custom secure-world directory            |
+| `TRUSTZONE_SECURE_FIRMWARE`    | `secure-world-example`                                             | Custom secure-world firmware name        |
 
-srec_cat \
-  examples/platform-specific/nrf/trustzone/secure-world/build/nrf/nrf5340/dk/application/secure-world-example.hex -Intel \
-  examples/rpl-udp/build/nrf/nrf5340/dk/application/udp-server.hex -Intel \
-  -o merged.hex -Intel
-```
+Setting `TRUSTZONE=1` together with `TRUSTZONE_SECURE_BUILD=1` is an
+error, since `TRUSTZONE=1` selects the normal world while
+`TRUSTZONE_SECURE_BUILD=1` selects the secure world.
 
-Flash the network core and `merged.hex` to the application core.
+Note that the same `build/nrf/nrf5340/dk/application/` directory is
+shared between TrustZone and non-TrustZone builds, so switching modes
+in the same checkout currently requires removing the build directory
+first (`rm -rf build`).
+
+### Manual build (advanced)
+
+If you need fine-grained control, you can still drive the build by
+hand: build the secure world, build the normal world with
+`TRUSTZONE_SECURE_BUILD=0`, and merge the two hex files with
+`srec_cat`. The `TRUSTZONE=1` flag is simply a convenience that
+performs these steps for you.
 
 ## GDB setup for nRF (Linux)
 

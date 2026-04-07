@@ -38,12 +38,14 @@ timing. Use CSMA (the default).
 
 ## Running RPL UDP over IPC
 
-First, flash the network core radio service (see above). Then flash
-the RPL UDP server on the application core:
+First, flash the network core radio service (see above). The
+application core then automatically uses `ipc_radio_driver` to reach
+the radio, so any standard Contiki-NG application builds and runs
+unchanged. To flash the RPL UDP server on the application core:
 
 ```bash
 make -C examples/rpl-udp TARGET=nrf BOARD=nrf5340/dk/application \
-     DEFINES=NETSTACK_CONF_RADIO=ipc_radio_driver udp-server.upload
+     udp-server.upload
 ```
 
 On a second node (e.g., nRF52840 DK), flash the RPL UDP client:
@@ -54,32 +56,18 @@ make -C examples/rpl-udp TARGET=nrf BOARD=nrf52840/dk udp-client.upload
 
 ### TrustZone Mode
 
-To run with the radio driver in the TrustZone secure world:
-
-1. Build the secure world:
-
-```bash
-make -C examples/platform-specific/nrf/trustzone/secure-world
-```
-
-2. Build the normal-world RPL UDP server:
+To run the same example with the radio driver behind the TrustZone
+secure-world boundary, add `TRUSTZONE=1` to the application build:
 
 ```bash
 make -C examples/rpl-udp TARGET=nrf BOARD=nrf5340/dk/application \
-     TRUSTZONE_SECURE_BUILD=0 \
-     TRUSTZONE_SECURE_WORLD_PATH=../../examples/platform-specific/nrf/trustzone/secure-world \
-     udp-server
+     TRUSTZONE=1 udp-server.upload
 ```
 
-3. Merge the secure and normal world hex files and flash to the
-   application core:
-
-```bash
-srec_cat \
-  examples/platform-specific/nrf/trustzone/secure-world/build/nrf/nrf5340/dk/application/secure-world-example.hex -Intel \
-  examples/rpl-udp/build/nrf/nrf5340/dk/application/udp-server.hex -Intel \
-  -o merged.hex -Intel
-```
+This recursively builds the bundled secure world, links the normal
+world against its CMSE import library, merges both images, and flashes
+the merged hex. See `../trustzone/README.md` for the full list of knobs
+(custom secure world, etc.) and for the manual build flow.
 
 ## Related
 

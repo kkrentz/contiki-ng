@@ -154,6 +154,25 @@ make -C examples/rpl-udp \
 
 Serial output is available on VCOM2 (`/dev/ttyACM2`) at 115200 baud.
 
+### TrustZone Builds
+
+The application core auto-selects its radio driver based on the build
+mode (see `arch/cpu/nrf/nrf5340-application-def.h`):
+
+| Build mode                              | `NETSTACK_RADIO`     |
+|-----------------------------------------|----------------------|
+| Plain (no TrustZone)                    | `ipc_radio_driver`   |
+| TrustZone normal world (`TRUSTZONE=1`)  | `tz_radio_driver`    |
+| TrustZone secure world                  | `nullradio_driver` (radio is reached via NSC calls) |
+
+The `tz_radio_driver` keeps the IPC radio in the secure world and
+exposes it to the normal world through Non-Secure Callable entry
+points, enabling communication-policy enforcement at the TrustZone
+boundary. Adding `TRUSTZONE=1` to any application build for
+`nrf5340/dk/application` is enough -- the secure world is built,
+merged with the normal world, and flashed automatically. See
+`examples/platform-specific/nrf/trustzone/README.md` for details.
+
 ## Boot Sequence
 
 1. The application core starts, clears shared memory, and initializes
