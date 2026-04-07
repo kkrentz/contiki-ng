@@ -38,6 +38,7 @@
 
 #include "contiki.h"
 #include "sys/autostart.h"
+#include "sys/int-master.h"
 #include "tz-api.h"
 
 #include <arm_cmse.h>
@@ -87,8 +88,19 @@ tz_api_init(struct tz_api *apip)
 CC_TRUSTZONE_SECURE_CALL bool
 tz_api_poll(void)
 {
-  static volatile bool is_poll_running;
+  static bool is_poll_running;
 
+  /*
+   * tz_api_poll() runs process_run() and is not reentrant. Per the
+   * contract in tz-api.h it must be called only from NS thread mode.
+   * Reject handler-mode callers (NS interrupt or, defensively, a
+   * secure ISR) up front so the API fails closed instead of
+   * corrupting the event loop. IPSR is preserved across the SG
+   * transition, so it reflects the NS caller's mode.
+   */
+  if(__get_IPSR() != 0) {
+    return false;
+  }
   if(!initialized || is_poll_running) {
     return false;
   }

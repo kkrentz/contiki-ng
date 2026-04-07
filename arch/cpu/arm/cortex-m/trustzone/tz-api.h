@@ -144,8 +144,14 @@ bool tz_api_init(struct tz_api *apip);
 /**
  * \brief        Poll the secure world and process all events in the queue.
  * \retval true  If the secure world has more events to process.
- * \retval false If the secure world has no more events to process.
+ * \retval false If the secure world has no more events to process, or
+ *               the call was rejected (see note).
  *
+ * \note         Must be called only from NS thread mode. The function
+ *               runs process_run() and is not reentrant; calls from a
+ *               handler context (NS interrupt or, defensively, a
+ *               secure ISR) are rejected and return false without
+ *               running events.
  */
 bool tz_api_poll(void);
 
