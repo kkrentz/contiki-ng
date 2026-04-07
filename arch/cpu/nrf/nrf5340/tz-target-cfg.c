@@ -73,13 +73,12 @@ system_reset_cfg(void)
 enum tfm_plat_err_t
 nvic_interrupt_target_state_cfg(void)
 {
-  /* Target most interrupt to NS; unimplemented interrupts will be
-     Write-Ignored */
-
-  NVIC_SetTargetState(NRFX_IRQ_NUMBER_GET(NRF_TIMER0));
-  NVIC_SetTargetState(NRFX_IRQ_NUMBER_GET(NRF_RTC0));
-
-  for(uint8_t i = 1; i < sizeof(NVIC->ITNS) / sizeof(NVIC->ITNS[0]); i++) {
+  /*
+   * Target all interrupts to NS by default; unimplemented interrupts
+   * will be Write-Ignored. Peripherals that must remain secure are
+   * cleared explicitly below.
+   */
+  for(uint8_t i = 0; i < sizeof(NVIC->ITNS) / sizeof(NVIC->ITNS[0]); i++) {
     NVIC->ITNS[i] = 0xffffffff;
   }
 
@@ -95,6 +94,12 @@ nvic_interrupt_target_state_cfg(void)
   /* UARTE1 is a secure peripheral, so its IRQ has to target S state */
   NVIC_ClearTargetState(NRFX_IRQ_NUMBER_GET(NRF_UARTE1));
 #endif
+
+  /* TIMER1 is kept secure for the secure-world rtimer. */
+  NVIC_ClearTargetState(NRFX_IRQ_NUMBER_GET(NRF_TIMER1));
+
+  /* RTC1 is kept secure for the secure-world clock. */
+  NVIC_ClearTargetState(NRFX_IRQ_NUMBER_GET(NRF_RTC1));
 
   return TFM_PLAT_ERR_SUCCESS;
 }
