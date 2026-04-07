@@ -42,7 +42,7 @@
  */
 #define SCB_AIRCR_WRITE_MASK ((0x5FAUL << SCB_AIRCR_VECTKEY_Pos))
 /******************************************************************************/
-enum tfm_plat_err_t
+void
 enable_fault_handlers(void)
 {
   /* Explicitly set secure fault priority to the highest */
@@ -50,10 +50,9 @@ enable_fault_handlers(void)
 
   /* Enables BUS, MEM, USG and Secure faults */
   SCB->SHCSR |= SCB_SHCSR_USGFAULTENA_Msk | SCB_SHCSR_BUSFAULTENA_Msk | SCB_SHCSR_MEMFAULTENA_Msk | SCB_SHCSR_SECUREFAULTENA_Msk;
-  return TFM_PLAT_ERR_SUCCESS;
 }
 /******************************************************************************/
-enum tfm_plat_err_t
+void
 system_reset_cfg(void)
 {
   uint32_t reg_value = SCB->AIRCR;
@@ -65,12 +64,10 @@ system_reset_cfg(void)
   reg_value |= (uint32_t)(SCB_AIRCR_WRITE_MASK | SCB_AIRCR_SYSRESETREQS_Msk);
 
   SCB->AIRCR = reg_value;
-
-  return TFM_PLAT_ERR_SUCCESS;
 }
 /******************************************************************************/
 /*----------------- NVIC interrupt target state to NS configuration ----------*/
-enum tfm_plat_err_t
+void
 nvic_interrupt_target_state_cfg(void)
 {
   /*
@@ -100,12 +97,10 @@ nvic_interrupt_target_state_cfg(void)
 
   /* RTC1 is kept secure for the secure-world clock. */
   NVIC_ClearTargetState(NRFX_IRQ_NUMBER_GET(NRF_RTC1));
-
-  return TFM_PLAT_ERR_SUCCESS;
 }
 /******************************************************************************/
 /*----------------- NVIC interrupt enabling for S peripherals ----------------*/
-enum tfm_plat_err_t
+void
 nvic_interrupt_enable(void)
 {
   /* SPU interrupt enabling */
@@ -113,8 +108,6 @@ nvic_interrupt_enable(void)
 
   NVIC_ClearPendingIRQ(NRFX_IRQ_NUMBER_GET(NRF_SPU));
   NVIC_EnableIRQ(NRFX_IRQ_NUMBER_GET(NRF_SPU));
-
-  return TFM_PLAT_ERR_SUCCESS;
 }
 /******************************************************************************/
 /*----------------- SPU violation diagnostics --------------------------------*/
@@ -172,7 +165,7 @@ sau_and_idau_cfg(void)
   SAU->CTRL |= SAU_CTRL_ALLNS_Msk;
 }
 /******************************************************************************/
-enum tfm_plat_err_t
+void
 spu_periph_init_cfg(void)
 {
   /* Peripheral configuration */
@@ -366,8 +359,6 @@ spu_periph_init_cfg(void)
    * code; that's why it is placed here).
    */
   NRF_CACHE->ENABLE = CACHE_ENABLE_ENABLE_Enabled;
-
-  return TFM_PLAT_ERR_SUCCESS;
 }
 /******************************************************************************/
 void
