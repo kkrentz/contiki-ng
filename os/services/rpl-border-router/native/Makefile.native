@@ -1,7 +1,12 @@
 MODULES += os/services/slip-cmd
 MODULES += os/services/shell
+MODULES += os/services/nat64
+MODULES += os/services/nat64/native
 
 MODULES_SOURCES_EXCLUDES += serial-shell.c
+
+# NAT64 sessions need additional select callback slots.
+CFLAGS += -DSELECT_CONF_MAX=256
 
 MAKE_MAC = MAKE_MAC_OTHER
 MAKE_NET = MAKE_NET_IPV6

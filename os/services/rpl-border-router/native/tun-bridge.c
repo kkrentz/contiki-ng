@@ -40,6 +40,10 @@
 #include "border-router.h"
 #include "tun6-net.h"
 
+#if BUILD_WITH_NAT64
+#include "nat64.h"
+#endif /* BUILD_WITH_NAT64 */
+
 /*---------------------------------------------------------------------------*/
 /* Log configuration */
 #include "sys/log.h"
@@ -90,6 +94,11 @@ output(void)
 {
   LOG_DBG("SUT: %u\n", uip_len);
   if(uip_len > 0) {
+#if BUILD_WITH_NAT64
+    if(nat64_is_ip64_addr(&UIP_IP_BUF->destipaddr)) {
+      return nat64_output(uip_buf, uip_len);
+    }
+#endif /* BUILD_WITH_NAT64 */
     return tun6_net_output(uip_buf, uip_len);
   }
   return 0;

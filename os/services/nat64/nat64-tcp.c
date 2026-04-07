@@ -1,0 +1,639 @@
+/*
+ * Copyright (c) 2026, RISE Research Institutes of Sweden AB.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+ * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+ * OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/**
+ * \addtogroup nat64
+ * @{
+ *
+ * \file
+ *         NAT64 TCP splice proxy.
+ *
+ *         Implements per-session sequence-number state, RFC 6528
+ *         ISN generation, fabrication of IPv6/TCP segments back to
+ *         the IoT node, ACK-paced delivery of server data and
+ *         half-close handling.  See nat64-tcp.h for the public API
+ *         and `os/services/nat64/README.md` for the high-level
+ *         design rationale.
+ * \author
+ *         Nicolas Tsiftes <nicolas.tsiftes@ri.se>
+ */
+
+#include "nat64-tcp.h"
+#include "nat64.h"
+#include "nat64-platform.h"
+#include "ipv6/ip64-addr.h"
+#include "net/ipv6/tcpip.h"
+#include "lib/sha-256.h"
+
+#include <string.h>
+#include <sys/time.h>
+
+/* Log configuration */
+#include "sys/log.h"
+#define LOG_MODULE "NAT64"
+#define LOG_LEVEL LOG_LEVEL_INFO
+
+#define IPV6_HDRLEN 40
+#define TCP_HDRLEN  20
+#define IP_PROTO_TCP 6
+#define DEFAULT_HOPLIM 64
+
+#define TCP_FIN 0x01
+#define TCP_SYN 0x02
+#define TCP_RST 0x04
+#define TCP_PSH 0x08
+#define TCP_ACK 0x10
+
+
+#ifndef NAT64_MAX_TCP_SESSIONS
+#define NAT64_MAX_TCP_SESSIONS 16
+#endif
+
+/* Maximum TCP payload per injected segment.  Sized to fit a single
+ * IEEE 802.15.4 frame after 6LoWPAN IPHC compression + TCP header,
+ * avoiding 6LoWPAN fragmentation on constrained links. */
+#ifndef NAT64_TCP_SEGMENT_SIZE
+#define NAT64_TCP_SEGMENT_SIZE 76
+#endif
+
+/* Per-session buffer for paced server-to-IoT delivery.  Must hold at
+ * least one recv() worth of data from the IPv4 socket. */
+#ifndef NAT64_TCP_RXBUF_SIZE
+#define NAT64_TCP_RXBUF_SIZE 1500
+#endif
+
+struct v6hdr {
+  uint8_t vtc, tcflow;
+  uint16_t flow;
+  uint8_t plen[2];
+  uint8_t nexthdr, hoplim;
+  uip_ip6addr_t src, dst;
+};
+
+struct tcphdr {
+  uint16_t sport, dport;
+  uint8_t seqno[4];
+  uint8_t ackno[4];
+  uint8_t offset;
+  uint8_t flags;
+  uint8_t wnd[2];
+  uint16_t tchksum;
+  uint8_t urgp[2];
+};
+
+/*---------------------------------------------------------------------------*/
+static inline uint16_t
+get16(const uint8_t *p)
+{
+  return ((uint16_t)p[0] << 8) | p[1];
+}
+/*---------------------------------------------------------------------------*/
+static inline void
+put16(uint8_t *p, uint16_t v)
+{
+  p[0] = (uint8_t)(v >> 8);
+  p[1] = (uint8_t)v;
+}
+/*---------------------------------------------------------------------------*/
+static inline uint32_t
+get32(const uint8_t *p)
+{
+  return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+         ((uint32_t)p[2] << 8) | p[3];
+}
+/*---------------------------------------------------------------------------*/
+static inline void
+put32(uint8_t *p, uint32_t v)
+{
+  p[0] = (uint8_t)(v >> 24);
+  p[1] = (uint8_t)(v >> 16);
+  p[2] = (uint8_t)(v >> 8);
+  p[3] = (uint8_t)v;
+}
+/*---------------------------------------------------------------------------*/
+static uint32_t
+cksum_acc(uint32_t acc, const void *buf, uint16_t nbytes)
+{
+  const uint8_t *p = buf;
+  while(nbytes > 1) {
+    acc += ((uint16_t)p[0] << 8) | p[1];
+    p += 2;
+    nbytes -= 2;
+  }
+  if(nbytes == 1) {
+    acc += (uint16_t)p[0] << 8;
+  }
+  return acc;
+}
+/*---------------------------------------------------------------------------*/
+static uint16_t
+cksum_fold(uint32_t acc)
+{
+  while(acc >> 16) {
+    acc = (acc & 0xffff) + (acc >> 16);
+  }
+  return ~((uint16_t)acc);
+}
+/*---------------------------------------------------------------------------*/
+static uint16_t
+tcp6_checksum(const struct v6hdr *ip6, const void *tcp, uint16_t tcp_len)
+{
+  uint32_t acc = 0;
+
+  acc = cksum_acc(acc, &ip6->src, sizeof(uip_ip6addr_t));
+  acc = cksum_acc(acc, &ip6->dst, sizeof(uip_ip6addr_t));
+  acc += tcp_len;
+  acc += IP_PROTO_TCP;
+  acc = cksum_acc(acc, tcp, tcp_len);
+
+  uint16_t result = cksum_fold(acc);
+  return (result == 0) ? 0xffff : result;
+}
+
+/*---------------------------------------------------------------------------*/
+/* Per-session TCP sequence number state.                                    */
+/*---------------------------------------------------------------------------*/
+
+struct tcp_seqstate {
+  bool in_use;
+  bool pending_ack;
+  bool peer_fin_received;
+  bool server_fin_pending;
+  struct nat64_session *session;
+  uint32_t our_seq;
+  uint32_t peer_next;
+  /* Paced delivery buffer for server→IoT data. */
+  uint8_t rxbuf[NAT64_TCP_RXBUF_SIZE];
+  uint16_t rxbuf_len;
+  uint16_t rxbuf_offset;
+};
+
+static struct tcp_seqstate tcp_seq[NAT64_MAX_TCP_SESSIONS];
+static uint8_t isn_key[16];
+
+static void nat64_tcp_send_pending(struct tcp_seqstate *ts);
+/*---------------------------------------------------------------------------*/
+static struct tcp_seqstate *
+find_seqstate(const struct nat64_session *s)
+{
+  unsigned i;
+  for(i = 0; i < NAT64_MAX_TCP_SESSIONS; i++) {
+    if(tcp_seq[i].in_use && tcp_seq[i].session == s) {
+      return &tcp_seq[i];
+    }
+  }
+  return NULL;
+}
+/*---------------------------------------------------------------------------*/
+/*
+ * Generate an ISN per RFC 6528:
+ *   ISN = M + F(localip, localport, remoteip, remoteport, secretkey)
+ * where M is a monotonic timer (~4 µs granularity) and F is HMAC-SHA-256.
+ *
+ * Note: the practical threat from predictable ISNs is low here — the
+ * IoT-facing TCP runs over a 6LoWPAN mesh where an attacker would need
+ * radio access to inject segments, at which point ISN prediction is
+ * the least concern.  We follow RFC 6528 anyway since the cost is
+ * negligible (one HMAC per connection) and it is good practice.
+ */
+static uint32_t
+generate_isn(const struct nat64_session *s)
+{
+  struct {
+    uip_ip6addr_t ip6_peer;
+    uint16_t ip6_peer_port;
+    uip_ip4addr_t ip4_remote;
+    uint16_t ip4_remote_port;
+  } tuple;
+  struct timeval tv;
+  uint8_t digest[SHA_256_DIGEST_LENGTH];
+  uint32_t f;
+
+  memcpy(&tuple.ip6_peer, &s->ip6_peer, sizeof(uip_ip6addr_t));
+  tuple.ip6_peer_port = s->ip6_peer_port;
+  memcpy(&tuple.ip4_remote, &s->ip4_remote, sizeof(uip_ip4addr_t));
+  tuple.ip4_remote_port = s->ip4_remote_port;
+
+  sha_256_hmac(isn_key, sizeof(isn_key),
+               (const uint8_t *)&tuple, sizeof(tuple), digest);
+  memcpy(&f, digest, sizeof(f));
+
+  gettimeofday(&tv, NULL);
+  uint32_t m = (uint32_t)((uint64_t)tv.tv_sec * 250000 + tv.tv_usec / 4);
+
+  return m + f;
+}
+/*---------------------------------------------------------------------------*/
+static struct tcp_seqstate *
+alloc_seqstate(struct nat64_session *s, uint32_t peer_isn)
+{
+  unsigned i;
+  for(i = 0; i < NAT64_MAX_TCP_SESSIONS; i++) {
+    if(!tcp_seq[i].in_use) {
+      tcp_seq[i].in_use = true;
+      tcp_seq[i].pending_ack = false;
+      tcp_seq[i].peer_fin_received = false;
+      tcp_seq[i].server_fin_pending = false;
+      tcp_seq[i].session = s;
+      tcp_seq[i].our_seq = generate_isn(s);
+      tcp_seq[i].peer_next = peer_isn + 1;
+      tcp_seq[i].rxbuf_len = 0;
+      tcp_seq[i].rxbuf_offset = 0;
+      return &tcp_seq[i];
+    }
+  }
+  LOG_WARN("TCP sequence state table full\n");
+  return NULL;
+}
+/*---------------------------------------------------------------------------*/
+static struct tcp_seqstate *
+find_seqstate_by_addrs(const uip_ip6addr_t *ip6_peer, uint16_t peer_port,
+                       const uip_ip4addr_t *ip4_remote, uint16_t remote_port)
+{
+  unsigned i;
+  for(i = 0; i < NAT64_MAX_TCP_SESSIONS; i++) {
+    struct tcp_seqstate *ts = &tcp_seq[i];
+    if(!ts->in_use || ts->session == NULL) {
+      continue;
+    }
+    struct nat64_session *s = ts->session;
+    if(s->ip6_peer_port == peer_port &&
+       s->ip4_remote_port == remote_port &&
+       uip_ip6addr_cmp(&s->ip6_peer, ip6_peer) &&
+       uip_ip4addr_cmp(&s->ip4_remote, ip4_remote)) {
+      return ts;
+    }
+  }
+  return NULL;
+}
+
+/*---------------------------------------------------------------------------*/
+/**
+ * \brief Fabricate and inject an IPv6+TCP segment toward the IoT node.
+ * \param s           The NAT64 session this segment belongs to.
+ * \param ts          Per-session sequence state (provides seq/ack numbers).
+ * \param flags       TCP flag byte (combination of TCP_SYN/ACK/FIN/PSH/RST).
+ * \param payload     Optional segment payload, or NULL for header-only.
+ * \param payload_len Payload length in bytes, or 0.
+ *
+ * Builds the IPv6 and TCP headers in `uip_buf`, copies the payload,
+ * computes the TCP checksum (with IPv6 pseudo-header) and hands the
+ * resulting packet to ::tcpip_input for delivery up the uIP stack.
+ * The seqstate's sequence/ack counters are NOT advanced here — the
+ * caller is responsible for updating them after the segment is sent.
+ */
+static void
+inject_tcp(const struct nat64_session *s, struct tcp_seqstate *ts,
+           uint8_t flags, const uint8_t *payload, uint16_t payload_len)
+{
+  struct v6hdr *ip6;
+  struct tcphdr *tcp;
+  uint16_t tcp_total;
+
+  tcp_total = TCP_HDRLEN + payload_len;
+  if(IPV6_HDRLEN + tcp_total > UIP_BUFSIZE) {
+    LOG_WARN("inject_tcp: packet too large\n");
+    return;
+  }
+
+  ip6 = (struct v6hdr *)uip_buf;
+  ip6->vtc = 0x60;
+  ip6->tcflow = 0;
+  ip6->flow = 0;
+  put16(ip6->plen, tcp_total);
+  ip6->nexthdr = IP_PROTO_TCP;
+  ip6->hoplim = DEFAULT_HOPLIM;
+
+  ip64_addr_4to6(&s->ip4_remote, &ip6->src);
+  uip_ip6addr_copy(&ip6->dst, &s->ip6_peer);
+
+  tcp = (struct tcphdr *)(uip_buf + IPV6_HDRLEN);
+  tcp->sport = uip_htons(s->ip4_remote_port);
+  tcp->dport = uip_htons(s->ip6_peer_port);
+  put32(tcp->seqno, ts->our_seq);
+  put32(tcp->ackno, ts->peer_next);
+  tcp->offset = (TCP_HDRLEN / 4) << 4;
+  tcp->flags = flags;
+  put16(tcp->wnd, 4096);
+  tcp->tchksum = 0;
+  put16(tcp->urgp, 0);
+
+  if(payload_len > 0) {
+    memcpy(uip_buf + IPV6_HDRLEN + TCP_HDRLEN, payload, payload_len);
+  }
+
+  tcp->tchksum = uip_htons(tcp6_checksum(ip6, tcp, tcp_total));
+
+  uip_len = IPV6_HDRLEN + tcp_total;
+
+  LOG_INFO("inject_tcp: %u bytes, flags=0x%02x seq=%lu ack=%lu\n",
+           uip_len, flags, (unsigned long)ts->our_seq,
+           (unsigned long)ts->peer_next);
+  tcpip_input();
+}
+
+/*---------------------------------------------------------------------------*/
+/* Process outgoing TCP from the IoT node (received at fallback interface).  */
+/*---------------------------------------------------------------------------*/
+
+int
+nat64_tcp_output(const uint8_t *pkt, uint16_t len)
+{
+  const struct v6hdr *ip6 = (const struct v6hdr *)pkt;
+  uint16_t payload_len = get16(ip6->plen);
+  const struct tcphdr *tcp;
+  uint16_t data_offset, data_len;
+  uint32_t seq;
+  uip_ip4addr_t dst4;
+
+  if(payload_len < TCP_HDRLEN) {
+    LOG_WARN("tcp_output: payload too short (%u bytes)\n", payload_len);
+    return 0;
+  }
+
+  if(!ip64_addr_6to4(&ip6->dst, &dst4)) {
+    LOG_WARN("tcp_output: destination is not a NAT64 address\n");
+    return 0;
+  }
+
+  tcp = (const struct tcphdr *)(pkt + IPV6_HDRLEN);
+  data_offset = ((tcp->offset >> 4) & 0x0f) * 4;
+  if(data_offset > payload_len) {
+    LOG_WARN("tcp_output: data offset %u exceeds payload %u\n",
+             data_offset, payload_len);
+    return 0;
+  }
+  data_len = payload_len - data_offset;
+  seq = get32(tcp->seqno);
+
+  LOG_INFO("tcp_output: flags=0x%02x data=%u seq=%lu\n",
+           tcp->flags, data_len, (unsigned long)seq);
+
+  if(tcp->flags & TCP_SYN) {
+    LOG_INFO("TCP SYN: port %u -> %u.%u.%u.%u:%u\n",
+             uip_ntohs(tcp->sport),
+             dst4.u8[0], dst4.u8[1], dst4.u8[2], dst4.u8[3],
+             uip_ntohs(tcp->dport));
+
+    struct nat64_session *s = nat64_platform_tcp_connect(
+      &dst4, uip_ntohs(tcp->dport),
+      &ip6->src, uip_ntohs(tcp->sport), seq);
+    return (s != NULL) ? 1 : 0;
+  }
+
+  struct tcp_seqstate *ts = find_seqstate_by_addrs(
+    &ip6->src, uip_ntohs(tcp->sport),
+    &dst4, uip_ntohs(tcp->dport));
+
+  if(ts == NULL) {
+    LOG_WARN("TCP packet for unknown session (flags=0x%02x)\n", tcp->flags);
+    return 0;
+  }
+
+  struct nat64_session *s = ts->session;
+
+  if(tcp->flags & TCP_RST) {
+    LOG_INFO("TCP RST\n");
+    nat64_platform_tcp_close(s);
+    ts->in_use = false;
+    return 1;
+  }
+
+  /* ACK from the IoT node: advance paced delivery if data is pending. */
+  if((tcp->flags & TCP_ACK) && ts->rxbuf_len > ts->rxbuf_offset) {
+    nat64_tcp_send_pending(ts);
+  }
+
+  if(data_len > 0) {
+    const uint8_t *data = pkt + IPV6_HDRLEN + data_offset;
+    LOG_INFO("TCP forwarding %u bytes to IPv4 server\n", data_len);
+    int sent = nat64_platform_tcp_send(s, data, data_len);
+    if(sent < 0) {
+      LOG_ERR("TCP send failed, closing session\n");
+      nat64_platform_tcp_close(s);
+      ts->in_use = false;
+      return 1;
+    }
+    ts->peer_next = seq + (uint32_t)sent;
+    ts->pending_ack = true;
+    if((uint32_t)sent < data_len) {
+      /* Short write — only ACK what was forwarded.  Don't process
+       * FIN yet; the IoT node will retransmit the remaining data. */
+      return 1;
+    }
+  }
+
+  if(tcp->flags & TCP_FIN) {
+    LOG_INFO("TCP FIN from IoT node\n");
+    ts->peer_next++;
+    ts->peer_fin_received = true;
+    nat64_platform_tcp_close(s);
+    ts->pending_ack = true;
+  }
+
+  return 1;
+}
+
+/*---------------------------------------------------------------------------*/
+/**
+ * \brief Send the next paced chunk from a session's receive buffer.
+ * \param ts The sequence state whose rxbuf has data to deliver.
+ *
+ * Drains up to ::NAT64_TCP_SEGMENT_SIZE bytes per call, fitting one
+ * 802.15.4 frame after 6LoWPAN compression.  When the buffer empties
+ * and a server-side FIN was deferred (because data was still in flight),
+ * the FIN is emitted as a header-only segment so the IoT node sees the
+ * close in the right order.  Subsequent chunks are released as the IoT
+ * node ACKs each segment in ::nat64_tcp_output.
+ */
+static void
+nat64_tcp_send_pending(struct tcp_seqstate *ts)
+{
+  uint16_t remaining = ts->rxbuf_len - ts->rxbuf_offset;
+  uint16_t chunk;
+
+  if(remaining == 0) {
+    return;
+  }
+
+  chunk = remaining > NAT64_TCP_SEGMENT_SIZE
+          ? NAT64_TCP_SEGMENT_SIZE : remaining;
+
+  LOG_INFO("TCP paced: %u/%u bytes -> IoT node\n", chunk, remaining);
+  inject_tcp(ts->session, ts, TCP_PSH | TCP_ACK,
+             ts->rxbuf + ts->rxbuf_offset, chunk);
+  ts->our_seq += chunk;
+  ts->rxbuf_offset += chunk;
+
+  if(ts->rxbuf_offset >= ts->rxbuf_len) {
+    ts->rxbuf_len = 0;
+    ts->rxbuf_offset = 0;
+    if(ts->server_fin_pending) {
+      ts->server_fin_pending = false;
+      LOG_INFO("TCP deferred FIN: sending now\n");
+      inject_tcp(ts->session, ts, TCP_FIN | TCP_ACK, NULL, 0);
+      ts->our_seq++;
+    }
+  }
+}
+
+/*---------------------------------------------------------------------------*/
+/* Flush deferred ACKs and send paced data.  Called from the select loop.    */
+/*---------------------------------------------------------------------------*/
+
+void
+nat64_tcp_flush_acks(void)
+{
+  unsigned i;
+  for(i = 0; i < NAT64_MAX_TCP_SESSIONS; i++) {
+    struct tcp_seqstate *ts = &tcp_seq[i];
+    if(!ts->in_use || ts->session == NULL) {
+      continue;
+    }
+
+    if(ts->pending_ack) {
+      ts->pending_ack = false;
+
+      uint8_t flags = TCP_ACK;
+      if(ts->peer_fin_received) {
+        flags |= TCP_FIN;
+      }
+      inject_tcp(ts->session, ts, flags, NULL, 0);
+      if(flags & TCP_FIN) {
+        ts->our_seq++;
+      }
+    }
+  }
+}
+
+/*---------------------------------------------------------------------------*/
+/* Callbacks from the platform layer.                                        */
+/*---------------------------------------------------------------------------*/
+
+void
+nat64_tcp_established(struct nat64_session *s)
+{
+  struct tcp_seqstate *ts = alloc_seqstate(s, s->peer_isn);
+  if(ts == NULL) {
+    LOG_ERR("TCP seqstate table full, closing connection\n");
+    nat64_platform_tcp_close(s);
+    return;
+  }
+
+  LOG_INFO("TCP established: sending SYN-ACK\n");
+  inject_tcp(s, ts, TCP_SYN | TCP_ACK, NULL, 0);
+  ts->our_seq++;
+}
+/*---------------------------------------------------------------------------*/
+void
+nat64_tcp_data_in(struct nat64_session *s,
+                  const uint8_t *data, uint16_t len)
+{
+  struct tcp_seqstate *ts = find_seqstate(s);
+  if(ts == NULL) {
+    LOG_WARN("tcp_data_in: no sequence state\n");
+    return;
+  }
+
+  if(ts->rxbuf_len > 0) {
+    LOG_WARN("tcp_data_in: buffer busy, dropping %u bytes\n", len);
+    return;
+  }
+
+  if(len > NAT64_TCP_RXBUF_SIZE) {
+    len = NAT64_TCP_RXBUF_SIZE;
+  }
+
+  memcpy(ts->rxbuf, data, len);
+  ts->rxbuf_len = len;
+  ts->rxbuf_offset = 0;
+
+  /* Send the first chunk immediately; the rest will be paced by
+   * nat64_tcp_send_pending() as ACKs arrive from the IoT node. */
+  nat64_tcp_send_pending(ts);
+}
+/*---------------------------------------------------------------------------*/
+void
+nat64_tcp_closed(struct nat64_session *s)
+{
+  struct tcp_seqstate *ts = find_seqstate(s);
+  if(ts == NULL) {
+    return;
+  }
+
+  if(ts->rxbuf_len > ts->rxbuf_offset) {
+    /* Data still buffered — defer FIN until the buffer drains. */
+    LOG_INFO("TCP remote closed: deferring FIN (%u bytes pending)\n",
+             ts->rxbuf_len - ts->rxbuf_offset);
+    ts->server_fin_pending = true;
+    return;
+  }
+
+  LOG_INFO("TCP remote closed: sending FIN to IoT node\n");
+  inject_tcp(s, ts, TCP_FIN | TCP_ACK, NULL, 0);
+  ts->our_seq++;
+  /* Keep ts->in_use = true so we can handle the FIN-ACK from the IoT
+   * node.  The seqstate is freed when we see the peer's FIN-ACK or RST
+   * in nat64_tcp_output(), or by nat64_tcp_free_seqstate() when the
+   * platform layer closes the session. */
+}
+/*---------------------------------------------------------------------------*/
+void
+nat64_tcp_init(void)
+{
+  memset(tcp_seq, 0, sizeof(tcp_seq));
+}
+/*---------------------------------------------------------------------------*/
+void
+nat64_tcp_set_isn_secret(const uint8_t key[16])
+{
+  memcpy(isn_key, key, 16);
+}
+/*---------------------------------------------------------------------------*/
+bool
+nat64_tcp_has_pending_data(const struct nat64_session *s)
+{
+  struct tcp_seqstate *ts = find_seqstate(s);
+  return ts != NULL && ts->rxbuf_len > ts->rxbuf_offset;
+}
+/*---------------------------------------------------------------------------*/
+void
+nat64_tcp_free_seqstate(const struct nat64_session *s)
+{
+  struct tcp_seqstate *ts = find_seqstate(s);
+  if(ts != NULL) {
+    ts->rxbuf_len = 0;
+    ts->rxbuf_offset = 0;
+    ts->in_use = false;
+    ts->session = NULL;
+  }
+}
+/*---------------------------------------------------------------------------*/
+/** @} */
