@@ -983,64 +983,38 @@ edhoc_authenticate_msg(edhoc_context_t *ctx, uint8_t *ad, bool msg2)
     memcpy(ctx->state.prk_4e3m, ctx->state.prk_3e2m, HASH_LEN);
   }
 
-  /* Create signature from MAC and other data using COSE_Sign1 */
-
-  /* Protected (ID_CRED_X) */
-  cose_sign1_t *cose_sign1 = cose_sign1_new();
-  if(cose_sign1 == NULL) {
-    LOG_ERR("Failed to allocate memory for COSE_Sign1 object\n");
-    return EDHOC_ERR_INTERNAL_ERROR;
-  }
-  if(!cose_sign1_set_header(cose_sign1, ctx->buffers.id_cred_x,
-                           ctx->buffers.id_cred_x_sz, NULL, 0)) {
-    LOG_ERR("Failed to set COSE_Sign1 header\n");
-    cose_sign1_finalize(cose_sign1);
-    return EDHOC_ERR_INTERNAL_ERROR;
-  }
+  /* Verify peer signature using COSE_Sign1. */
 
   /* External AAD (TH_2/3, CRED_X, ? EAD_2/3) */
+  uint8_t external_aad[HASH_LEN + EDHOC_MAX_CRED_LEN];
   cbor_writer_state_t writer;
-  cbor_init_writer(&writer, cose_sign1->external_aad,
-                   sizeof(cose_sign1->external_aad));
+  cbor_init_writer(&writer, external_aad, sizeof(external_aad));
   cbor_write_data(&writer, ctx->state.th, HASH_LEN);
   cbor_write_object(&writer, ctx->buffers.cred_x, ctx->buffers.cred_x_sz);
-  cose_sign1->external_aad_sz = cbor_end_writer(&writer);
-
-  /* Set received signature */
-  cose_sign1_set_signature(cose_sign1, received_mac, received_mac_sz);
-
-  /* Payload (MAC) */
-  uint8_t mac_num = -1;
-  if(msg2 == true) {
-    mac_num = EDHOC_MAC_2;
-  } else { /* msg3 */
-    mac_num = EDHOC_MAC_3;
+  size_t external_aad_sz = cbor_end_writer(&writer);
+  if(external_aad_sz == 0) {
+    LOG_ERR("Failed to encode external AAD for COSE_Sign1 verification\n");
+    return EDHOC_ERR_INTERNAL_ERROR;
   }
 
+  /* Recompute the local MAC that the peer is supposed to have signed. */
+  uint8_t mac_num = msg2 ? EDHOC_MAC_2 : EDHOC_MAC_3;
   uint8_t mac[HASH_LEN];
   edhoc_calc_mac(ctx, mac_num, HASH_LEN, mac);
-  LOG_DBG("MAC_%d (%d bytes): ", mac_num == 2 ? 2 : 3, HASH_LEN);
+  LOG_DBG("MAC_%d (%d bytes): ", msg2 ? 2 : 3, HASH_LEN);
   LOG_DBG_BYTES(mac, HASH_LEN);
   LOG_DBG_("\n");
-
-  int8_t er2 = cose_sign1_set_payload(cose_sign1, mac, HASH_LEN);
-  if(er2 < 0) {
-    LOG_ERR("Failed to set payload in COSE_Sign1 object\n");
-    cose_sign1_finalize(cose_sign1);
-    return EDHOC_ERR_CRYPTO_AUTHENTICATION;
-  }
 
   uint8_t other_public_key[ECC_KEY_LEN * 2];
   memcpy(other_public_key, key->ecc.pub.x, ECC_KEY_LEN);
   memcpy(other_public_key + ECC_KEY_LEN, key->ecc.pub.y, ECC_KEY_LEN);
 
-  /* Set other peer public key and verify */
-  cose_sign1_set_key(cose_sign1, ctx->config.sign_alg, other_public_key,
-                     ECC_KEY_LEN * 2);
-  er2 = cose_sign1_verify(cose_sign1);
-  cose_sign1_finalize(cose_sign1);
-  if(er2 <= 0) {
-    LOG_ERR("Failed to check signature for COSE_Sign1 object\n");
+  if(!cose_sign1_verify(ctx->config.sign_alg, other_public_key,
+                        ctx->buffers.id_cred_x, ctx->buffers.id_cred_x_sz,
+                        external_aad, external_aad_sz,
+                        mac, HASH_LEN,
+                        received_mac, received_mac_sz)) {
+    LOG_ERR("COSE_Sign1 signature verification failed\n");
     return EDHOC_ERR_CRYPTO_AUTHENTICATION;
   }
 #endif

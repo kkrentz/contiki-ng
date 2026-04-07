@@ -56,7 +56,7 @@
 #define LOG_MODULE "EDHOC"
 #define LOG_LEVEL LOG_LEVEL_EDHOC
 
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static edhoc_error_t
 gen_mac(const edhoc_context_t *ctx, uint8_t mac_len, uint8_t *mac)
 {
@@ -80,7 +80,7 @@ gen_mac(const edhoc_context_t *ctx, uint8_t mac_len, uint8_t *mac)
 
   return EDHOC_SUCCESS;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static uint16_t
 gen_plaintext(edhoc_context_t *ctx, const uint8_t *auth_data, size_t auth_data_size,
               bool msg2, const uint8_t *mac_or_signature,
@@ -121,79 +121,72 @@ gen_plaintext(edhoc_context_t *ctx, const uint8_t *auth_data, size_t auth_data_s
   }
   return result;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static uint16_t
 gen_ciphertext_3(edhoc_context_t *ctx, const uint8_t *auth_data, uint16_t auth_data_size,
                  const uint8_t *mac_or_signature, uint16_t mac_or_signature_size,
                  uint8_t *ciphertext, size_t ciphertext_buffer_size)
 {
-  cose_encrypt0_t *cose = cose_encrypt0_new();
-  if(cose == NULL) {
-    LOG_ERR("Failed to allocate COSE_Encrypt0 object\n");
+  uint8_t alg = ctx->config.aead_alg;
+  uint8_t key_len = cose_get_key_len(alg);
+  uint8_t iv_len = cose_get_iv_len(alg);
+  uint8_t tag_len = cose_get_tag_len(alg);
+  if(key_len == 0 || iv_len == 0 || tag_len == 0) {
     return 0;
   }
 
-  /* set external AAD in cose */
-  uint8_t *transcript_hash_ptr = cose->external_aad;
-  cose->external_aad_sz = HASH_LEN;
-  memcpy(transcript_hash_ptr, ctx->state.th, HASH_LEN);
-
-  cose->plaintext_sz = gen_plaintext(ctx, auth_data, auth_data_size, false, mac_or_signature,
-                                     mac_or_signature_size, cose->plaintext, sizeof(cose->plaintext));
-  LOG_DBG("PLAINTEXT_3 (%d bytes): ", (int)cose->plaintext_sz);
-  LOG_DBG_BYTES(cose->plaintext, cose->plaintext_sz);
+  uint8_t aead_buf[EDHOC_MAX_BUFFER + COSE_MAX_TAG_LEN];
+  uint16_t plaintext_sz = gen_plaintext(ctx, auth_data, auth_data_size, false,
+                                        mac_or_signature, mac_or_signature_size,
+                                        aead_buf, EDHOC_MAX_BUFFER);
+  if(plaintext_sz == 0) {
+    return 0;
+  }
+  LOG_DBG("PLAINTEXT_3 (%d bytes): ", (int)plaintext_sz);
+  LOG_DBG_BYTES(aead_buf, plaintext_sz);
   LOG_DBG_("\n");
 
-  /* Save plaintext_3 for TH_3 */
-  memcpy(ctx->buffers.plaintext, cose->plaintext, cose->plaintext_sz);
-  ctx->buffers.plaintext_sz = cose->plaintext_sz;
+  /* Save plaintext_3 for TH_3. */
+  memcpy(ctx->buffers.plaintext, aead_buf, plaintext_sz);
+  ctx->buffers.plaintext_sz = plaintext_sz;
 
-  /* generate K_3 */
-  cose->alg = ctx->config.aead_alg;
-  cose->key_sz = cose_get_key_len(cose->alg);
+  /* Derive K_3. */
+  uint8_t key[COSE_MAX_KEY_LEN];
   int16_t err = edhoc_kdf(ctx->state.prk_3e2m, K_3_LABEL, ctx->state.th,
-                         HASH_LEN, cose->key_sz, cose->key);
+                          HASH_LEN, key_len, key);
   if(err < 1) {
-    LOG_ERR("error in expand for decrypt ciphertext 3\n");
-    /* Free memory */
-    cose_encrypt0_finalize(cose);
+    LOG_ERR("Failed to derive K_3\n");
     return 0;
   }
-  LOG_DBG("K_3 (%d bytes): ", (int)cose->key_sz);
-  LOG_DBG_BYTES(cose->key, cose->key_sz);
+  LOG_DBG("K_3 (%d bytes): ", (int)key_len);
+  LOG_DBG_BYTES(key, key_len);
   LOG_DBG_("\n");
 
-  /* generate IV_3 */
-  uint8_t iv_len = cose_get_iv_len(cose->alg);
+  /* Derive IV_3. */
+  uint8_t nonce[COSE_MAX_IV_LEN];
   err = edhoc_kdf(ctx->state.prk_3e2m, IV_3_LABEL, ctx->state.th, HASH_LEN,
-                 iv_len, cose->nonce);
+                  iv_len, nonce);
   if(err < 1) {
-    LOG_ERR("error in expand for decrypt ciphertext 3\n");
-    /* Free memory */
-    cose_encrypt0_finalize(cose);
+    LOG_ERR("Failed to derive IV_3\n");
     return 0;
   }
-  cose->nonce_sz = iv_len;
-  LOG_DBG("IV_3 (%d bytes): ", (int)cose->nonce_sz);
-  LOG_DBG_BYTES(cose->nonce, cose->nonce_sz);
+  LOG_DBG("IV_3 (%d bytes): ", (int)iv_len);
+  LOG_DBG_BYTES(nonce, iv_len);
   LOG_DBG_("\n");
 
-  /* COSE encrypt0 set header */
-  if(!cose_encrypt0_set_header(cose, NULL, 0, NULL, 0)) {
-    LOG_ERR("Failed to set COSE_Encrypt0 header\n");
-    cose_encrypt0_finalize(cose);
+  /* COSE_Encrypt0: AAD is TH_3, in-place encrypt. */
+  size_t ciphertext_sz = cose_encrypt0_seal(alg, key, nonce,
+                                            ctx->state.th, HASH_LEN,
+                                            aead_buf, plaintext_sz,
+                                            sizeof(aead_buf));
+  if(ciphertext_sz == 0) {
+    LOG_ERR("COSE_Encrypt0 encryption failed\n");
     return 0;
   }
-
-  /* Encrypt COSE */
-  cose_encrypt0_encrypt(cose);
 
   cbor_writer_state_t writer;
   cbor_init_writer(&writer, ciphertext, ciphertext_buffer_size);
-  cbor_write_data(&writer, cose->ciphertext, cose->ciphertext_sz);
-
-  /* Free memory */
-  cose_encrypt0_finalize(cose);
+  cbor_write_data(&writer, aead_buf, ciphertext_sz);
 
   size_t result = cbor_end_writer(&writer);
   if(result == 0) {
@@ -201,7 +194,7 @@ gen_ciphertext_3(edhoc_context_t *ctx, const uint8_t *auth_data, uint16_t auth_d
   }
   return (uint16_t)result;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 edhoc_error_t
 edhoc_generate_message_1(edhoc_context_t *ctx, uint8_t *ad, size_t ad_sz, bool suite_array)
 {
@@ -260,7 +253,7 @@ edhoc_generate_message_1(edhoc_context_t *ctx, uint8_t *ad, size_t ad_sz, bool s
 
   return EDHOC_SUCCESS;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 edhoc_error_t
 edhoc_generate_message_2(edhoc_context_t *ctx, const uint8_t *auth_data, size_t auth_data_size)
 {
@@ -331,53 +324,37 @@ edhoc_generate_message_2(edhoc_context_t *ctx, const uint8_t *auth_data, size_t 
   LOG_DBG_BYTES(mac_or_sig, HASH_LEN);
   LOG_DBG_("\n");
 
-  /* Create signature from MAC and other data using COSE_Sign1 */
-
-  /* Protected (ID_CRED_R) */
-  cose_sign1_t *cose_sign1 = cose_sign1_new();
-  if(cose_sign1 == NULL) {
-    LOG_ERR("Failed to allocate COSE_Sign1 object\n");
-    return -1;
-  }
-  if(!cose_sign1_set_header(cose_sign1, ctx->buffers.id_cred_x,
-                           ctx->buffers.id_cred_x_sz, NULL, 0)) {
-    LOG_ERR("Failed to set COSE_Sign1 header\n");
-    cose_sign1_finalize(cose_sign1);
-    return -1;
-  }
+  /* Create signature from MAC and other data using COSE_Sign1. */
 
   /* External AAD (TH_2, CRED_R, ? EAD_2) */
+  uint8_t external_aad[HASH_LEN + EDHOC_MAX_CRED_LEN];
   cbor_writer_state_t writer_aad;
-  cbor_init_writer(&writer_aad, cose_sign1->external_aad,
-                   sizeof(cose_sign1->external_aad));
+  cbor_init_writer(&writer_aad, external_aad, sizeof(external_aad));
   cbor_write_data(&writer_aad, ctx->state.th, HASH_LEN);
   cbor_write_object(&writer_aad, ctx->buffers.cred_x, ctx->buffers.cred_x_sz);
-  cose_sign1->external_aad_sz = cbor_end_writer(&writer_aad);
-
-  /* Payload (MAC_2) */
-  uint8_t err = cose_sign1_set_payload(cose_sign1, mac_or_sig, HASH_LEN);
-  if(err == 0) {
-    LOG_ERR("Failed to set payload in COSE_Sign1 object\n");
+  size_t external_aad_sz = cbor_end_writer(&writer_aad);
+  if(external_aad_sz == 0) {
+    LOG_ERR("Failed to encode external AAD for COSE_Sign1\n");
     return EDHOC_ERR_CRYPTO_SIGN;
   }
 
-  cose_sign1_set_key(cose_sign1, ctx->config.sign_alg,
-                     ctx->creds.authen_key->ecc.priv, ECC_KEY_LEN);
-  err = cose_sign1_sign(cose_sign1);
-  if(err == 0) {
-    LOG_ERR("Failed to sign for COSE_Sign1 object\n");
+  size_t sig_sz = cose_sign1_sign(ctx->config.sign_alg,
+                                  ctx->creds.authen_key->ecc.priv,
+                                  ctx->buffers.id_cred_x,
+                                  ctx->buffers.id_cred_x_sz,
+                                  external_aad, external_aad_sz,
+                                  mac_or_sig, HASH_LEN,
+                                  mac_or_sig);
+  if(sig_sz == 0) {
+    LOG_ERR("COSE_Sign1 signing failed\n");
     return EDHOC_ERR_CRYPTO_SIGN;
   }
 
-  cose_sign1_finalize(cose_sign1);
-
-  LOG_DBG("Signature from COSE_Sign1 (%d bytes): ",
-          EDHOC_MAC_OR_SIG_BUF_LEN);
-  LOG_DBG_BYTES(cose_sign1->signature, EDHOC_MAC_OR_SIG_BUF_LEN);
+  LOG_DBG("Signature from COSE_Sign1 (%zu bytes): ", sig_sz);
+  LOG_DBG_BYTES(mac_or_sig, sig_sz);
   LOG_DBG_("\n");
 
-  mac_or_signature_sz = EDHOC_MAC_OR_SIG_BUF_LEN;
-  memcpy(mac_or_sig, cose_sign1->signature, cose_sign1->signature_sz);
+  mac_or_signature_sz = sig_sz;
 #endif
 
   /* Generate and store the plaintext in the session */
@@ -424,7 +401,7 @@ edhoc_generate_message_2(edhoc_context_t *ctx, const uint8_t *auth_data, size_t 
 
   return EDHOC_SUCCESS;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 edhoc_error_t
 edhoc_generate_message_3(edhoc_context_t *ctx, const uint8_t *auth_data, size_t auth_data_size)
 {
@@ -463,7 +440,7 @@ edhoc_generate_message_3(edhoc_context_t *ctx, const uint8_t *auth_data, size_t 
   LOG_DBG("CRED_I (%d bytes): ", (int)ctx->buffers.cred_x_sz);
   LOG_DBG_BYTES(ctx->buffers.cred_x, ctx->buffers.cred_x_sz);
   LOG_DBG_("\n");
-  
+
   edhoc_print_credential("CRED_I", ctx->buffers.cred_x, ctx->buffers.cred_x_sz);
 
   /* generate id_cred_x */
@@ -508,55 +485,37 @@ edhoc_generate_message_3(edhoc_context_t *ctx, const uint8_t *auth_data, size_t 
   LOG_DBG_BYTES(mac_or_sig, HASH_LEN);
   LOG_DBG_("\n");
 
-  /* Create signature from MAC and other data using COSE_Sign1 */
-
-  /* Protected (ID_CRED_I) */
-  cose_sign1_t *cose_sign1 = cose_sign1_new();
-  if(cose_sign1 == NULL) {
-    LOG_ERR("Failed to allocate COSE_Sign1 object\n");
-    return EDHOC_ERR_MEMORY_ALLOCATION;
-  }
-  if(!cose_sign1_set_header(cose_sign1, ctx->buffers.id_cred_x,
-                           ctx->buffers.id_cred_x_sz, NULL, 0)) {
-    LOG_ERR("Failed to set COSE_Sign1 header\n");
-    cose_sign1_finalize(cose_sign1);
-    return EDHOC_ERR_CRYPTO_SIGN;
-  }
+  /* Create signature from MAC and other data using COSE_Sign1. */
 
   /* External AAD (TH_3, CRED_I, ? EAD_3) */
+  uint8_t external_aad[HASH_LEN + EDHOC_MAX_CRED_LEN];
   cbor_writer_state_t writer;
-  cbor_init_writer(&writer, cose_sign1->external_aad,
-                   sizeof(cose_sign1->external_aad));
+  cbor_init_writer(&writer, external_aad, sizeof(external_aad));
   cbor_write_data(&writer, ctx->state.th, HASH_LEN);
   cbor_write_object(&writer, ctx->buffers.cred_x, ctx->buffers.cred_x_sz);
-  cose_sign1->external_aad_sz = cbor_end_writer(&writer);
-
-  /* Payload (MAC_3) */
-  uint8_t err = cose_sign1_set_payload(cose_sign1, mac_or_sig, HASH_LEN);
-  if(err == 0) {
-    LOG_ERR("Failed to set payload in COSE_Sign1 object\n");
-    cose_sign1_finalize(cose_sign1);
+  size_t external_aad_sz = cbor_end_writer(&writer);
+  if(external_aad_sz == 0) {
+    LOG_ERR("Failed to encode external AAD for COSE_Sign1\n");
     return EDHOC_ERR_CRYPTO_SIGN;
   }
 
-  cose_sign1_set_key(cose_sign1, ctx->config.sign_alg,
-                     ctx->creds.authen_key->ecc.priv, ECC_KEY_LEN);
-  err = cose_sign1_sign(cose_sign1);
-  if(err == 0) {
-    LOG_ERR("Failed to sign for COSE_Sign1 object\n");
-    cose_sign1_finalize(cose_sign1);
+  size_t sig_sz = cose_sign1_sign(ctx->config.sign_alg,
+                                  ctx->creds.authen_key->ecc.priv,
+                                  ctx->buffers.id_cred_x,
+                                  ctx->buffers.id_cred_x_sz,
+                                  external_aad, external_aad_sz,
+                                  mac_or_sig, HASH_LEN,
+                                  mac_or_sig);
+  if(sig_sz == 0) {
+    LOG_ERR("COSE_Sign1 signing failed\n");
     return EDHOC_ERR_CRYPTO_SIGN;
   }
 
-  cose_sign1_finalize(cose_sign1);
-
-  LOG_DBG("Signature from COSE_Sign1 (%d bytes): ",
-          EDHOC_MAC_OR_SIG_BUF_LEN);
-  LOG_DBG_BYTES(cose_sign1->signature, EDHOC_MAC_OR_SIG_BUF_LEN);
+  LOG_DBG("Signature from COSE_Sign1 (%zu bytes): ", sig_sz);
+  LOG_DBG_BYTES(mac_or_sig, sig_sz);
   LOG_DBG_("\n");
 
-  mac_or_signature_sz = EDHOC_MAC_OR_SIG_BUF_LEN;
-  memcpy(mac_or_sig, cose_sign1->signature, cose_sign1->signature_sz);
+  mac_or_signature_sz = sig_sz;
 #endif
 
   /* Gen ciphertext_3 */
@@ -585,4 +544,4 @@ edhoc_generate_message_3(edhoc_context_t *ctx, const uint8_t *auth_data, size_t 
 
   return EDHOC_SUCCESS;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/

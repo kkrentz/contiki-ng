@@ -50,80 +50,64 @@
 #define LOG_MODULE "EDHOC"
 #define LOG_LEVEL LOG_LEVEL_EDHOC
 
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static uint16_t
 decrypt_ciphertext_3(edhoc_context_t *ctx, const uint8_t *ciphertext,
                      uint16_t ciphertext_size, uint8_t *plaintext)
 {
-  cose_encrypt0_t *cose = cose_encrypt0_new();
-  if(cose == NULL) {
-    LOG_ERR("Failed to allocate COSE_Encrypt0\n");
+  uint8_t alg = ctx->config.aead_alg;
+  uint8_t key_len = cose_get_key_len(alg);
+  uint8_t iv_len = cose_get_iv_len(alg);
+  uint8_t tag_len = cose_get_tag_len(alg);
+  if(key_len == 0 || iv_len == 0 || tag_len == 0) {
     return 0;
   }
 
-  /* set external AAD in cose */
-  cose_encrypt0_set_content(cose, NULL, 0, NULL, 0);
-  uint8_t *th3_ptr = cose->external_aad;
-  memcpy(th3_ptr, ctx->state.th, HASH_LEN);
-  cose->external_aad_sz = HASH_LEN;
-
-  cose_encrypt0_set_ciphertext(cose, ciphertext, ciphertext_size);
-  /* COSE encrypt0 set header */
-  if(!cose_encrypt0_set_header(cose, NULL, 0, NULL, 0)) {
-    LOG_ERR("Failed to set COSE_Encrypt0 header\n");
-    cose_encrypt0_finalize(cose);
+  if(ciphertext_size > EDHOC_MAX_BUFFER) {
+    LOG_ERR("CIPHERTEXT_3 size (%u) exceeds max buffer (%d)\n",
+            (unsigned)ciphertext_size, EDHOC_MAX_BUFFER);
     return 0;
   }
 
-  /* generate K_3 */
-  cose->alg = ctx->config.aead_alg;
-  cose->key_sz = cose_get_key_len(cose->alg);
+  /* Derive K_3. */
+  uint8_t key[COSE_MAX_KEY_LEN];
   int16_t err = edhoc_kdf(ctx->state.prk_3e2m, K_3_LABEL, ctx->state.th,
-                         HASH_LEN, cose->key_sz, cose->key);
+                          HASH_LEN, key_len, key);
   if(err < 1) {
-    LOG_ERR("Error in expand for decrypt CT_3\n");
-    cose_encrypt0_finalize(cose);
+    LOG_ERR("Failed to derive K_3\n");
     return 0;
   }
-  LOG_DBG("K_3 (%d bytes): ", cose->key_sz);
-  LOG_DBG_BYTES(cose->key, cose->key_sz);
+  LOG_DBG("K_3 (%d bytes): ", key_len);
+  LOG_DBG_BYTES(key, key_len);
   LOG_DBG_("\n");
 
-  /* generate IV_3 */
-  cose->nonce_sz = cose_get_iv_len(cose->alg);
+  /* Derive IV_3. */
+  uint8_t nonce[COSE_MAX_IV_LEN];
   err = edhoc_kdf(ctx->state.prk_3e2m, IV_3_LABEL, ctx->state.th, HASH_LEN,
-                 cose->nonce_sz, cose->nonce);
+                  iv_len, nonce);
   if(err < 1) {
-    LOG_ERR("Error in expand for decrypt CT_3\n");
-    cose_encrypt0_finalize(cose);
+    LOG_ERR("Failed to derive IV_3\n");
     return 0;
   }
-  LOG_DBG("IV_3 (%d bytes): ", cose->nonce_sz);
-  LOG_DBG_BYTES(cose->nonce, cose->nonce_sz);
+  LOG_DBG("IV_3 (%d bytes): ", iv_len);
+  LOG_DBG_BYTES(nonce, iv_len);
   LOG_DBG_("\n");
 
-  /* Decrypt COSE */
-  if(!cose_encrypt0_decrypt(cose)) {
-    LOG_ERR("ciphertext 3 decrypt error\n");
-    cose_encrypt0_finalize(cose);
+  /* COSE_Encrypt0: AAD is TH_3, in-place decrypt. */
+  uint8_t aead_buf[EDHOC_MAX_BUFFER];
+  memcpy(aead_buf, ciphertext, ciphertext_size);
+  size_t plaintext_sz = cose_encrypt0_open(alg, key, nonce,
+                                           ctx->state.th, HASH_LEN,
+                                           aead_buf, ciphertext_size);
+  if(plaintext_sz == 0) {
+    LOG_ERR("CIPHERTEXT_3 decryption failed\n");
     return 0;
   }
 
-  if(cose->plaintext_sz > EDHOC_MAX_BUFFER) {
-    LOG_ERR("Plaintext size (%u) exceeds max buffer (%d)\n",
-            (unsigned)cose->plaintext_sz, EDHOC_MAX_BUFFER);
-    cose_encrypt0_finalize(cose);
-    return 0;
-  }
-  for(int idx = 0; idx < cose->plaintext_sz; idx++) {
-    plaintext[idx] = cose->plaintext[idx];
-  }
-
-  /* Free memory */
-  cose_encrypt0_finalize(cose);
-  return cose->plaintext_sz;
+  memcpy(plaintext, aead_buf, plaintext_sz);
+  return (uint16_t)plaintext_sz;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static edhoc_error_t
 set_rx_cid(edhoc_context_t *ctx, const uint8_t *received_cid, size_t received_cid_size)
 {
@@ -144,7 +128,7 @@ set_rx_cid(edhoc_context_t *ctx, const uint8_t *received_cid, size_t received_ci
   }
   return EDHOC_SUCCESS;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static int8_t
 check_rx_suite_i(edhoc_context_t *ctx,
                  const uint8_t *received_suites, uint8_t suite_count)
@@ -174,13 +158,13 @@ check_rx_suite_i(edhoc_context_t *ctx,
   LOG_WARN("Cipher suite not supported\n");
   return EDHOC_ERR_SUITE_NOT_SUPPORTED;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static void
 set_rx_gx(edhoc_context_t *ctx, const uint8_t *gx)
 {
   memcpy(ctx->state.gx, gx, ECC_KEY_LEN);
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static int8_t
 set_rx_method(edhoc_context_t *ctx, uint8_t method)
 {
@@ -191,7 +175,7 @@ set_rx_method(edhoc_context_t *ctx, uint8_t method)
   ctx->config.method = method;
   return 0;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static int8_t
 set_rx_msg(edhoc_context_t *ctx, const uint8_t *message, size_t message_size)
 {
@@ -203,7 +187,7 @@ set_rx_msg(edhoc_context_t *ctx, const uint8_t *message, size_t message_size)
   ctx->buffers.rx_sz = message_size;
   return 0;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 edhoc_error_t
 edhoc_check_err_rx_msg(uint8_t message, const uint8_t *data, size_t data_size)
 {
@@ -239,7 +223,7 @@ edhoc_check_err_rx_msg(uint8_t message, const uint8_t *data, size_t data_size)
   /* If deserialize_err fails, this is NOT an error message - continue normal parsing */
   return EDHOC_SUCCESS;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 int
 edhoc_handler_msg_1(edhoc_context_t *ctx, uint8_t *payload,
                     size_t payload_size, uint8_t *auth_data)
@@ -322,7 +306,7 @@ edhoc_handler_msg_1(edhoc_context_t *ctx, uint8_t *payload,
 
   return msg1.uad.ead_value_sz;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 int
 edhoc_handler_msg_2(edhoc_msg_2_t *msg2, edhoc_context_t *ctx,
                     uint8_t *payload, size_t payload_size)
@@ -396,7 +380,7 @@ edhoc_handler_msg_2(edhoc_msg_2_t *msg2, edhoc_context_t *ctx,
 
   return 1;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 int
 edhoc_handler_msg_3(edhoc_msg_3_t *msg3, edhoc_context_t *ctx,
                     uint8_t *payload, size_t payload_size)
@@ -445,4 +429,4 @@ edhoc_handler_msg_3(edhoc_msg_3_t *msg3, edhoc_context_t *ctx,
 
   return 1;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
