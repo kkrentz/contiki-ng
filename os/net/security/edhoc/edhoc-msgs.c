@@ -40,6 +40,7 @@
 #include "edhoc-msgs.h"
 #include "lib/cbor.h"
 #include <assert.h>
+#include <inttypes.h>
 
 #include "sys/log.h"
 #define LOG_MODULE "EDHOC"
@@ -59,7 +60,7 @@ print_msg_1(edhoc_msg_1_t *msg)
   LOG_DBG("Ci: ");
   LOG_DBG_BYTES(msg->c_i, msg->c_i_sz);
   LOG_DBG_("\n");
-  LOG_DBG("EAD (label: %d): ", msg->uad.ead_label);
+  LOG_DBG("EAD (label: %" PRId32 "): ", msg->uad.ead_label);
   LOG_DBG_BYTES(msg->uad.ead_value, msg->uad.ead_value_sz);
   LOG_DBG_("\n");
 }
@@ -376,7 +377,7 @@ edhoc_deserialize_msg_1(edhoc_msg_1_t *msg, unsigned char *buffer, size_t buff_s
       msg->uad.ead_value_sz = 0;
     }
 
-    LOG_DBG("MSG_1: Parsed EAD - label: %d, value_sz: %zu\n",
+    LOG_DBG("MSG_1: Parsed EAD - label: %" PRId32 ", value_sz: %zu\n",
             msg->uad.ead_label, msg->uad.ead_value_sz);
   }
 
@@ -778,7 +779,7 @@ edhoc_process_ead_item(const edhoc_ead_data_t *ead_data)
    * - Non-negative ead_label = non-critical EAD item */
   bool is_critical = (ead_data->ead_label < 0);
 
-  LOG_DBG("EAD: Processing %s item with label %d, value_sz=%zu\n",
+  LOG_DBG("EAD: Processing %s item with label %" PRId32 ", value_sz=%zu\n",
           is_critical ? "critical" : "non-critical",
           ead_data->ead_label, ead_data->ead_value_sz);
 
@@ -807,12 +808,12 @@ edhoc_process_ead_item(const edhoc_ead_data_t *ead_data)
     /* RFC 9528 Section 6: If an endpoint receives a critical EAD item it
      * does not recognize or cannot process, it MUST send an EDHOC error
      * message and MUST abort the EDHOC session. */
-    LOG_ERR("EAD: Critical EAD item with label %d cannot be processed\n",
+    LOG_ERR("EAD: Critical EAD item with label %" PRId32 " cannot be processed\n",
             ead_data->ead_label);
     return EDHOC_ERR_CRITICAL_EAD_UNSUPPORTED;
   } else {
     /* Non-critical EAD items can be safely ignored */
-    LOG_DBG("EAD: Ignoring non-critical item (label %d)\n",
+    LOG_DBG("EAD: Ignoring non-critical item (label %" PRId32 ")\n",
             ead_data->ead_label);
     return EDHOC_SUCCESS;
   }
