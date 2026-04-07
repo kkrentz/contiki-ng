@@ -31,65 +31,124 @@
 
 /**
  * \file
- *         ecdh, an interface between the ECC and Secure Hash Algorithms with the EDHOC implementation.
- *         Interface the ECC key used library with the EDHOC implementation. New ECC libraries can be include it here.
- *         (UECC macro must be defined at config file) and with the CC2538 HW module
- *         Interface the Secure Hash Algorithms SH256 with the EDHOC implementation.
+ *         Synchronous wrapper around lib/ecc.h for the EDHOC implementation.
+ *
+ *         The Contiki-NG ECC driver exposes long-running operations as
+ *         protothreads so that other protothreads may make progress
+ *         while the cryptographic operation is in flight. The current
+ *         EDHOC protocol implementation is synchronous, so we busy-wait
+ *         the underlying protothread to completion. This still
+ *         deduplicates the per-backend wrappers EDHOC used to ship.
  *
  * \author
- *         Lidia Pocero <pocero@isi.gr>, Peter A Jonsson, Rikard Höglund, Marco Tiloca
+ *         Lidia Pocero <pocero@isi.gr>, Peter A Jonsson, Rikard Höglund,
+ *         Marco Tiloca, Nicolas Tsiftes
  */
 
 #include "contiki.h"
+#include "dev/watchdog.h"
 #include "ecdh.h"
+#include "edhoc-config.h"
+#include "lib/ecc.h"
+#include "lib/ecc-curve.h"
+#include "sys/process-mutex.h"
+#include "sys/pt.h"
+#include <string.h>
 
 #include "sys/log.h"
 #define LOG_MODULE "ECDH"
 #define LOG_LEVEL LOG_LEVEL_EDHOC
-/*---------------------------------------------------------------------------*/
-bool
-ecdh_generate_ikm(uint8_t curve_id, const uint8_t *gx, const uint8_t *gy,
-                  const uint8_t *private_key, uint8_t *ikm)
-{
-  ecc_curve_t curve;
-  bool ret = ecdh_get_ecc_curve(curve_id, &curve);
-  if(!ret) {
-    return ret;
-  }
 
-#if EDHOC_ECC == EDHOC_ECC_UECC
-  return uecc_generate_ikm(gx, gy, private_key, ikm, curve);
-#elif EDHOC_ECC == EDHOC_ECC_CC2538
-  return cc2538_generate_ikm(gx, gy, private_key, ikm, curve);
-#else
-  return false;
-#endif
+/*---------------------------------------------------------------------------*/
+static const ecc_curve_t *
+get_curve(uint8_t curve_id)
+{
+  switch(curve_id) {
+  case EDHOC_CURVE_P256:
+    return &ecc_curve_p_256;
+  default:
+    LOG_ERR("Unsupported ECDH curve id %u\n", curve_id);
+    return NULL;
+  }
+}
+/*---------------------------------------------------------------------------*/
+static bool
+acquire_ecc(const ecc_curve_t *curve)
+{
+  process_mutex_t *mutex = ecc_get_mutex();
+  while(!process_mutex_try_lock(mutex)) {
+    watchdog_periodic();
+  }
+  if(ecc_enable(curve) != 0) {
+    /* ecc_enable() releases the mutex on failure. */
+    LOG_ERR("ecc_enable() failed\n");
+    return false;
+  }
+  return true;
 }
 /*---------------------------------------------------------------------------*/
 bool
-ecdh_get_ecc_curve(uint8_t curve_id, ecc_curve_t *curve)
+ecdh_generate_keypair(uint8_t curve_id,
+                      uint8_t *pub_x, uint8_t *pub_y, uint8_t *priv)
 {
-#if EDHOC_ECC == EDHOC_ECC_UECC
-  switch(curve_id) {
-  case EDHOC_CURVE_P256:
-    curve->curve = uECC_secp256r1();
-    return true;
-  default:
-    LOG_ERR("Invalid curve when trying to derive IKM with uECC\n");
+  const ecc_curve_t *curve = get_curve(curve_id);
+  if(!curve) {
     return false;
   }
-#elif EDHOC_ECC == EDHOC_ECC_CC2538
-  switch(curve_id) {
-  case EDHOC_CURVE_P256:
-    curve->curve = &nist_p_256;
-    return true;
-  default:
-    LOG_ERR("Invalid curve when trying to derive IKM with CC2538 ECC\n");
+  if(!acquire_ecc(curve)) {
     return false;
   }
-#else
-  LOG_ERR("No ECC implementation defined\n");
-  return false;
-#endif
+
+  uint8_t public_key[2 * ECC_KEY_LEN];
+  int result = -1;
+
+  PT_INIT(ecc_get_protothread());
+  while(PT_SCHEDULE(ecc_generate_key_pair(public_key, priv, &result))) {
+    watchdog_periodic();
+  }
+
+  ecc_disable();
+
+  if(result != 0) {
+    LOG_ERR("ecc_generate_key_pair() failed (%d)\n", result);
+    return false;
+  }
+
+  memcpy(pub_x, public_key, ECC_KEY_LEN);
+  memcpy(pub_y, public_key + ECC_KEY_LEN, ECC_KEY_LEN);
+  return true;
+}
+/*---------------------------------------------------------------------------*/
+bool
+ecdh_generate_ikm(uint8_t curve_id,
+                  const uint8_t *peer_x, const uint8_t *peer_y,
+                  const uint8_t *private_key, uint8_t *ikm)
+{
+  const ecc_curve_t *curve = get_curve(curve_id);
+  if(!curve) {
+    return false;
+  }
+  if(!acquire_ecc(curve)) {
+    return false;
+  }
+
+  uint8_t public_key[2 * ECC_KEY_LEN];
+  memcpy(public_key, peer_x, ECC_KEY_LEN);
+  memcpy(public_key + ECC_KEY_LEN, peer_y, ECC_KEY_LEN);
+
+  int result = -1;
+  PT_INIT(ecc_get_protothread());
+  while(PT_SCHEDULE(ecc_generate_shared_secret(public_key, private_key,
+                                               ikm, &result))) {
+    watchdog_periodic();
+  }
+
+  ecc_disable();
+
+  if(result != 0) {
+    LOG_ERR("ecc_generate_shared_secret() failed (%d)\n", result);
+    return false;
+  }
+  return true;
 }
 /*---------------------------------------------------------------------------*/

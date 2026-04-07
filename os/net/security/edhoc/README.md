@@ -72,11 +72,9 @@ If the parties have agreed on an identity beside the public key, the "subject na
 ```c
 #define EDHOC_CONF_METHOD EDHOC_METHOD3
 ```
-- Define which library to use for ECDH operations. The SW library of `micro-ECC` with the macro `EDHOC_UECC_ECC` or the HW driver accelerator for cc2538 modules with the macro `EDHOC_CC2538_ECC .
-```c
-#define EDHOC_CONF_ECC EDHOC_CC2538_ECC
-```
-Additionally other paramets can be defined, every definde parameter with their default values are settingon the `edhoc-config.h` files. For example the number of attempts and the timeout can be set by:
+ECDH operations are routed through the Contiki-NG ECC driver in `os/services/ecc`, which currently uses the bundled `micro-ecc` software implementation. EDHOC busy-waits the driver to completion, so no per-backend selection is needed in EDHOC itself.
+
+Additional parameters can be defined; every defined parameter with its default value is set in `edhoc-config.h`. For example, the number of attempts and the timeout can be set by:
 ```c
 #define EDHOC_CONF_ATTEMPTS 3
 
@@ -86,15 +84,7 @@ Additionally other paramets can be defined, every definde parameter with their d
 The EDHOC module implementation depends on the following libraries:
 
 ### ECDH Operation
-The EDHOC module need to generate the ephemeral Diffie-Hellman pairs key and the EDHOC shared secrets. The `EDHOC_CONF_ECC` macro can be defined at the config file to choose between the following ECDH libraries:
-#### Micro - ECC(UECC)
-A small and fast ECDH and ECDSA SW implementation for 8-bit, 32-bit, and 64-bit processors. Implements five standard NIST curves, with `secp256r1` among them. The library is implemented in C and can be optionally optimised for either speed or code size at compilation time.
-The specific external repository is added as a submodule in `os/net/security/uecc` folder.
-- Author: K. Mackay
-- Link:[MicroECC] (https://github.com/kmackay/micro-ecc/tree/601bd11062c551b108adbb43ba99f199b840777c) 
-### cc2538-ecc-algo cc2538 ECC
-Algorithms(CC2538)
-This is a implementation of ECDH, ECDSA sign and ECDSA verify. It uses `ecc-driver`, the river for the cc2538 ECC mode of the PKC engine, to communicate with the PKA. It uses continuations to free the main CPU/thread while the PKA is calculating. It address the hardware acceleration of the ECDH cryptography operations.
+The EDHOC module needs to generate ephemeral Diffie-Hellman key pairs and EDHOC shared secrets. These operations go through the Contiki-NG ECC driver (`lib/ecc.h`, `os/services/ecc`), which currently wraps the bundled `micro-ecc` software implementation (`os/net/security/micro-ecc`).
 
 ### CBOR(Concise Binary Object Representation)
 The EDHOC module uses CBOR to encode the EDHOC exchanging messages.

@@ -85,28 +85,10 @@ static const uint8_t eph_private_r[ECC_KEY_LEN] = { 0xe2, 0xf4, 0x12, 0x67, 0x77
 static void
 generate_ephemeral_key(uint8_t curve_id, uint8_t *pub_x, uint8_t *pub_y, uint8_t *priv)
 {
-  ecc_curve_t curve;
-  ecdh_get_ecc_curve(curve_id, &curve);
-
-#if EDHOC_ECC == EDHOC_ECC_UECC
-  LOG_DBG("Generate key with uEcc\n");
-  uECC_make_key(pub_x, priv, curve.curve);
-#elif EDHOC_ECC == EDHOC_ECC_CC2538
-  LOG_DBG("Generate key with CC2538 HW modules\n");
-  static key_gen_t key = {
-    .process = &edhoc_server,
-    .curve_info = curve.curve,
-  };
-  PT_SPAWN(&edhoc_server.pt, &key.pt, generate_key_hw(&key));
-  if(key.x != NULL && key.y != NULL && key.private != NULL) {
-    memcpy(pub_x, key.x, ECC_KEY_LEN);
-    memcpy(pub_y, key.y, ECC_KEY_LEN);
-    memcpy(priv, key.private, ECC_KEY_LEN);
-  } else {
-    LOG_ERR("Hardware key generation failed - null key components\n");
+  if(!ecdh_generate_keypair(curve_id, pub_x, pub_y, priv)) {
+    LOG_ERR("Failed to generate ephemeral key pair\n");
     return;
   }
-#endif
 
 #if EDHOC_TEST == EDHOC_TEST_VECTOR_TRACE_DH
   if(edhoc_ctx != NULL) {

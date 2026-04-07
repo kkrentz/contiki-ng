@@ -31,7 +31,12 @@
 
 /**
  * \file
- *         ECDH header
+ *         ECDH interface for the EDHOC implementation.
+ *
+ *         Thin synchronous wrapper around the Contiki-NG ECC driver
+ *         (\c lib/ecc.h). Long-running operations from the underlying
+ *         driver are busy-waited to completion so that the EDHOC
+ *         protocol code can stay synchronous.
  *
  * \author
  *         Lidia Pocero <pocero@isi.gr>, Peter A Jonsson, Rikard Höglund, Marco Tiloca
@@ -43,26 +48,28 @@
 #include <stdbool.h>
 #include "edhoc-key-storage.h"
 
-/* Choose the ECC library to use */
-#define EDHOC_ECC_CC2538 1
-#define EDHOC_ECC_UECC 2
+/**
+ * \brief             Generates a fresh ECDH key pair.
+ * \param curve_id    The EDHOC curve identifier (e.g. \c EDHOC_CURVE_P256).
+ * \param pub_x       Output buffer for the x-coordinate (\c ECC_KEY_LEN bytes).
+ * \param pub_y       Output buffer for the y-coordinate (\c ECC_KEY_LEN bytes).
+ * \param priv        Output buffer for the private key (\c ECC_KEY_LEN bytes).
+ * \return            true on success, false on error.
+ */
+bool ecdh_generate_keypair(uint8_t curve_id,
+                           uint8_t *pub_x, uint8_t *pub_y, uint8_t *priv);
 
-#ifdef EDHOC_CONF_ECC
-#define EDHOC_ECC EDHOC_CONF_ECC
-#else
-#define EDHOC_ECC EDHOC_ECC_UECC
-#endif
-
-#if EDHOC_ECC == EDHOC_ECC_UECC
-#include "ecc-uecc.h"
-#elif EDHOC_ECC == EDHOC_ECC_CC2538
-#include "ecc-cc2538.h"
-#else
-#error Please specify EDHOC_ECC
-#endif
-
-bool ecdh_generate_ikm(uint8_t curve_id, const uint8_t *gx, const uint8_t *gy, const uint8_t *private_key, uint8_t *ikm);
-
-bool ecdh_get_ecc_curve(uint8_t curve_id, ecc_curve_t *curve);
+/**
+ * \brief             Computes an ECDH shared secret.
+ * \param curve_id    The EDHOC curve identifier (e.g. \c EDHOC_CURVE_P256).
+ * \param peer_x      The peer's public-key x-coordinate (\c ECC_KEY_LEN bytes).
+ * \param peer_y      The peer's public-key y-coordinate (\c ECC_KEY_LEN bytes).
+ * \param private_key Our private key (\c ECC_KEY_LEN bytes).
+ * \param ikm         Output buffer for the shared secret (\c ECC_KEY_LEN bytes).
+ * \return            true on success, false on error.
+ */
+bool ecdh_generate_ikm(uint8_t curve_id,
+                       const uint8_t *peer_x, const uint8_t *peer_y,
+                       const uint8_t *private_key, uint8_t *ikm);
 
 #endif /* _ECDH_H_ */

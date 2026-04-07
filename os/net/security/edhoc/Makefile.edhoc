@@ -1,6 +1,6 @@
 MODULES += os/net/security/cose
 MODULES += os/net/app-layer/coap
-MODULES += os/net/security/micro-ecc
+MODULES += os/services/ecc
 
 ifneq ($(MAKE_EDHOC_METHOD),)
   CFLAGS += -DEDHOC_METHOD=$(MAKE_EDHOC_METHOD)

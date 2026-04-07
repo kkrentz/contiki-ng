@@ -30,7 +30,7 @@
 
 /**
  * \file
- *         Common definitions for both ecc-cc2538 and ecc-uecc
+ *         Common ECC types used by the EDHOC implementation.
  *
  * \author
  *         Rikard Höglund, Marco Tiloca

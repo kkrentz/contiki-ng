@@ -584,24 +584,10 @@ static void
 generate_ephemeral_key(uint8_t curve_id, uint8_t *pub_x,
                        uint8_t *pub_y, uint8_t *priv)
 {
-  ecc_curve_t curve;
-  ecdh_get_ecc_curve(curve_id, &curve);
-
-#if EDHOC_ECC == EDHOC_ECC_UECC
-  LOG_DBG("generate key with uEcc\n");
-  uECC_make_key(pub_x, priv, curve.curve);
-#elif EDHOC_ECC == EDHOC_ECC_CC2538
-  LOG_DBG("generate key with CC2538\n");
-  static key_gen_t key = {
-    .process = &edhoc_client,
-    .curve_info = curve.curve,
-  };
-  PT_SPAWN(&edhoc_client.pt, &key.pt, generate_key_hw(&key));
-
-  memcpy(pub_x, key.x, ECC_KEY_LEN);
-  memcpy(pub_y, key.y, ECC_KEY_LEN);
-  memcpy(priv, key.private, ECC_KEY_LEN);
-#endif
+  if(!ecdh_generate_keypair(curve_id, pub_x, pub_y, priv)) {
+    LOG_ERR("Failed to generate ephemeral key pair\n");
+    return;
+  }
 
 #if EDHOC_TEST == EDHOC_TEST_VECTOR_TRACE_DH
   memcpy(edhoc_ctx->creds.ephemeral_key.pub.x, eph_pub_x_i, ECC_KEY_LEN);

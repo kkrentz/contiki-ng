@@ -21,10 +21,6 @@
 /* Define the authentication */
 #define EDHOC_CONF_AUTHENT_TYPE EDHOC_CRED_KID
 
-/* Define the library for ECDH operations */
-//#define EDHOC_CONF_ECC EDHOC_ECC_CC2538
-#define EDHOC_CONF_ECC EDHOC_ECC_UECC
-
 /* Set the supported cipher suites */
 #define EDHOC_CONF_SUPPORTED_SUITE_1 EDHOC_CIPHERSUITE_2
 #define EDHOC_CONF_SUPPORTED_SUITE_2 EDHOC_CIPHERSUITE_6
