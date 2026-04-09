@@ -62,6 +62,7 @@
 #include "net/netstack.h"
 #include "net/ipv6/simple-udp.h"
 #include "net/ipv6/uip-nameserver.h"
+#include "net/ipv6/ip64-addr.h"
 #include "net/app-layer/http-socket/http-socket.h"
 #include "resolv.h"
 
@@ -100,10 +101,8 @@ configure_nameserver(void)
 {
   uip_ipaddr_t dns_server;
 
-  /* Google Public DNS (8.8.8.8) via the NAT64 prefix. */
-  uip_ip6addr(&dns_server,
-              0x0064, 0xff9b, 0, 0, 0, 0,
-              0x0808, 0x0808);
+  /* Google Public DNS (8.8.8.8) via the NAT64 well-known prefix. */
+  uip_nat64addr(&dns_server, 8, 8, 8, 8);
 
   uip_nameserver_update(&dns_server, UIP_NAMESERVER_INFINITE_LIFETIME);
 
