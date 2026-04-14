@@ -100,14 +100,6 @@ typedef struct ecc_data_event {
   edhoc_server_ad_t ad;
 } ecc_data_event_t;
 
-typedef struct serv_data {
-  coap_message_t *request;
-  coap_message_t *response;
-  edhoc_server_t *serv;
-} serv_data_t;
-
-extern serv_data_t *dat_ptr;
-
 /**
  * \brief Activate the EDHOC CoAP Resource
  *

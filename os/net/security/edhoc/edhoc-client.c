@@ -68,10 +68,9 @@
 /* For use of block-wise post and answer */
 static coap_callback_request_state_t state;
 static uint8_t msg_num;
-static uint8_t send_sz;
+static size_t send_sz;
 static uint8_t *rx_ptr;
 static size_t rx_sz;
-static int pro;
 static edhoc_client_t *client;
 static coap_timer_t timer;
 static edhoc_data_event_t edhoc_state;
@@ -82,7 +81,6 @@ static int err = 0;
 static edhoc_msg_2_t msg2;
 /*---------------------------------------------------------------------------*/
 PROCESS(edhoc_client, "EDHOC Client");
-PROCESS(edhoc_client_protocol, "EDHOC Client Protocol");
 /*---------------------------------------------------------------------------*/
 #if EDHOC_TEST == EDHOC_TEST_VECTOR_TRACE_DH
 /* Hard-wired ephemeral keys from RFC 9529 for verifying that all operations yield the same
@@ -135,7 +133,7 @@ edhoc_client_set_ad_1(const void *data_buffer, uint8_t buffer_size)
     LOG_ERR("Invalid buffer pointer for AD_1\n");
     return;
   }
-  memcpy(edhoc_state.ad.ad_1, (void *)data_buffer, buffer_size);
+  memcpy(edhoc_state.ad.ad_1, data_buffer, buffer_size);
   edhoc_state.ad.ad_1_sz = buffer_size;
 }
 /*---------------------------------------------------------------------------*/
@@ -150,7 +148,7 @@ edhoc_client_set_ad_3(const void *data_buffer, uint8_t buffer_size)
     LOG_ERR("Invalid buffer pointer for AD_3\n");
     return;
   }
-  memcpy(edhoc_state.ad.ad_3, (void *)data_buffer, buffer_size);
+  memcpy(edhoc_state.ad.ad_3, data_buffer, buffer_size);
   edhoc_state.ad.ad_3_sz = buffer_size;
 }
 /*---------------------------------------------------------------------------*/
@@ -165,7 +163,7 @@ edhoc_client_get_ad_2(char *buf, size_t buf_sz)
     LOG_ERR("Destination buffer size (%zu) too small for AD_2 (%d)\n", buf_sz, edhoc_state.ad.ad_2_sz);
     return 0;
   }
-  memcpy(buf, (void *)edhoc_state.ad.ad_2, edhoc_state.ad.ad_2_sz);
+  memcpy(buf, edhoc_state.ad.ad_2, edhoc_state.ad.ad_2_sz);
   return edhoc_state.ad.ad_2_sz;
 }
 /*---------------------------------------------------------------------------*/
@@ -175,7 +173,7 @@ client_timeout_callback(coap_timer_t *timer)
   LOG_ERR("EDHOC client timeout: no response received\n");
   coap_timer_stop(timer);
   edhoc_state.val = CL_TIMEOUT;
-  pro = process_post(&edhoc_client, edhoc_event, &edhoc_state);
+  process_post(&edhoc_client, edhoc_event, &edhoc_state);
 }
 /*---------------------------------------------------------------------------*/
 MEMB(edhoc_client_storage, edhoc_client_t, 1);
@@ -184,10 +182,6 @@ MEMB(edhoc_client_storage, edhoc_client_t, 1);
 static int handle_rx_msg2(edhoc_client_t *client, edhoc_msg_2_t *msg2);
 static int handle_rx_response_msg3(edhoc_client_t *client);
 static int handle_exp_ready(edhoc_client_t *client);
-
-/* State handler function type */
-typedef int (*protocol_state_handler_t)(edhoc_client_t *client);
-
 /*---------------------------------------------------------------------------*/
 static inline edhoc_client_t *
 client_context_new(void)
@@ -210,7 +204,7 @@ static int
 client_block2_handler(coap_message_t *response, uint8_t *target,
                       size_t *len, size_t max_len)
 {
-  const uint8_t *payload = 0;
+  const uint8_t *payload = NULL;
   int pay_len = coap_get_payload(response, &payload);
 
   if(response->block2_offset + pay_len > max_len) {
@@ -235,7 +229,7 @@ client_block2_handler(coap_message_t *response, uint8_t *target,
   }
   return 0;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static void
 client_response_handler(coap_callback_request_state_t *callback_state)
 {
@@ -250,7 +244,7 @@ client_response_handler(coap_callback_request_state_t *callback_state)
     LOG_ERR("rx response not correlated\n");
     edhoc_state.val = CL_RESTART;
     coap_timer_stop(&timer);
-    pro = process_post(&edhoc_client, edhoc_event, &edhoc_state);
+    process_post(&edhoc_client, edhoc_event, &edhoc_state);
     return;
   }
 
@@ -261,7 +255,7 @@ client_response_handler(coap_callback_request_state_t *callback_state)
     LOG_ERR("rx response from an error server\n");
     edhoc_state.val = CL_RESTART;
     coap_timer_stop(&timer);
-    pro = process_post(&edhoc_client, edhoc_event, &edhoc_state);
+    process_post(&edhoc_client, edhoc_event, &edhoc_state);
     return;
   }
 
@@ -292,10 +286,10 @@ client_response_handler(coap_callback_request_state_t *callback_state)
                           rx_ptr, &rx_sz, EDHOC_MAX_PAYLOAD_LEN);
     edhoc_ctx->buffers.rx_sz = (uint8_t)rx_sz;
     edhoc_state.val = CL_BLOCKING;
-    pro = process_post(PROCESS_BROADCAST, edhoc_event, &edhoc_state);
+    process_post(PROCESS_BROADCAST, edhoc_event, &edhoc_state);
   }
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static void
 client_chunk_handler(coap_callback_request_state_t *callback_state)
 {
@@ -319,9 +313,9 @@ client_chunk_handler(coap_callback_request_state_t *callback_state)
           callback_state->state.response->block1_size,
           callback_state->state.response->block1_offset);
   edhoc_state.val = CL_BLOCK1;
-  pro = process_post(&edhoc_client, edhoc_event, &edhoc_state);
+  process_post(&edhoc_client, edhoc_event, &edhoc_state);
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static void
 edhoc_client_post(void)
 {
@@ -332,7 +326,7 @@ edhoc_client_post(void)
   msg_num = 0;
   state.state.block_num = 0;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static int
 edhoc_client_post_blocks(void)
 {
@@ -371,23 +365,7 @@ edhoc_client_post_blocks(void)
     return 1;
   }
 }
-/*----------------------------------------------------------------------------*/
-/* Helper functions for MSG2 processing */
-static int
-process_msg2_reception(edhoc_msg_2_t *msg2)
-{
-  int result = edhoc_handler_msg_2(msg2, edhoc_ctx, edhoc_ctx->buffers.msg_rx,
-                                   edhoc_ctx->buffers.rx_sz);
-  return result;
-}
-
-static int
-authenticate_msg2(void)
-{
-  int result = edhoc_authenticate_msg(edhoc_ctx, (uint8_t *)edhoc_state.ad.ad_2, true);
-  return result;
-}
-
+/*---------------------------------------------------------------------------*/
 static int
 generate_msg3_response(void)
 {
@@ -417,7 +395,7 @@ handle_msg2_error(int err)
   edhoc_client_post_blocks();
 }
 
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static int
 edhoc_send_msg1(uint8_t *ad, uint8_t ad_sz, bool suite_array)
 {
@@ -431,15 +409,16 @@ edhoc_send_msg1(uint8_t *ad, uint8_t ad_sz, bool suite_array)
   client->state = RX_MSG2;
   return edhoc_client_post_blocks();
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 /* Protocol state handlers */
 static int
 handle_rx_msg2(edhoc_client_t *client, edhoc_msg_2_t *msg2)
 {
   edhoc_trace_message(2, edhoc_ctx->buffers.msg_rx, edhoc_ctx->buffers.rx_sz, false);
 
-  err = process_msg2_reception(msg2);
-  
+  err = edhoc_handler_msg_2(msg2, edhoc_ctx, edhoc_ctx->buffers.msg_rx,
+                            edhoc_ctx->buffers.rx_sz);
+
   if(err == EDHOC_ERR_SEQUENCE_ERROR) {
     edhoc_send_msg1((uint8_t *)edhoc_state.ad.ad_1, edhoc_state.ad.ad_1_sz, true);
     return 0;
@@ -448,7 +427,7 @@ handle_rx_msg2(edhoc_client_t *client, edhoc_msg_2_t *msg2)
   if(err > 0) {
     assert(msg2->gy_ciphertext_2_sz >= ECC_KEY_LEN);
     assert(msg2->gy_ciphertext_2_sz - ECC_KEY_LEN <= EDHOC_MAX_BUFFER);
-    err = authenticate_msg2();
+    err = edhoc_authenticate_msg(edhoc_ctx, (uint8_t *)edhoc_state.ad.ad_2, true);
   }
 
   if(err == EDHOC_ERR_MSG_MALFORMED) {
@@ -483,13 +462,13 @@ static int
 handle_rx_response_msg3(edhoc_client_t *client)
 {
   if(edhoc_ctx->buffers.rx_sz > 0) {
-    edhoc_error_t error = edhoc_check_err_rx_msg(3, edhoc_ctx->buffers.msg_rx, 
+    edhoc_error_t error = edhoc_check_err_rx_msg(3, edhoc_ctx->buffers.msg_rx,
                                                   edhoc_ctx->buffers.rx_sz);
     if(error != EDHOC_SUCCESS) {
       edhoc_state.val = CL_RESTART;
       client->state = NON_MSG;
       coap_timer_stop(&timer);
-      pro = process_post(&edhoc_client, edhoc_event, &edhoc_state);
+      process_post(&edhoc_client, edhoc_event, &edhoc_state);
       return -1;
     }
   }
@@ -501,10 +480,10 @@ handle_rx_response_msg3(edhoc_client_t *client)
     LOG_ERR("The EDHOC process escape steps\n");
     edhoc_state.val = CL_RESTART;
     coap_timer_stop(&timer);
-    pro = process_post(&edhoc_client, edhoc_event, &edhoc_state);
+    process_post(&edhoc_client, edhoc_event, &edhoc_state);
     return -1;
   }
-  
+
   /* Fall through to EXP_READY - execute it immediately */
   client->state = EXP_READY;
   return handle_exp_ready(client);
@@ -517,22 +496,19 @@ handle_exp_ready(edhoc_client_t *client)
   edhoc_trace_session_summary(edhoc_ctx);
   edhoc_state.val = CL_FINISHED;
   coap_timer_stop(&timer);
-  pro = process_post(PROCESS_BROADCAST, edhoc_event, &edhoc_state);
+  process_post(PROCESS_BROADCAST, edhoc_event, &edhoc_state);
   return 0;
 }
 
-/*----------------------------------------------------------------------------*/
-PROCESS_THREAD(edhoc_client_protocol, ev, data)
+/*---------------------------------------------------------------------------*/
+static void
+edhoc_client_protocol_run(void)
 {
-  PROCESS_BEGIN();
-
-  /* Handle protocol states */
   switch(client->state) {
   case RX_MSG2:
     handle_rx_msg2(client, &msg2);
     break;
   case RX_RESPONSE_MSG3:
-    /* This may fall through to EXP_READY internally */
     handle_rx_response_msg3(client);
     break;
   case EXP_READY:
@@ -541,9 +517,8 @@ PROCESS_THREAD(edhoc_client_protocol, ev, data)
   default:
     break;
   }
-  PROCESS_END();
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static void
 edhoc_client_init(void)
 {
@@ -566,7 +541,7 @@ edhoc_client_init(void)
   state.state.response = client->response;
   state.state.remote_endpoint = &client->server_ep;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static int
 edhoc_client_start(uint8_t *ad, uint8_t ad_sz)
 {
@@ -579,7 +554,7 @@ edhoc_client_start(uint8_t *ad, uint8_t ad_sz)
 
   return edhoc_send_msg1(ad, ad_sz, false);
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static void
 generate_ephemeral_key(uint8_t curve_id, uint8_t *pub_x,
                        uint8_t *pub_y, uint8_t *priv)
@@ -600,7 +575,7 @@ generate_ephemeral_key(uint8_t curve_id, uint8_t *pub_x,
                             edhoc_ctx->creds.ephemeral_key.pub.y,
                             edhoc_ctx->creds.ephemeral_key.priv);
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 /* Unified retry handler */
 static void
 handle_retry(struct etimer *wait_timer, uint8_t *attempt)
@@ -612,54 +587,12 @@ handle_retry(struct etimer *wait_timer, uint8_t *attempt)
   } else {
     LOG_ERR("Expire EDHOC client attempts\n");
     edhoc_state.val = CL_TRIES_EXPIRE;
-    pro = process_post(PROCESS_BROADCAST, edhoc_event, &edhoc_state);
+    process_post(PROCESS_BROADCAST, edhoc_event, &edhoc_state);
   }
 }
 
-/* Event handlers for main process */
-static void
-handle_restart_event(struct etimer *wait_timer, uint8_t *attempt)
-{
-  LOG_ERR("Error\n");
-  handle_retry(wait_timer, attempt);
-}
 
-static void
-handle_timeout_event(struct etimer *wait_timer, uint8_t *attempt)
-{
-  LOG_ERR("Expire timeout\n");
-  handle_retry(wait_timer, attempt);
-}
-
-static void
-handle_finished_event(void)
-{
-  LOG_INFO("Client has finished\n");
-}
-
-static void
-handle_block1_event(void)
-{
-  edhoc_client_post_blocks();
-}
-
-static void
-handle_post_event(void)
-{
-  edhoc_client_post();
-  edhoc_client_post_blocks();
-}
-
-static void
-handle_blocking_event(void)
-{
-  process_start(&edhoc_client_protocol, NULL);
-  while(process_is_running(&edhoc_client_protocol)) {
-    process_run();
-  }
-}
-
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 void
 edhoc_client_close(void)
 {
@@ -667,7 +600,7 @@ edhoc_client_close(void)
   client_context_free(client);
   edhoc_finalize(edhoc_ctx);
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 PROCESS_THREAD(edhoc_client, ev, data)
 {
   PROCESS_BEGIN();
@@ -690,8 +623,9 @@ PROCESS_THREAD(edhoc_client, ev, data)
   while(1) {
     PROCESS_WAIT_EVENT();
     if(ev == edhoc_event && data == &edhoc_state) {
-      if(edhoc_state.val == CL_RESTART) {
-        handle_restart_event(&wait_timer, &attempt);
+      if(edhoc_state.val == CL_RESTART || edhoc_state.val == CL_TIMEOUT) {
+        LOG_ERR("%s\n", edhoc_state.val == CL_RESTART ? "Error" : "Expire timeout");
+        handle_retry(&wait_timer, &attempt);
         if(attempt < EDHOC_CONF_ATTEMPTS) {
           PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&wait_timer));
           etimer_stop(&wait_timer);
@@ -700,38 +634,17 @@ PROCESS_THREAD(edhoc_client, ev, data)
         } else {
           break;
         }
-      }
-
-      else if(edhoc_state.val == CL_TIMEOUT) {
-        handle_timeout_event(&wait_timer, &attempt);
-        if(attempt < EDHOC_CONF_ATTEMPTS) {
-          PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&wait_timer));
-          etimer_stop(&wait_timer);
-          edhoc_client_start((uint8_t *)edhoc_state.ad.ad_1,
-                             edhoc_state.ad.ad_1_sz);
-        } else {
-          break;
-        }
-      }
-
-      else if(edhoc_state.val == CL_FINISHED) {
-        handle_finished_event();
+      } else if(edhoc_state.val == CL_FINISHED) {
+        LOG_INFO("Client has finished\n");
         break;
-      }
-
-      else if(edhoc_state.val == CL_BLOCK1) {
-        handle_block1_event();
-      }
-
-      else if(edhoc_state.val == CL_POST) {
-        handle_post_event();
-      }
-
-      else if(edhoc_state.val == CL_BLOCKING) {
-        handle_blocking_event();
-      }
-
-      else if(edhoc_state.val == CL_TRIES_EXPIRE) {
+      } else if(edhoc_state.val == CL_BLOCK1) {
+        edhoc_client_post_blocks();
+      } else if(edhoc_state.val == CL_POST) {
+        edhoc_client_post();
+        edhoc_client_post_blocks();
+      } else if(edhoc_state.val == CL_BLOCKING) {
+        edhoc_client_protocol_run();
+      } else if(edhoc_state.val == CL_TRIES_EXPIRE) {
         break;
       }
     }

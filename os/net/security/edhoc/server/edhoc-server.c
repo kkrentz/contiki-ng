@@ -40,7 +40,6 @@
 #include "edhoc-msg-generators.h"
 #include "edhoc-msg-handlers.h"
 #include "edhoc-trace.h"
-#include "sys/pt.h"
 #include <assert.h>
 
 #include "sys/log.h"
@@ -67,7 +66,6 @@ static coap_message_t *request;
 static coap_message_t *response;
 static int err = 0;
 static edhoc_msg_3_t msg3;
-PROCESS(edhoc_server, "EDHOC Server");
 
 #if EDHOC_TEST == EDHOC_TEST_VECTOR_TRACE_DH
 /* Hard-wired ephemeral keys from RFC 9529 for verifying that all operations yield the same
@@ -81,7 +79,7 @@ static const uint8_t eph_pub_y_r[ECC_KEY_LEN] = { 0x5e, 0x4f, 0x0d, 0xd8, 0xa3, 
 static const uint8_t eph_private_r[ECC_KEY_LEN] = { 0xe2, 0xf4, 0x12, 0x67, 0x77, 0x20, 0x5e, 0x85, 0x3b, 0x43, 0x7d, 0x6e, 0xac, 0xa1, 0xe1, 0xf7, 0x53, 0xcd, 0xcc, 0x3e, 0x2c, 0x69, 0xfa,
                                                     0x88, 0x4b, 0x0a, 0x1a, 0x64, 0x09, 0x77, 0xe4, 0x18 };
 #endif
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static void
 generate_ephemeral_key(uint8_t curve_id, uint8_t *pub_x, uint8_t *pub_y, uint8_t *priv)
 {
@@ -105,7 +103,7 @@ generate_ephemeral_key(uint8_t curve_id, uint8_t *pub_x, uint8_t *pub_y, uint8_t
                             edhoc_ctx->creds.ephemeral_key.pub.y,
                             edhoc_ctx->creds.ephemeral_key.priv);
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 int8_t
 edhoc_server_callback(process_event_t ev, void *data)
 {
@@ -119,7 +117,7 @@ edhoc_server_callback(process_event_t ev, void *data)
   }
   return 0;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 void
 edhoc_server_set_ad_2(const void *buf, uint8_t buf_sz)
 {
@@ -131,21 +129,21 @@ edhoc_server_set_ad_2(const void *buf, uint8_t buf_sz)
   memcpy(new_ecc.ad.ad_2, (void *)buf, buf_sz);
   new_ecc.ad.ad_2_sz = buf_sz;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 uint8_t
 edhoc_server_get_ad_1(char *buf)
 {
   memcpy(buf, (void *)new_ecc.ad.ad_1, new_ecc.ad.ad_1_sz);
   return new_ecc.ad.ad_1_sz;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 uint8_t
 edhoc_server_get_ad_3(char *buf)
 {
   memcpy(buf, (void *)new_ecc.ad.ad_3, new_ecc.ad.ad_3_sz);
   return new_ecc.ad.ad_3_sz;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static void
 reset_handshake_with_error(void)
 {
@@ -154,15 +152,15 @@ reset_handshake_with_error(void)
   new_ecc.val = SERV_HANDSHAKE_RESET;
   process_post(PROCESS_BROADCAST, new_ecc_event, &new_ecc);
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static void
 server_timeout_callback(coap_timer_t *timer)
 {
   LOG_ERR("Timeout\n");
   reset_handshake_with_error();
 }
-/*----------------------------------------------------------------------------*/
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static int
 handle_msg1_state(void)
 {
@@ -216,7 +214,7 @@ handle_msg1_state(void)
   serv->state = RX_MSG3;
   return 0;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static int
 handle_msg3_state(void)
 {
@@ -255,7 +253,7 @@ handle_msg3_state(void)
   serv->rx_msg3 = true;
   return 0;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static int
 handle_exp_ready_state(void)
 {
@@ -273,7 +271,7 @@ handle_exp_ready_state(void)
     return -1;
   }
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static void
 setup_coap_response(void)
 {
@@ -307,7 +305,7 @@ setup_coap_response(void)
   EDHOC_DBG_VALUE("Block1 info", (uint8_t*)&response->block1_num, 0);
   EDHOC_DBG_VALUE("Block2 info", (uint8_t*)&response->block2_num, 0);
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 uint8_t
 edhoc_server_reset_handshake(void)
 {
@@ -321,7 +319,7 @@ edhoc_server_reset_handshake(void)
   }
   return edhoc_initialize_context(edhoc_ctx);
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 uint8_t
 edhoc_server_start(void)
 {
@@ -334,7 +332,7 @@ edhoc_server_start(void)
   serv = &server;
   return edhoc_server_reset_handshake();
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 void
 edhoc_server_init(void)
 {
@@ -342,18 +340,17 @@ edhoc_server_init(void)
   coap_activate_resource(&res_edhoc, EDHOC_COAP_URI_PATH);
   new_ecc_event = process_alloc_event();
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 void
 edhoc_server_close(void)
 {
   edhoc_finalize(edhoc_ctx);
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 void
 edhoc_server_process(coap_message_t *req, coap_message_t *res,
                      edhoc_server_t *ser, uint8_t *msg, size_t len)
 {
-  serv_data_t serv_data = { req, res, ser };
   if(len == 0) {
     LOG_ERR("Message length is zero\n");
     coap_set_payload(res, NULL, 0);
@@ -366,21 +363,12 @@ edhoc_server_process(coap_message_t *req, coap_message_t *res,
     coap_set_status_code(res, BAD_REQUEST_4_00);
     return;
   }
+
   memcpy(msg_rx, msg, len);
   msg_rx_len = len;
-  process_start(&edhoc_server, (process_data_t)&serv_data);
-  while(process_is_running(&edhoc_server)) {
-    process_run();
-  }
-}
-/*----------------------------------------------------------------------------*/
-PROCESS_THREAD(edhoc_server, ev, data)
-{
-  PROCESS_BEGIN();
-
-  request = ((serv_data_t *)data)->request;
-  response = ((serv_data_t *)data)->response;
-  serv = ((serv_data_t *)data)->serv;
+  request = req;
+  response = res;
+  serv = ser;
 
   if(serv->state == EXP_READY) {
     EDHOC_TRACE_STATE("EXP_READY", "EXIT");
@@ -391,7 +379,7 @@ PROCESS_THREAD(edhoc_server, ev, data)
     LOG_ERR("rx request from an error ipaddr\n");
     coap_set_payload(response, NULL, 0);
     coap_set_status_code(response, BAD_REQUEST_4_00);
-    PROCESS_EXIT();
+    return;
   }
 
   switch(serv->state) {
@@ -421,5 +409,4 @@ PROCESS_THREAD(edhoc_server, ev, data)
   }
 
   setup_coap_response();
-  PROCESS_END();
 }
