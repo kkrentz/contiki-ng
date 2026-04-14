@@ -60,7 +60,6 @@ static void res_edhoc_post_handler(coap_message_t *request,
 
 RESOURCE(res_edhoc, "title=\"EDHOC resource\"", NULL,
          res_edhoc_post_handler, NULL, NULL);
-static size_t big_msg_len = 0;
 
 /*---------------------------------------------------------------------------*/
 /* Example allows only one request on time. There are no checks for multiple access !!! */
@@ -88,7 +87,6 @@ res_edhoc_post_handler(coap_message_t *request,
     }
     response->payload = (uint8_t *)edhoc_ctx->buffers.msg_tx;
     response->payload_len = edhoc_ctx->buffers.tx_sz;
-    big_msg_len = edhoc_ctx->buffers.tx_sz;
     coap_set_header_block1(response, request->block1_num, 0,
                            request->block1_size);
 

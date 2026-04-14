@@ -178,9 +178,6 @@ client_timeout_callback(coap_timer_t *timer)
 /*---------------------------------------------------------------------------*/
 MEMB(edhoc_client_storage, edhoc_client_t, 1);
 /*---------------------------------------------------------------------------*/
-/* Forward declarations for state handlers */
-static int handle_rx_msg2(edhoc_client_t *client, edhoc_msg_2_t *msg2);
-static int handle_rx_response_msg3(edhoc_client_t *client);
 static int handle_exp_ready(edhoc_client_t *client);
 /*---------------------------------------------------------------------------*/
 static inline edhoc_client_t *
@@ -215,13 +212,6 @@ client_block2_handler(coap_message_t *response, uint8_t *target,
   }
 
   if(target && len) {
-    /* Additional safety check before memcpy */
-    if(response->block2_offset + pay_len > EDHOC_MAX_BUFFER) {
-      LOG_ERR("Block data would exceed EDHOC_MAX_BUFFER\n");
-      coap_status_code = REQUEST_ENTITY_TOO_LARGE_4_13;
-      coap_error_message = "Block data too large";
-      return -1;
-    }
     memcpy(target + response->block2_offset, payload, pay_len);
     *len = response->block2_offset + pay_len;
     LOG_DBG_BYTES((uint8_t *)payload, (unsigned long)pay_len);

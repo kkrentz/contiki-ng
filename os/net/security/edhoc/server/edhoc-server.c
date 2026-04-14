@@ -40,7 +40,6 @@
 #include "edhoc-msg-generators.h"
 #include "edhoc-msg-handlers.h"
 #include "edhoc-trace.h"
-#include <assert.h>
 
 #include "sys/log.h"
 #define LOG_MODULE "EDHOC"
@@ -286,11 +285,9 @@ setup_coap_response(void)
   response->payload_len = edhoc_ctx->buffers.tx_sz;
   coap_set_status_code(response, CHANGED_2_04);
 
-  assert(&(response->options) != NULL);
   memset(&(response->options), 0, sizeof(response->options));
 
   if(response->payload_len == 0) {
-    assert(&(request->options) != NULL);
     memset(&(request->options), 0, sizeof(request->options));
   } else {
     coap_set_header_block2(response, 0,

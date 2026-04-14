@@ -206,13 +206,6 @@ edhoc_set_config_from_suite(edhoc_context_t *ctx, uint8_t suite)
   return 1;
 }
 /*---------------------------------------------------------------------------*/
-static inline void
-compute_th(const uint8_t *in, size_t in_sz,
-           uint8_t hash[SHA_256_DIGEST_LENGTH])
-{
-  sha_256_hash(in, in_sz, hash);
-}
-/*---------------------------------------------------------------------------*/
 size_t
 edhoc_generate_cred_x(const cose_key_t *cose, uint8_t *cred, size_t cred_sz)
 {
@@ -292,7 +285,7 @@ edhoc_generate_transcript_hash_2(edhoc_context_t *ctx, const uint8_t *eph_pub,
   EDHOC_DBG_VALUE("Input MSG_1", msg, msg_sz);
 
   uint8_t msg_1_hash[HASH_LEN];
-  compute_th(msg + 1, msg_sz - 1, msg_1_hash); /*FIXME: Improve skipping of CBOR true for TH */
+  sha_256_hash(msg + 1, msg_sz - 1, msg_1_hash); /*FIXME: Improve skipping of CBOR true for TH */
 
   EDHOC_TRACE_VALUE("H(MSG_1)", msg_1_hash, HASH_LEN);
   EDHOC_TRACE_VALUE("G_Y", eph_pub, ECC_KEY_LEN);
@@ -304,7 +297,7 @@ edhoc_generate_transcript_hash_2(edhoc_context_t *ctx, const uint8_t *eph_pub,
   size_t h_buf_sz = cbor_end_writer(&writer);
 
   /* Compute TH_2 */
-  compute_th(h, h_buf_sz, ctx->state.th);
+  sha_256_hash(h, h_buf_sz, ctx->state.th);
   edhoc_trace_transcript_hash("TH_2", ctx->state.th, h, h_buf_sz);
   return 0;
 }
@@ -333,7 +326,7 @@ edhoc_generate_transcript_hash_3(edhoc_context_t *ctx, const uint8_t *cred, uint
   size_t h_sz = cbor_end_writer(&writer);
 
   /* Compute TH_3 */
-  compute_th(h, h_sz, ctx->state.th);
+  sha_256_hash(h, h_sz, ctx->state.th);
   edhoc_trace_transcript_hash("TH_3", ctx->state.th, h, h_sz);
   return 0;
 }
@@ -364,7 +357,7 @@ edhoc_generate_transcript_hash_4(edhoc_context_t *ctx, const uint8_t *cred, uint
   size_t h_sz = cbor_end_writer(&writer);
 
   /* Compute TH_4 */
-  compute_th(h, h_sz, ctx->state.th);
+  sha_256_hash(h, h_sz, ctx->state.th);
   edhoc_trace_transcript_hash("TH_4", ctx->state.th, h, h_sz);
   return 0;
 }
