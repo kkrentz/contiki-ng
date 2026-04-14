@@ -538,33 +538,17 @@ check_mac(const edhoc_context_t *ctx, const uint8_t *received_mac,
 }
 #endif /* (EDHOC_METHOD == EDHOC_METHOD3) || INITIATOR_METHOD1 || RESPONDER_METHOD2 */
 /*---------------------------------------------------------------------------*/
-static bool
-gen_gxy(edhoc_context_t *ctx, uint8_t *ikm)
-{
-  bool success = ecdh_generate_ikm(ctx->config.ecdh_curve,
-                                   ctx->state.gx,
-                                   ctx->creds.ephemeral_key.priv,
-                                   ikm);
-  if(!success) {
-    LOG_ERR("error in generate shared secret\n");
-    return false;
-  }
-  LOG_DBG("GXY (%d bytes): ", ECC_KEY_LEN);
-  LOG_DBG_BYTES(ikm, ECC_KEY_LEN);
-  LOG_DBG_("\n");
-  return true;
-}
-/*---------------------------------------------------------------------------*/
 bool
 edhoc_generate_prk_2e(edhoc_context_t *ctx)
 {
   uint8_t ikm[ECC_KEY_LEN];
 
-  bool success = gen_gxy(ctx, ikm);
-  if(!success) {
+  if(!ecdh_generate_ikm(ctx->config.ecdh_curve, ctx->state.gx,
+                         ctx->creds.ephemeral_key.priv, ikm)) {
     LOG_ERR("Failed to generate shared secret for PRK_2e\n");
     return false;
   }
+  EDHOC_DBG_VALUE("GXY", ikm, ECC_KEY_LEN);
 
   sha_256_hkdf_extract(ctx->state.th, HASH_LEN, ikm, ECC_KEY_LEN,
                        ctx->state.prk_2e);
