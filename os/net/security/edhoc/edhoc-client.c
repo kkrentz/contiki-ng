@@ -50,20 +50,24 @@
 #define LOG_LEVEL LOG_LEVEL_EDHOC
 
 /*---------------------------------------------------------------------------*/
-/* EDHOC Client protocol states */
-#define NON_MSG 0
-#define RX_MSG2 4
-#define RX_RESPONSE_MSG3 5
-#define EXP_READY 6
+/* Protocol states (stored in client->state). */
+enum edhoc_protocol_state {
+  PROTO_IDLE          = 0,
+  PROTO_RX_MSG2       = 1,
+  PROTO_RX_RSP_MSG3   = 2,
+  PROTO_EXP_READY     = 3,
+};
 
-/* EDHOC process states */
-#define CL_TIMEOUT 2
-#define CL_RESTART 0
-#define CL_FINISHED 1
-#define CL_BLOCK1 3
-#define CL_POST 4
-#define CL_TRIES_EXPIRE 5
-#define CL_BLOCKING 7
+/* Event types (stored in edhoc_state.val). */
+enum edhoc_event_type {
+  EVT_RESTART         = 0,
+  EVT_FINISHED        = 1,
+  EVT_TIMEOUT         = 2,
+  EVT_BLOCK1          = 3,
+  EVT_POST            = 4,
+  EVT_TRIES_EXPIRE    = 5,
+  EVT_BLOCKING        = 6,
+};
 /*---------------------------------------------------------------------------*/
 /* For use of block-wise post and answer */
 static coap_callback_request_state_t state;
@@ -104,11 +108,11 @@ edhoc_client_callback(process_event_t ev, void *data)
 {
   if(ev == edhoc_event && data == &edhoc_state) {
     LOG_DBG("client callback: ev=%d, state=%d\n", ev, edhoc_state.val);
-    if(edhoc_state.val == CL_FINISHED) {
+    if(edhoc_state.val == EVT_FINISHED) {
       LOG_INFO("client callback: CL_FINISHED\n");
       return 1;
     }
-    if(edhoc_state.val == CL_TRIES_EXPIRE) {
+    if(edhoc_state.val == EVT_TRIES_EXPIRE) {
       LOG_WARN("client callback: CL_TRIES_EXPIRE\n");
       return -1;
     }
@@ -172,7 +176,7 @@ client_timeout_callback(coap_timer_t *timer)
 {
   LOG_ERR("EDHOC client timeout: no response received\n");
   coap_timer_stop(timer);
-  edhoc_state.val = CL_TIMEOUT;
+  edhoc_state.val = EVT_TIMEOUT;
   process_post(&edhoc_client, edhoc_event, &edhoc_state);
 }
 /*---------------------------------------------------------------------------*/
@@ -240,7 +244,7 @@ validate_response(coap_callback_request_state_t *callback_state)
     return true;
   }
 
-  edhoc_state.val = CL_RESTART;
+  edhoc_state.val = EVT_RESTART;
   coap_timer_stop(&timer);
   process_post(&edhoc_client, edhoc_event, &edhoc_state);
   return false;
@@ -263,7 +267,7 @@ client_response_handler(coap_callback_request_state_t *callback_state)
                         rx_ptr, &rx_sz, EDHOC_MAX_PAYLOAD_LEN);
   if(!callback_state->state.more) {
     edhoc_ctx->buffers.rx_sz = (uint8_t)rx_sz;
-    edhoc_state.val = CL_BLOCKING;
+    edhoc_state.val = EVT_BLOCKING;
     process_post(PROCESS_BROADCAST, edhoc_event, &edhoc_state);
   }
 }
@@ -275,7 +279,7 @@ client_chunk_handler(coap_callback_request_state_t *callback_state)
     return;
   }
 
-  edhoc_state.val = CL_BLOCK1;
+  edhoc_state.val = EVT_BLOCK1;
   process_post(&edhoc_client, edhoc_event, &edhoc_state);
 }
 /*---------------------------------------------------------------------------*/
@@ -353,7 +357,7 @@ handle_msg2_error(int err)
   if(edhoc_ctx->buffers.tx_sz == 0) {
     LOG_ERR("Failed to generate error message\n");
   }
-  client->state = NON_MSG;
+  client->state = PROTO_IDLE;
   edhoc_client_post();
   edhoc_client_post_blocks();
 }
@@ -369,7 +373,7 @@ edhoc_send_msg1(uint8_t *ad, uint8_t ad_sz, bool suite_array)
     return -1;
   }
   edhoc_client_post();
-  client->state = RX_MSG2;
+  client->state = PROTO_RX_MSG2;
   return edhoc_client_post_blocks();
 }
 /*---------------------------------------------------------------------------*/
@@ -409,12 +413,12 @@ handle_rx_msg2(edhoc_client_t *client, edhoc_msg_2_t *msg2)
 
   /* Generate MSG3 */
   if(generate_msg3_response() < 0) {
-    client->state = CL_RESTART;
+    client->state = PROTO_IDLE;
     return -1;
   }
 
   client->rx_msg2 = true;
-  client->state = RX_RESPONSE_MSG3;
+  client->state = PROTO_RX_RSP_MSG3;
   client->tx_msg3 = true;
   edhoc_client_post();
   edhoc_client_post_blocks();
@@ -428,8 +432,8 @@ handle_rx_response_msg3(edhoc_client_t *client)
     edhoc_error_t error = edhoc_check_err_rx_msg(3, edhoc_ctx->buffers.msg_rx,
                                                   edhoc_ctx->buffers.rx_sz);
     if(error != EDHOC_SUCCESS) {
-      edhoc_state.val = CL_RESTART;
-      client->state = NON_MSG;
+      edhoc_state.val = EVT_RESTART;
+      client->state = PROTO_IDLE;
       coap_timer_stop(&timer);
       process_post(&edhoc_client, edhoc_event, &edhoc_state);
       return -1;
@@ -441,14 +445,14 @@ handle_rx_response_msg3(edhoc_client_t *client)
     client->rx_msg3_response = true;
   } else {
     LOG_ERR("The EDHOC process escape steps\n");
-    edhoc_state.val = CL_RESTART;
+    edhoc_state.val = EVT_RESTART;
     coap_timer_stop(&timer);
     process_post(&edhoc_client, edhoc_event, &edhoc_state);
     return -1;
   }
 
-  /* Fall through to EXP_READY - execute it immediately */
-  client->state = EXP_READY;
+  /* Fall through to PROTO_EXP_READY - execute it immediately */
+  client->state = PROTO_EXP_READY;
   return handle_exp_ready(client);
 }
 
@@ -457,7 +461,7 @@ handle_exp_ready(edhoc_client_t *client)
 {
   EDHOC_TRACE_STEP("key export ready");
   edhoc_trace_session_summary(edhoc_ctx);
-  edhoc_state.val = CL_FINISHED;
+  edhoc_state.val = EVT_FINISHED;
   coap_timer_stop(&timer);
   process_post(PROCESS_BROADCAST, edhoc_event, &edhoc_state);
   return 0;
@@ -468,13 +472,13 @@ static void
 edhoc_client_protocol_run(void)
 {
   switch(client->state) {
-  case RX_MSG2:
+  case PROTO_RX_MSG2:
     handle_rx_msg2(client, &msg2);
     break;
-  case RX_RESPONSE_MSG3:
+  case PROTO_RX_RSP_MSG3:
     handle_rx_response_msg3(client);
     break;
-  case EXP_READY:
+  case PROTO_EXP_READY:
     handle_exp_ready(client);
     break;
   default:
@@ -549,7 +553,7 @@ handle_retry(struct etimer *wait_timer, uint8_t *attempt)
     (*attempt)++;
   } else {
     LOG_ERR("Expire EDHOC client attempts\n");
-    edhoc_state.val = CL_TRIES_EXPIRE;
+    edhoc_state.val = EVT_TRIES_EXPIRE;
     process_post(PROCESS_BROADCAST, edhoc_event, &edhoc_state);
   }
 }
@@ -586,8 +590,8 @@ PROCESS_THREAD(edhoc_client, ev, data)
   while(1) {
     PROCESS_WAIT_EVENT();
     if(ev == edhoc_event && data == &edhoc_state) {
-      if(edhoc_state.val == CL_RESTART || edhoc_state.val == CL_TIMEOUT) {
-        LOG_ERR("%s\n", edhoc_state.val == CL_RESTART ? "Error" : "Expire timeout");
+      if(edhoc_state.val == EVT_RESTART || edhoc_state.val == EVT_TIMEOUT) {
+        LOG_ERR("%s\n", edhoc_state.val == EVT_RESTART ? "Error" : "Expire timeout");
         handle_retry(&wait_timer, &attempt);
         if(attempt < EDHOC_CONF_ATTEMPTS) {
           PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&wait_timer));
@@ -597,17 +601,17 @@ PROCESS_THREAD(edhoc_client, ev, data)
         } else {
           break;
         }
-      } else if(edhoc_state.val == CL_FINISHED) {
+      } else if(edhoc_state.val == EVT_FINISHED) {
         LOG_INFO("Client has finished\n");
         break;
-      } else if(edhoc_state.val == CL_BLOCK1) {
+      } else if(edhoc_state.val == EVT_BLOCK1) {
         edhoc_client_post_blocks();
-      } else if(edhoc_state.val == CL_POST) {
+      } else if(edhoc_state.val == EVT_POST) {
         edhoc_client_post();
         edhoc_client_post_blocks();
-      } else if(edhoc_state.val == CL_BLOCKING) {
+      } else if(edhoc_state.val == EVT_BLOCKING) {
         edhoc_client_protocol_run();
-      } else if(edhoc_state.val == CL_TRIES_EXPIRE) {
+      } else if(edhoc_state.val == EVT_TRIES_EXPIRE) {
         break;
       }
     }

@@ -112,8 +112,8 @@ typedef struct edhoc_data_event {
  *  This function must be called from the EDHOC Initiator program to start the EDHOC protocol
  *  as Initiator. Runs a new process that implements all the EDHOC protocol and exits
  *  when the EDHOC protocol finishes successfully or expire the EDHOC_CONF_ATTEMPTS.
- *  - When the EDHOC protocol finishes successfully a CL_FINISHED event is triggered.
- *  - When the EDHOC protocol expires the EDHOC_CONF_ATTEMPTS attempts a CL_TRIES_EXPIRE event is triggered
+ *  - When the EDHOC protocol finishes successfully a EVT_FINISHED event is triggered.
+ *  - When the EDHOC protocol expires the EDHOC_CONF_ATTEMPTS attempts a EVT_TRIES_EXPIRE event is triggered
  */
 void edhoc_client_run(void);
 
@@ -126,7 +126,7 @@ void edhoc_client_run(void);
  * \retval 0 if the event is not from EDHOC Client process or the EDHOC client process has not finished yet
  *
  *  This function checks the events trigger from the EDHOC client process looking for the
- *  CL_FINISHED or CL_TRIES_EXPIRE events.
+ *  EVT_FINISHED or EVT_TRIES_EXPIRE events.
  */
 int8_t edhoc_client_callback(process_event_t ev, void *data);
 
