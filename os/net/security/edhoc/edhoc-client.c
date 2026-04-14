@@ -38,6 +38,8 @@
  */
 
 #include "contiki.h"
+#include "coap-callback-api.h"
+#include "coap-timer.h"
 #include "edhoc-client.h"
 #include "edhoc-msg-generators.h"
 #include "edhoc-msg-handlers.h"

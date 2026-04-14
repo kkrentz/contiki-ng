@@ -52,6 +52,7 @@
 #include "coap-engine.h"
 #include "edhoc-client.h"
 #include "edhoc-error.h"
+#include "edhoc-exporter.h"
 #include "edhoc-cred-rfc9529.h"
 
 #include "sys/log.h"

@@ -46,12 +46,7 @@
 #define EDHOC_CLIENT_H_
 
 #include "coap-engine.h"
-#include "contiki-lib.h"
-#include "edhoc-exporter.h"
 #include "edhoc.h"
-#include "coap-timer.h"
-#include "coap-callback-api.h"
-#include "coap-blocking-api.h"
 
 /**
  * \brief The CoAP Server IP where run the EDHOC Responder
