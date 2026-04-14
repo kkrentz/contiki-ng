@@ -71,17 +71,13 @@ edhoc_check_key_list_identity(char *identity, uint8_t identity_size,
     return EDHOC_ERR_INVALID_LENGTH;
   }
 
-  int remaining_keys = list_length(key_list);
-  cose_key_t *current_key = list_head(key_list);
-  while(remaining_keys > 0) {
-    if(current_key != NULL && memcmp(current_key->identity, identity, (size_t)identity_size) == 0) {
-      if(current_key->identity_sz == identity_size) {
-        *authentication_key = current_key;
-        return EDHOC_SUCCESS;
-      }
+  cose_key_t *key;
+  for(key = list_head(key_list); key != NULL; key = list_item_next(key)) {
+    if(key->identity_sz == identity_size &&
+       memcmp(key->identity, identity, identity_size) == 0) {
+      *authentication_key = key;
+      return EDHOC_SUCCESS;
     }
-    remaining_keys--;
-    current_key = list_item_next(current_key);
   }
   return EDHOC_ERR_KEY_NOT_FOUND;
 }
@@ -97,17 +93,13 @@ edhoc_check_key_list_kid(uint8_t *key_id, uint8_t key_id_size, cose_key_t **auth
     return EDHOC_ERR_INVALID_LENGTH;
   }
 
-  int remaining_keys = list_length(key_list);
-  cose_key_t *current_key = list_head(key_list);
-  while(remaining_keys > 0) {
-    if(current_key != NULL && key_id_size == current_key->kid_sz) {
-      if(memcmp(current_key->kid, key_id, (size_t)key_id_size) == 0) {
-        *authentication_key = current_key;
-        return EDHOC_SUCCESS;
-      }
+  cose_key_t *key;
+  for(key = list_head(key_list); key != NULL; key = list_item_next(key)) {
+    if(key->kid_sz == key_id_size &&
+       memcmp(key->kid, key_id, key_id_size) == 0) {
+      *authentication_key = key;
+      return EDHOC_SUCCESS;
     }
-    remaining_keys--;
-    current_key = list_item_next(current_key);
   }
   return EDHOC_ERR_KEY_NOT_FOUND;
 }
