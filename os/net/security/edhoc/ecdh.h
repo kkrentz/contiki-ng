@@ -74,4 +74,30 @@ bool ecdh_generate_ikm(uint8_t curve_id,
                        const uint8_t *peer_x,
                        const uint8_t *private_key, uint8_t *ikm);
 
+/**
+ * \brief             Generates an ECDSA signature for a message hash.
+ * \param curve_id    The EDHOC curve identifier (e.g. \c EDHOC_CURVE_P256).
+ * \param hash        The message hash (\c ECC_KEY_LEN bytes).
+ * \param private_key The signer's private key (\c ECC_KEY_LEN bytes).
+ * \param signature   Output buffer for the signature (\c 2*ECC_KEY_LEN bytes).
+ * \return            true on success, false on error.
+ */
+bool ecc_sign_hash(uint8_t curve_id,
+                   const uint8_t *hash,
+                   const uint8_t *private_key,
+                   uint8_t *signature);
+
+/**
+ * \brief             Verifies an ECDSA signature of a message hash.
+ * \param curve_id    The EDHOC curve identifier (e.g. \c EDHOC_CURVE_P256).
+ * \param hash        The message hash (\c ECC_KEY_LEN bytes).
+ * \param public_key  The signer's public key (\c 2*ECC_KEY_LEN bytes).
+ * \param signature   The signature to verify (\c 2*ECC_KEY_LEN bytes).
+ * \return            true if the signature is valid, false otherwise.
+ */
+bool ecc_verify_hash(uint8_t curve_id,
+                     const uint8_t *hash,
+                     const uint8_t *public_key,
+                     const uint8_t *signature);
+
 #endif /* _ECDH_H_ */

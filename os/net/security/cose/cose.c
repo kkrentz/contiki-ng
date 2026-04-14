@@ -43,10 +43,10 @@
 
 #include "contiki.h"
 #include "cose.h"
+#include "ecdh.h"
 #include "lib/cbor.h"
 #include "lib/ccm-star.h"
 #include "lib/sha-256.h"
-#include "uECC.h"
 #include <string.h>
 
 #include "sys/log.h"
@@ -231,7 +231,7 @@ cose_sign1_sign(int8_t alg, const uint8_t *private_key,
   uint8_t hash[HASH_LEN];
   sha_256_hash(sig_struct, sig_struct_len, hash);
 
-  if(!uECC_sign(private_key, hash, sizeof(hash), signature, uECC_secp256r1())) {
+  if(!ecc_sign_hash(EDHOC_CURVE_P256, hash, private_key, signature)) {
     LOG_ERR("COSE_Sign1 signature generation failed\n");
     return 0;
   }
@@ -269,7 +269,7 @@ cose_sign1_verify(int8_t alg, const uint8_t *public_key,
   uint8_t hash[HASH_LEN];
   sha_256_hash(sig_struct, sig_struct_len, hash);
 
-  if(uECC_verify(public_key, hash, sizeof(hash), signature, uECC_secp256r1()) != 1) {
+  if(!ecc_verify_hash(EDHOC_CURVE_P256, hash, public_key, signature)) {
     LOG_ERR("COSE_Sign1 signature verification failed\n");
     return false;
   }

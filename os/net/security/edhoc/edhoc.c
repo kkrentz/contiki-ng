@@ -62,13 +62,13 @@
 edhoc_context_t *edhoc_ctx;
 
 MEMB(edhoc_context_storage, edhoc_context_t, 1);
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 void
 edhoc_storage_init(void)
 {
   memb_init(&edhoc_context_storage);
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 edhoc_context_t *
 edhoc_new(void)
 {
@@ -78,13 +78,13 @@ edhoc_new(void)
   }
   return ctx;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 void
 edhoc_finalize(edhoc_context_t *ctx)
 {
   memb_free(&edhoc_context_storage, ctx);
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 uint8_t
 edhoc_setup_suites(edhoc_context_t *ctx)
 {
@@ -114,7 +114,7 @@ edhoc_setup_suites(edhoc_context_t *ctx)
   }
   return 1;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static int8_t
 get_edhoc_mac_len(uint8_t ciphersuite_id)
 {
@@ -136,7 +136,7 @@ get_edhoc_mac_len(uint8_t ciphersuite_id)
     return 0;
   }
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static int8_t
 get_edhoc_aead_enc_alg(uint8_t ciphersuite_id)
 {
@@ -153,7 +153,7 @@ get_edhoc_aead_enc_alg(uint8_t ciphersuite_id)
     return 0;
   }
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static int8_t
 get_edhoc_curve(uint8_t ciphersuite_id)
 {
@@ -167,7 +167,7 @@ get_edhoc_curve(uint8_t ciphersuite_id)
     return 0;
   }
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static int8_t
 get_edhoc_sign_alg(uint8_t ciphersuite_id)
 {
@@ -183,7 +183,7 @@ get_edhoc_sign_alg(uint8_t ciphersuite_id)
     return 0;
   }
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 int8_t
 edhoc_set_config_from_suite(edhoc_context_t *ctx, uint8_t suite)
 {
@@ -205,14 +205,14 @@ edhoc_set_config_from_suite(edhoc_context_t *ctx, uint8_t suite)
 
   return 1;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static inline void
 compute_th(const uint8_t *in, size_t in_sz,
            uint8_t hash[SHA_256_DIGEST_LENGTH])
 {
   sha_256_hash(in, in_sz, hash);
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 size_t
 edhoc_generate_cred_x(const cose_key_t *cose, uint8_t *cred, size_t cred_sz)
 {
@@ -244,7 +244,7 @@ edhoc_generate_cred_x(const cose_key_t *cose, uint8_t *cred, size_t cred_sz)
   cbor_close_map(&writer);
   return cbor_end_writer(&writer);
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 size_t
 edhoc_generate_id_cred_x(const cose_key_t *cose, uint8_t *cred, size_t cred_sz)
 {
@@ -269,7 +269,7 @@ edhoc_generate_id_cred_x(const cose_key_t *cose, uint8_t *cred, size_t cred_sz)
   }
   return 0;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static size_t
 generate_info(uint8_t info_label, const uint8_t *context, uint8_t context_sz,
               uint8_t length, uint8_t *info, size_t info_sz)
@@ -281,7 +281,7 @@ generate_info(uint8_t info_label, const uint8_t *context, uint8_t context_sz,
   cbor_write_unsigned(&writer, length);
   return cbor_end_writer(&writer);
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 int8_t
 edhoc_generate_transcript_hash_2(edhoc_context_t *ctx, const uint8_t *eph_pub,
               uint8_t *msg, uint16_t msg_sz)
@@ -308,7 +308,7 @@ edhoc_generate_transcript_hash_2(edhoc_context_t *ctx, const uint8_t *eph_pub,
   edhoc_trace_transcript_hash("TH_2", ctx->state.th, h, h_buf_sz);
   return 0;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 uint8_t
 edhoc_generate_transcript_hash_3(edhoc_context_t *ctx, const uint8_t *cred, uint16_t cred_sz,
               const uint8_t *plaintext, uint16_t plaintext_sz)
@@ -337,7 +337,7 @@ edhoc_generate_transcript_hash_3(edhoc_context_t *ctx, const uint8_t *cred, uint
   edhoc_trace_transcript_hash("TH_3", ctx->state.th, h, h_sz);
   return 0;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 uint8_t
 edhoc_generate_transcript_hash_4(edhoc_context_t *ctx, const uint8_t *cred, uint16_t cred_sz,
               const uint8_t *plaintext, uint16_t plaintext_sz)
@@ -368,14 +368,14 @@ edhoc_generate_transcript_hash_4(edhoc_context_t *ctx, const uint8_t *cred, uint
   edhoc_trace_transcript_hash("TH_4", ctx->state.th, h, h_sz);
   return 0;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 void
 edhoc_print_session_info(const edhoc_context_t *ctx)
 {
   /* Use the enhanced session summary instead */
   edhoc_trace_session_summary(ctx);
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 int16_t
 edhoc_kdf(const uint8_t *prk, uint8_t info_label, const uint8_t *context,
           uint8_t context_sz, uint16_t length, uint8_t *result)
@@ -408,7 +408,7 @@ edhoc_kdf(const uint8_t *prk, uint8_t info_label, const uint8_t *context,
   }
   return ret;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 int16_t
 edhoc_expand(const uint8_t *prk, const uint8_t *info, uint16_t info_sz,
              uint16_t length, uint8_t *result)
@@ -419,7 +419,7 @@ edhoc_expand(const uint8_t *prk, const uint8_t *info, uint16_t info_sz,
   sha_256_hkdf_expand(prk, ECC_KEY_LEN, info, info_sz, result, length);
   return length;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 uint8_t
 edhoc_calc_mac(const edhoc_context_t *ctx, uint8_t mac_num,
                uint8_t mac_len, uint8_t *mac)
@@ -501,7 +501,7 @@ edhoc_calc_mac(const edhoc_context_t *ctx, uint8_t mac_num,
 
   return 1;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 #if (EDHOC_METHOD == EDHOC_METHOD3) || INITIATOR_METHOD1 || RESPONDER_METHOD2
 static uint16_t
 check_mac(const edhoc_context_t *ctx, const uint8_t *received_mac,
@@ -544,7 +544,7 @@ check_mac(const edhoc_context_t *ctx, const uint8_t *received_mac,
   return mac_sz;
 }
 #endif /* (EDHOC_METHOD == EDHOC_METHOD3) || INITIATOR_METHOD1 || RESPONDER_METHOD2 */
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 static bool
 gen_gxy(edhoc_context_t *ctx, uint8_t *ikm)
 {
@@ -561,15 +561,13 @@ gen_gxy(edhoc_context_t *ctx, uint8_t *ikm)
   LOG_DBG_("\n");
   return true;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 bool
 edhoc_generate_prk_2e(edhoc_context_t *ctx)
 {
   uint8_t ikm[ECC_KEY_LEN];
 
-  watchdog_periodic();
   bool success = gen_gxy(ctx, ikm);
-  watchdog_periodic();
   if(!success) {
     LOG_ERR("Failed to generate shared secret for PRK_2e\n");
     return false;
@@ -580,7 +578,7 @@ edhoc_generate_prk_2e(edhoc_context_t *ctx)
   edhoc_trace_prk_derivation("PRK_2e", ctx->state.prk_2e, ctx->state.th, ikm);
   return true;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 /* Derive KEYSTREAM_2 */
 int16_t
 edhoc_generate_keystream_2e(edhoc_context_t *ctx, uint16_t length, uint8_t *ks_2e)
@@ -593,7 +591,7 @@ edhoc_generate_keystream_2e(edhoc_context_t *ctx, uint16_t length, uint8_t *ks_2
   EDHOC_DBG_VALUE("KEYSTREAM_2", ks_2e, length);
   return 1;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 #if (EDHOC_METHOD == EDHOC_METHOD3) || INITIATOR_METHOD1 || RESPONDER_METHOD2
 bool
 edhoc_generate_prk_3e2m(edhoc_context_t *ctx, const ecc_key_t *auth_key, uint8_t gen)
@@ -638,7 +636,7 @@ edhoc_generate_prk_3e2m(edhoc_context_t *ctx, const ecc_key_t *auth_key, uint8_t
   return true;
 }
 #endif /* (EDHOC_METHOD == EDHOC_METHOD3) || INITIATOR_METHOD1 || RESPONDER_METHOD2 */
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 #if (EDHOC_METHOD == EDHOC_METHOD2) || (EDHOC_METHOD == EDHOC_METHOD3) || INITIATOR_METHOD1 || RESPONDER_METHOD2
 bool
 edhoc_generate_prk_4e3m(edhoc_context_t *ctx, const ecc_key_t *auth_key, uint8_t gen)
@@ -685,7 +683,7 @@ edhoc_generate_prk_4e3m(edhoc_context_t *ctx, const ecc_key_t *auth_key, uint8_t
 }
 #endif /* (EDHOC_METHOD == EDHOC_METHOD2) || (EDHOC_METHOD == EDHOC_METHOD3) ||
 INITIATOR_METHOD1 || RESPONDER_METHOD2 */
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 int16_t
 edhoc_enc_dec_ciphertext_2(const edhoc_context_t *ctx, const uint8_t *ks_2e,
                            uint8_t *plaintext, uint16_t plaintext_sz)
@@ -708,7 +706,7 @@ edhoc_enc_dec_ciphertext_2(const edhoc_context_t *ctx, const uint8_t *ks_2e,
 
   return plaintext_sz;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 uint8_t
 edhoc_initialize_context(edhoc_context_t *ctx)
 {
@@ -763,7 +761,7 @@ edhoc_initialize_context(edhoc_context_t *ctx)
 
   return 1;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 uint8_t
 edhoc_get_own_auth_key(edhoc_context_t *ctx, cose_key_t **key)
 {
@@ -804,7 +802,7 @@ edhoc_get_own_auth_key(edhoc_context_t *ctx, cose_key_t **key)
   LOG_ERR("No matching key found in the storage\n");
   return 0;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 uint8_t
 edhoc_generate_error_message(uint8_t *msg_er, size_t msg_er_sz,
                     const edhoc_context_t *ctx, int8_t err)
@@ -887,7 +885,7 @@ edhoc_generate_error_message(uint8_t *msg_er, size_t msg_er_sz,
   LOG_DBG_("\n");
   return err_sz;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 int
 edhoc_authenticate_msg(edhoc_context_t *ctx, uint8_t *ad, bool msg2)
 {
@@ -1023,7 +1021,7 @@ edhoc_authenticate_msg(edhoc_context_t *ctx, uint8_t *ad, bool msg2)
 
   return ad_sz;
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 void
 edhoc_print_config_summary(const edhoc_context_t *ctx)
 {
@@ -1039,16 +1037,16 @@ edhoc_print_config_summary(const edhoc_context_t *ctx)
   LOG_INFO("ECDH Curve: %s\n", ctx->config.ecdh_curve == 1 ? "P-256" : "Unknown");
   LOG_INFO("AEAD Algorithm: %d\n", ctx->config.aead_alg);
   LOG_INFO("MAC Length: %d\n", ctx->config.mac_len);
-  
+
   if(ctx->creds.authen_key != NULL) {
-    LOG_INFO("Own Authentication Key: KID=%02x, Identity=%.*s\n", 
-             ctx->creds.authen_key->kid[0], 
-             ctx->creds.authen_key->identity_sz, 
+    LOG_INFO("Own Authentication Key: KID=%02x, Identity=%.*s\n",
+             ctx->creds.authen_key->kid[0],
+             ctx->creds.authen_key->identity_sz,
              ctx->creds.authen_key->identity);
   } else {
     LOG_INFO("Own Authentication Key: Not set\n");
   }
-  
+
   LOG_INFO("Own Connection ID: ");
   if(ctx->state.cid_len > 0) {
     for(int i = 0; i < ctx->state.cid_len; i++) {
@@ -1058,7 +1056,7 @@ edhoc_print_config_summary(const edhoc_context_t *ctx)
   } else {
     LOG_INFO_("Not set\n");
   }
-  
+
   LOG_INFO("Peer Connection ID: ");
   if(ctx->state.cid_rx_len > 0) {
     for(int i = 0; i < ctx->state.cid_rx_len; i++) {
@@ -1068,7 +1066,7 @@ edhoc_print_config_summary(const edhoc_context_t *ctx)
   } else {
     LOG_INFO_("Not set\n");
   }
-  
+
   LOG_INFO("===================================\n");
 }
-/*----------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/

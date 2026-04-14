@@ -170,3 +170,61 @@ ecdh_generate_ikm(uint8_t curve_id,
   return true;
 }
 /*---------------------------------------------------------------------------*/
+bool
+ecc_sign_hash(uint8_t curve_id,
+              const uint8_t *hash,
+              const uint8_t *private_key,
+              uint8_t *signature)
+{
+  const ecc_curve_t *curve = get_curve(curve_id);
+  if(!curve) {
+    return false;
+  }
+  if(!acquire_ecc(curve)) {
+    return false;
+  }
+
+  int result = -1;
+  PT_INIT(ecc_get_protothread());
+  while(PT_SCHEDULE(ecc_sign(hash, private_key, signature, &result))) {
+    watchdog_periodic();
+  }
+
+  ecc_disable();
+
+  if(result != 0) {
+    LOG_ERR("ecc_sign() failed (%d)\n", result);
+    return false;
+  }
+  return true;
+}
+/*---------------------------------------------------------------------------*/
+bool
+ecc_verify_hash(uint8_t curve_id,
+                const uint8_t *hash,
+                const uint8_t *public_key,
+                const uint8_t *signature)
+{
+  const ecc_curve_t *curve = get_curve(curve_id);
+  if(!curve) {
+    return false;
+  }
+  if(!acquire_ecc(curve)) {
+    return false;
+  }
+
+  int result = -1;
+  PT_INIT(ecc_get_protothread());
+  while(PT_SCHEDULE(ecc_verify(signature, hash, public_key, &result))) {
+    watchdog_periodic();
+  }
+
+  ecc_disable();
+
+  if(result != 0) {
+    LOG_ERR("ecc_verify() failed (%d)\n", result);
+    return false;
+  }
+  return true;
+}
+/*---------------------------------------------------------------------------*/
