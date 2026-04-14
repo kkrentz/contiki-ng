@@ -230,60 +230,48 @@ client_block2_handler(coap_message_t *response, uint8_t *target,
   return 0;
 }
 /*---------------------------------------------------------------------------*/
-static void
-client_response_handler(coap_callback_request_state_t *callback_state)
+static bool
+validate_response(coap_callback_request_state_t *callback_state)
 {
   if(callback_state->state.response == NULL) {
-    LOG_WARN("Request timed out response\n");
-    return;
+    LOG_WARN("Request timed out\n");
+    return false;
   }
 
   if(memcmp(callback_state->state.request->token,
             callback_state->state.response->token,
-            callback_state->state.request->token_len)) {
-    LOG_ERR("rx response not correlated\n");
-    edhoc_state.val = CL_RESTART;
-    coap_timer_stop(&timer);
-    process_post(&edhoc_client, edhoc_event, &edhoc_state);
-    return;
+            callback_state->state.request->token_len) != 0) {
+    LOG_ERR("Response token mismatch\n");
+  } else if(memcmp(&client->server_ep.ipaddr,
+                    &callback_state->state.remote_endpoint->ipaddr,
+                    sizeof(uip_ipaddr_t)) != 0) {
+    LOG_ERR("Response from unexpected server\n");
+  } else {
+    return true;
   }
 
-  /* Check that the response are coming from the correct server */
-  if(memcmp(&client->server_ep.ipaddr,
-            &callback_state->state.remote_endpoint->ipaddr,
-            sizeof(uip_ipaddr_t)) != 0) {
-    LOG_ERR("rx response from an error server\n");
-    edhoc_state.val = CL_RESTART;
-    coap_timer_stop(&timer);
-    process_post(&edhoc_client, edhoc_event, &edhoc_state);
+  edhoc_state.val = CL_RESTART;
+  coap_timer_stop(&timer);
+  process_post(&edhoc_client, edhoc_event, &edhoc_state);
+  return false;
+}
+/*---------------------------------------------------------------------------*/
+static void
+client_response_handler(coap_callback_request_state_t *callback_state)
+{
+  if(!validate_response(callback_state)) {
     return;
   }
 
   if(callback_state->state.response->code != CHANGED_2_04) {
-    LOG_WARN("The code responds received is not CHANGED_2_04\n");
+    LOG_WARN("Response code is not CHANGED_2_04\n");
   }
 
   coap_set_option(callback_state->state.response, COAP_OPTION_BLOCK2);
 
-  LOG_DBG("Blockwise: block 2 response: Num: %" PRIu32
-          ", More: %u, Size: %u, Offset: %" PRIu32 "\n",
-          callback_state->state.response->block2_num,
-          callback_state->state.response->block2_more,
-          callback_state->state.response->block2_size,
-          callback_state->state.response->block2_offset);
-  LOG_DBG("Blockwise: block 1 response: Num: %" PRIu32
-          ", More: %u, Size: %u, Offset: %" PRIu32 "\n",
-          callback_state->state.response->block1_num,
-          callback_state->state.response->block1_more,
-          callback_state->state.response->block1_size,
-          callback_state->state.response->block1_offset);
-
-  if(callback_state->state.more) {
-    client_block2_handler(callback_state->state.response,
-                          rx_ptr, &rx_sz, EDHOC_MAX_PAYLOAD_LEN);
-  } else {
-    client_block2_handler(callback_state->state.response,
-                          rx_ptr, &rx_sz, EDHOC_MAX_PAYLOAD_LEN);
+  client_block2_handler(callback_state->state.response,
+                        rx_ptr, &rx_sz, EDHOC_MAX_PAYLOAD_LEN);
+  if(!callback_state->state.more) {
     edhoc_ctx->buffers.rx_sz = (uint8_t)rx_sz;
     edhoc_state.val = CL_BLOCKING;
     process_post(PROCESS_BROADCAST, edhoc_event, &edhoc_state);
@@ -293,25 +281,10 @@ client_response_handler(coap_callback_request_state_t *callback_state)
 static void
 client_chunk_handler(coap_callback_request_state_t *callback_state)
 {
-
-  if(callback_state->state.response == NULL) {
-    LOG_WARN("Request timed out chunk\n");
+  if(!validate_response(callback_state)) {
     return;
   }
-  /* Check the 5-tuple information before retrieving the protocol state */
 
-  LOG_DBG("Blockwise: block 2 response: Num: %" PRIu32
-          ", More: %u, Size: %u, Offset: %" PRIu32 "\n",
-          callback_state->state.response->block2_num,
-          callback_state->state.response->block2_more,
-          callback_state->state.response->block2_size,
-          callback_state->state.response->block2_offset);
-  LOG_DBG("Blockwise: block 1 response: Num: %" PRIu32
-          ", More: %u, Size: %u, Offset: %" PRIu32 "\n",
-          callback_state->state.response->block1_num,
-          callback_state->state.response->block1_more,
-          callback_state->state.response->block1_size,
-          callback_state->state.response->block1_offset);
   edhoc_state.val = CL_BLOCK1;
   process_post(&edhoc_client, edhoc_event, &edhoc_state);
 }
