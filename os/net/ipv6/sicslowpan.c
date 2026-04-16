@@ -351,6 +351,16 @@ add_fragment(uint16_t tag, uint16_t frag_size, uint8_t offset)
         clear_fragments(i);
       }
 
+      /* Reuse any existing context for this (sender, tag) so duplicate
+         FRAG1 packets cannot exhaust the reassembly table. */
+      if(frag_info[i].len > 0 && frag_info[i].tag == tag &&
+         linkaddr_cmp(&frag_info[i].sender,
+                      packetbuf_addr(PACKETBUF_ADDR_SENDER))) {
+        clear_fragments(i);
+        found = i;
+        continue;
+      }
+
       /* We use len as indication on used or not used */
       if(found < 0 && frag_info[i].len == 0) {
         /* We remember the first free fragment info but must continue
