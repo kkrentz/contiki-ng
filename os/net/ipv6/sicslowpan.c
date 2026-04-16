@@ -1101,6 +1101,9 @@ uncompress_hdr_iphc(uint8_t *buf, uint16_t buf_size, uint16_t ip_len)
 
   /* another if the CID flag is set */
   if(iphc1 & SICSLOWPAN_IPHC_CID) {
+    if(cmpr_len < packetbuf_hdr_len + 3) {
+      return false;
+    }
     LOG_DBG("uncompression: CID flag set - increase header with one\n");
     iphc_ptr++;
   }
