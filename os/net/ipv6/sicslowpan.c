@@ -319,6 +319,16 @@ store_fragment(uint8_t index, uint8_t offset)
     return -1;
   }
 
+  /* Reject duplicates: a fragment at this offset is already stored for
+     this reassembly context. Counting duplicates toward reassembled_len
+     would let the completion check fire with zero-filled gaps. */
+  for(i = 0; i < SICSLOWPAN_FRAGMENT_BUFFERS; i++) {
+    if(frag_buf[i].len > 0 && frag_buf[i].index == index &&
+       frag_buf[i].offset == offset) {
+      return 0;
+    }
+  }
+
   for(i = 0; i < SICSLOWPAN_FRAGMENT_BUFFERS; i++) {
     if(frag_buf[i].len == 0) {
       /* copy over the data from packetbuf into the fragment buffer,
@@ -408,6 +418,9 @@ add_fragment(uint16_t tag, uint16_t frag_size, uint8_t offset)
   }
   if(len > 0) {
     frag_info[i].reassembled_len += len;
+    return i;
+  } else if(len == 0) {
+    /* Duplicate fragment: already stored and accounted for. */
     return i;
   } else {
     /* should we also clear all fragments since we failed to store
