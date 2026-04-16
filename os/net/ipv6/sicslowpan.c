@@ -1340,12 +1340,12 @@ uncompress_hdr_iphc(uint8_t *buf, uint16_t buf_size, uint16_t ip_len)
 
     /* uncompress the extension header */
     exthdr = (struct uip_ext_hdr *)ip_payload;
-    exthdr->len = (UIP_EXT_HDR_LEN + len) / 8;
-    if(exthdr->len == 0) {
-      LOG_WARN("Extension header length is below 8\n");
+    if((UIP_EXT_HDR_LEN + len) < 8 || (UIP_EXT_HDR_LEN + len) % 8 != 0) {
+      LOG_WARN("Extension header length %u is not a valid multiple of 8\n",
+               (unsigned)(UIP_EXT_HDR_LEN + len));
       return false;
     }
-    exthdr->len--;
+    exthdr->len = (UIP_EXT_HDR_LEN + len) / 8 - 1;
     exthdr->next = next;
     last_nextheader = &exthdr->next;
 
