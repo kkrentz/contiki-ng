@@ -512,9 +512,13 @@ nat64_platform_tcp_close(struct nat64_session *s)
   if(s == NULL) {
     return;
   }
-  LOG_DBG("TCP close fd %d\n", s->fd);
+  LOG_DBG("TCP shutdown(WR) fd %d\n", s->fd);
+  /* Half-close: signal EOF to the IPv4 server but keep the read side
+   * open so any remaining server->IoT data can still be delivered.
+   * The session transitions to CLOSING only when the server itself
+   * closes (recv() returns 0 in generic_handle_fd) or when an explicit
+   * teardown occurs. */
   shutdown(s->fd, SHUT_WR);
-  s->tcp_state = NAT64_TCP_CLOSING;
 }
 /*---------------------------------------------------------------------------*/
 int

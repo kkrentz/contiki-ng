@@ -451,11 +451,20 @@ nat64_tcp_output(const uint8_t *pkt, uint16_t len)
   }
 
   if(tcp->flags & TCP_FIN) {
-    LOG_INFO("TCP FIN from IoT node\n");
-    ts->peer_next++;
-    ts->peer_fin_received = true;
-    nat64_platform_tcp_close(s);
-    ts->pending_ack = true;
+    if(!ts->peer_fin_received) {
+      LOG_INFO("TCP FIN from IoT node (half-close)\n");
+      ts->peer_next++;
+      ts->peer_fin_received = true;
+      /* Forward the half-close to the IPv4 server (SHUT_WR), but
+       * keep the read side open: server->IoT data can still arrive
+       * and must be delivered.  Our own FIN toward the IoT node is
+       * deferred until nat64_tcp_closed() fires when the IPv4 server
+       * eventually closes its end. */
+      nat64_platform_tcp_close(s);
+      ts->pending_ack = true;
+    } else {
+      LOG_DBG("TCP duplicate FIN from IoT node (already half-closed)\n");
+    }
   }
 
   return 1;
@@ -520,15 +529,13 @@ nat64_tcp_flush_acks(void)
 
     if(ts->pending_ack) {
       ts->pending_ack = false;
-
-      uint8_t flags = TCP_ACK;
-      if(ts->peer_fin_received) {
-        flags |= TCP_FIN;
-      }
-      inject_tcp(ts->session, ts, flags, NULL, 0);
-      if(flags & TCP_FIN) {
-        ts->our_seq++;
-      }
+      /* Pure ACK: never bundle our own FIN here, even after a peer
+       * FIN.  Our FIN toward the IoT node is emitted by
+       * nat64_tcp_closed() when the IPv4 server closes its end.
+       * Bundling FIN with this ACK would break TCP half-close
+       * semantics by actively closing the IoT-facing side as part
+       * of ACK processing. */
+      inject_tcp(ts->session, ts, TCP_ACK, NULL, 0);
     }
   }
 }
