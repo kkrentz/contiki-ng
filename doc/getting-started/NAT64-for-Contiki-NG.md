@@ -9,7 +9,49 @@ that any 6LoWPAN node can reach IPv4 hosts without running a dual stack.
 Contiki-NG includes a built-in NAT64 gateway that runs inside the native
 border router. It requires no external software, kernel modules, or
 separate DNS servers — just pass `--nat64` when starting the border
-router.
+router. There is no longer any need for Jool, TAYGA, or another
+external NAT64 implementation alongside the border router, and no
+separate DNS64 resolver: the border router process handles both.
+
+### Implementation approach and trade-offs
+
+Unlike a traditional NAT64 box, this gateway does **not** translate at
+the IPv4/IPv6 packet level. Instead, it terminates each IoT-side flow
+inside the border-router process and re-emits the payload over a
+regular **host socket** (`AF_INET`, BSD `socket()` API):
+
+- One host UDP socket per active UDP flow.
+- One host TCP socket per active TCP flow, terminated on both sides
+  (TCP splice proxy).
+- One unprivileged ICMP socket (`SOCK_DGRAM`, `IPPROTO_ICMP`) per
+  active ping flow.
+
+Practical consequences of this design:
+
+- **The gateway consumes host OS resources per session** (file
+  descriptors, kernel socket buffers). A traditional packet-level
+  NAT64 keeps only a small in-memory binding entry per flow. The
+  number of concurrent sessions is therefore capped — see
+  `NAT64_MAX_SESSIONS`, `NAT64_MAX_TCP_SESSIONS` and
+  `NAT64_MAX_SESSIONS_PER_NODE` under *Configuration*.
+- **No raw IPv4 socket and no privileged kernel features required.**
+  The native border router still needs `CAP_NET_ADMIN` for the TUN
+  device, but NAT64 itself runs with ordinary user-level sockets
+  (and with the unprivileged ICMP feature for ping).
+- **Outbound, client-initiated flows only.** IPv4 hosts cannot
+  initiate connections back to IoT nodes through the gateway (no
+  V4 INIT bindings, no hairpinning).
+- **DNS payloads are rewritten in place** (DNS64); all other UDP/TCP
+  payloads are forwarded opaquely, so DTLS works end-to-end through
+  the gateway.
+- **TCP throughput is intentionally throttled** to small ACK-paced
+  segments so each segment fits a single 802.15.4 frame without
+  6LoWPAN fragmentation. This keeps lossy-link delivery robust at
+  the cost of bulk-data throughput. See `NAT64_TCP_SEGMENT_SIZE`.
+
+For a full RFC 6146 compliance matrix and a list of intentionally
+omitted features (hairpinning, full TCP state machine, configurable
+per-protocol timeouts, ...), see `os/services/nat64/README.md`.
 
 ## How it works
 
