@@ -116,9 +116,18 @@ send_udp_probe(const uip_ipaddr_t *addr, const char *hostname)
 {
   char msg[64];
   int len;
+  size_t payload_len;
 
   len = snprintf(msg, sizeof(msg), "Hello from Contiki-NG to %s", hostname);
-  simple_udp_sendto(&udp_conn, msg, len, addr);
+  if(len < 0) {
+    payload_len = 0;
+  } else if((size_t)len >= sizeof(msg)) {
+    payload_len = sizeof(msg) - 1;
+  } else {
+    payload_len = (size_t)len;
+  }
+
+  simple_udp_sendto(&udp_conn, msg, payload_len, addr);
 
   LOG_INFO("Sent UDP probe to ");
   LOG_INFO_6ADDR(addr);
