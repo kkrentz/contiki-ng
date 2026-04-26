@@ -102,6 +102,16 @@ struct nat64_session {
 bool nat64_platform_init(void);
 
 /**
+ * \brief Check whether the NAT64 gateway has been enabled at runtime.
+ * \return true if the user passed the platform's NAT64 enable option
+ *         (e.g., `--nat64` on the native border router), false otherwise.
+ *
+ * Implemented by each platform layer alongside the option callback that
+ * sets the underlying flag.
+ */
+bool nat64_is_enabled(void);
+
+/**
  * \brief Forward a UDP payload to an IPv4 server.
  * \param dst     IPv4 destination address.
  * \param dstport Destination port (host byte order).

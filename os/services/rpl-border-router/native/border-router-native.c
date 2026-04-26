@@ -129,12 +129,9 @@ PROCESS_THREAD(border_router_process, ev, data)
   tun_init();
 
 #if BUILD_WITH_NAT64
-  {
-    bool nat64_is_enabled(void);
-    if(nat64_is_enabled()) {
-      if(!nat64_platform_init()) {
-        LOG_ERR("Failed to initialize NAT64\n");
-      }
+  if(nat64_is_enabled()) {
+    if(!nat64_platform_init()) {
+      LOG_ERR("Failed to initialize NAT64\n");
     }
   }
 #endif /* BUILD_WITH_NAT64 */
