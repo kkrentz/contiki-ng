@@ -418,7 +418,7 @@ handle_udp_output(const uint8_t *pkt, const struct v6hdr *ip6,
 
   return nat64_platform_udp_send(dst4, uip_ntohs(udp->dport),
                                  &ip6->src, uip_ntohs(udp->sport),
-                                 data, data_len);
+                                 data, data_len) >= 0 ? 1 : 0;
 }
 /*---------------------------------------------------------------------------*/
 /* ICMPv4 checksum: 16-bit one's complement over the entire ICMP message
@@ -485,7 +485,7 @@ handle_icmp6_output(const uint8_t *pkt, const struct v6hdr *ip6,
   identifier = ((uint16_t)icmp[4] << 8) | icmp[5];
 
   return nat64_platform_icmp_send(dst4, &ip6->src, identifier,
-                                  icmp_buf, payload_len);
+                                  icmp_buf, payload_len) >= 0 ? 1 : 0;
 }
 /*---------------------------------------------------------------------------*/
 int
