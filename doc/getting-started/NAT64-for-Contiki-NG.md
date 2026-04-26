@@ -65,10 +65,13 @@ NAT64 prefix. For example, to use Google DNS (`8.8.8.8`):
 ```c
 #define RESOLV_CONF_SUPPORTS_MDNS 0
 
-uip_ip6addr_t dns_server;
+#include "net/ipv6/uip-nameserver.h"
+#include "net/ipv6/ip64-addr.h"
+
+uip_ipaddr_t dns_server;
 /* 64:ff9b::808:808 = 8.8.8.8 via NAT64 */
-uip_ip6addr(&dns_server, 0x0064, 0xff9b, 0, 0, 0, 0, 0x0808, 0x0808);
-resolv_conf(&dns_server);
+uip_nat64addr(&dns_server, 8, 8, 8, 8);
+uip_nameserver_update(&dns_server, UIP_NAMESERVER_INFINITE_LIFETIME);
 ```
 
 The node can then use `resolv_query()` to look up hostnames. The border

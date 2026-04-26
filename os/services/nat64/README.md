@@ -86,11 +86,13 @@ initiate outbound connections to IPv4 servers.
 ### Design trade-offs
 
 **Flat session timeout (5 minutes):**  RFC 6146 Section 4 recommends
-TCP_EST of 7440 seconds (~2 hours).  This is impractical with 16 session
-slots — a few idle TCP connections would exhaust the table.  The 5-minute
-timeout balances session reuse against slot availability.  IoT
-applications using long-lived connections (e.g., MQTT) send keepalives
-well within this window.
+TCP_EST of 7440 seconds (~2 hours).  This is impractical for the gateway,
+which by default allows up to `NAT64_MAX_SESSIONS` sessions in total
+(128) of which `NAT64_MAX_TCP_SESSIONS` (16) may be TCP — a handful of
+idle TCP connections at the RFC timeout would exhaust the TCP portion of
+the table.  The 5-minute timeout balances session reuse against slot
+availability.  IoT applications using long-lived connections (e.g.,
+MQTT) send keepalives well within this window.
 
 **TCP splice proxy vs header translation:**  Rather than translating
 IPv6/TCP headers to IPv4/TCP headers (as a traditional NAT64 would), the
