@@ -55,8 +55,8 @@ static volatile uint8_t tx_buf_len;
  * frames while the upper layer drains them outside ISR context. */
 #define RX_BUF_COUNT NRF_802154_RX_BUFFERS
 static uint8_t *rx_bufs[RX_BUF_COUNT];
-static int8_t   rx_rssi[RX_BUF_COUNT];
-static uint8_t  rx_lqi[RX_BUF_COUNT];
+static int8_t rx_rssi[RX_BUF_COUNT];
+static uint8_t rx_lqi[RX_BUF_COUNT];
 static volatile uint8_t rx_head;  /* next slot to write into */
 static volatile uint8_t rx_tail;  /* next slot to read from */
 
@@ -75,8 +75,8 @@ static volatile uint32_t tx_fail_count;
 
 /* Current radio parameters */
 static uint8_t current_channel = DEFAULT_CHANNEL;
-static int8_t  current_tx_power = DEFAULT_TX_POWER;
-static bool    radio_is_on;
+static int8_t current_tx_power = DEFAULT_TX_POWER;
+static bool radio_is_on;
 
 /*---------------------------------------------------------------------------*/
 PROCESS(nrf54l15_radio_process, "nRF54L15 radio driver");

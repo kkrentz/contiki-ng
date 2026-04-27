@@ -22,8 +22,9 @@
 /* Only two ISRs are used by the 802.15.4 driver: RADIO and EGU10 (SWI). */
 static nrf_802154_isr_t radio_isr;
 static nrf_802154_isr_t egu10_isr;
-
-void nrf_802154_irq_init(uint32_t irqn, int32_t prio, nrf_802154_isr_t isr)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_irq_init(uint32_t irqn, int32_t prio, nrf_802154_isr_t isr)
 {
   if(prio < 0) {
     /* Match Zephyr's behaviour as closely as possible: negative priorities
@@ -36,7 +37,7 @@ void nrf_802154_irq_init(uint32_t irqn, int32_t prio, nrf_802154_isr_t isr)
 #ifdef RADIO_IRQn
      || irqn == RADIO_IRQn
 #endif
-    ) {
+     ) {
     radio_isr = isr;
   } else if(irqn == EGU10_IRQn) {
     egu10_isr = isr;
@@ -44,43 +45,49 @@ void nrf_802154_irq_init(uint32_t irqn, int32_t prio, nrf_802154_isr_t isr)
   NVIC_SetPriority((IRQn_Type)irqn, (uint32_t)prio);
   NVIC_ClearPendingIRQ((IRQn_Type)irqn);
 }
-
-void nrf_802154_irq_enable(uint32_t irqn)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_irq_enable(uint32_t irqn)
 {
   NVIC_EnableIRQ((IRQn_Type)irqn);
 }
-
-void nrf_802154_irq_disable(uint32_t irqn)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_irq_disable(uint32_t irqn)
 {
   NVIC_DisableIRQ((IRQn_Type)irqn);
 }
-
-void nrf_802154_irq_set_pending(uint32_t irqn)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_irq_set_pending(uint32_t irqn)
 {
   NVIC_SetPendingIRQ((IRQn_Type)irqn);
 }
-
-void nrf_802154_irq_clear_pending(uint32_t irqn)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_irq_clear_pending(uint32_t irqn)
 {
   NVIC_ClearPendingIRQ((IRQn_Type)irqn);
 }
-
-bool nrf_802154_irq_is_enabled(uint32_t irqn)
+/*---------------------------------------------------------------------------*/
+bool
+nrf_802154_irq_is_enabled(uint32_t irqn)
 {
   return NVIC_GetEnableIRQ((IRQn_Type)irqn) != 0;
 }
-
-uint32_t nrf_802154_irq_priority_get(uint32_t irqn)
+/*---------------------------------------------------------------------------*/
+uint32_t
+nrf_802154_irq_priority_get(uint32_t irqn)
 {
   return NVIC_GetPriority((IRQn_Type)irqn);
 }
-
 /*
  * RADIO IRQ handler -- dispatch to the ISR registered by the 802.15.4 driver.
  */
 volatile uint32_t radio_irq_count;
-
-void RADIO_0_IRQHandler(void)
+/*---------------------------------------------------------------------------*/
+void
+RADIO_0_IRQHandler(void)
 {
   radio_irq_count++;
 #if NRF_802154_INTERNAL_RADIO_IRQ_HANDLING
@@ -91,8 +98,9 @@ void RADIO_0_IRQHandler(void)
   nrf_802154_radio_irq_handler();
 #endif
 }
-
-void RADIO_1_IRQHandler(void)
+/*---------------------------------------------------------------------------*/
+void
+RADIO_1_IRQHandler(void)
 {
   radio_irq_count++;
 #if NRF_802154_INTERNAL_RADIO_IRQ_HANDLING
@@ -103,13 +111,13 @@ void RADIO_1_IRQHandler(void)
   nrf_802154_radio_irq_handler();
 #endif
 }
-
 /*
  * EGU10 IRQ handler -- used by the SWI notification/request layer.
  */
 volatile uint32_t egu10_irq_count;
-
-void EGU10_IRQHandler(void)
+/*---------------------------------------------------------------------------*/
+void
+EGU10_IRQHandler(void)
 {
   egu10_irq_count++;
 #if NRF_802154_INTERNAL_SWI_IRQ_HANDLING
@@ -120,3 +128,4 @@ void EGU10_IRQHandler(void)
   nrf_802154_swi_irq_handler();
 #endif
 }
+/*---------------------------------------------------------------------------*/

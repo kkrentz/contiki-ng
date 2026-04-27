@@ -11,18 +11,22 @@
  */
 
 #include "platform/nrf_802154_temperature.h"
-
-void nrf_802154_temperature_init(void)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_temperature_init(void)
 {
   /* Nothing to do. */
 }
-
-void nrf_802154_temperature_deinit(void)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_temperature_deinit(void)
 {
   /* Nothing to do. */
 }
-
-int8_t nrf_802154_temperature_get(void)
+/*---------------------------------------------------------------------------*/
+int8_t
+nrf_802154_temperature_get(void)
 {
   return 20; /* Fixed 20 degrees Celsius */
 }
+/*---------------------------------------------------------------------------*/

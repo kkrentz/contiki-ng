@@ -19,10 +19,14 @@
 #include <stddef.h>
 
 /* Provide empty button list */
-void *button_hal_buttons[] = {NULL};
+void *button_hal_buttons[] = { NULL };
 unsigned char button_hal_button_cnt = 0;
 
 /* Stub for v2.x API compatibility */
-void nrfx_gpiote_in_event_enable(unsigned int pin, unsigned char enable) {
+/*---------------------------------------------------------------------------*/
+void
+nrfx_gpiote_in_event_enable(unsigned int pin, unsigned char enable)
+{
   /* Stub - no buttons to enable */
 }
+/*---------------------------------------------------------------------------*/

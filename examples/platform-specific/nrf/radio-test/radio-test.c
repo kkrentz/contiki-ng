@@ -106,7 +106,7 @@ static struct shell_command_set_t radio_test_shell_set = {
   .next = NULL,
   .commands = radio_test_commands,
 };
-
+/*---------------------------------------------------------------------------*/
 static void
 reset_stats(void)
 {
@@ -129,7 +129,7 @@ reset_stats(void)
   state.last_rx_lqi = 0;
   memset(&state.last_rx_src, 0, sizeof(state.last_rx_src));
 }
-
+/*---------------------------------------------------------------------------*/
 static void
 init_state(void)
 {
@@ -141,7 +141,7 @@ init_state(void)
   state.run_remaining = 0;
   state.last_tx_status = -1;
 }
-
+/*---------------------------------------------------------------------------*/
 static const char *
 status_to_str(int status)
 {
@@ -164,7 +164,7 @@ status_to_str(int status)
     return "UNKNOWN";
   }
 }
-
+/*---------------------------------------------------------------------------*/
 static int
 hex_nibble(char c)
 {
@@ -177,7 +177,7 @@ hex_nibble(char c)
   }
   return -1;
 }
-
+/*---------------------------------------------------------------------------*/
 static bool
 parse_u32(const char *str, uint32_t *value)
 {
@@ -196,7 +196,7 @@ parse_u32(const char *str, uint32_t *value)
   *value = (uint32_t)parsed;
   return true;
 }
-
+/*---------------------------------------------------------------------------*/
 static bool
 parse_i32(const char *str, int32_t *value)
 {
@@ -215,7 +215,7 @@ parse_i32(const char *str, int32_t *value)
   *value = (int32_t)parsed;
   return true;
 }
-
+/*---------------------------------------------------------------------------*/
 static bool
 parse_lladdr(const char *str, linkaddr_t *addr)
 {
@@ -252,7 +252,7 @@ parse_lladdr(const char *str, linkaddr_t *addr)
   memcpy(addr->u8, parsed, sizeof(parsed));
   return true;
 }
-
+/*---------------------------------------------------------------------------*/
 static void
 print_status(shell_output_func output)
 {
@@ -351,7 +351,7 @@ print_status(shell_output_func output)
                nrf54l15_radio_debug.last_ack_fem_cc,
                nrf54l15_radio_debug.last_ack_arm_result);
 }
-
+/*---------------------------------------------------------------------------*/
 static void
 print_status_brief(shell_output_func output)
 {
@@ -466,7 +466,7 @@ print_status_brief(shell_output_func output)
 
   output("\n");
 }
-
+/*---------------------------------------------------------------------------*/
 static void
 queue_tx_request(uint16_t count)
 {
@@ -482,7 +482,7 @@ queue_tx_request(uint16_t count)
 
   process_poll(&radio_test_process);
 }
-
+/*---------------------------------------------------------------------------*/
 static void
 tx_done(void *ptr, int status, int transmissions)
 {
@@ -510,7 +510,6 @@ tx_done(void *ptr, int status, int transmissions)
 
   process_poll(&radio_test_process);
 }
-
 static void
 input_callback(const void *data, uint16_t len, const linkaddr_t *src,
                const linkaddr_t *dest)
@@ -544,7 +543,7 @@ input_callback(const void *data, uint16_t len, const linkaddr_t *src,
   state.rx_event_pending = true;
   process_poll(&radio_test_process);
 }
-
+/*---------------------------------------------------------------------------*/
 static void
 update_timer(struct etimer *periodic_timer, bool *timer_active)
 {
@@ -566,7 +565,7 @@ update_timer(struct etimer *periodic_timer, bool *timer_active)
 
   state.timer_dirty = false;
 }
-
+/*---------------------------------------------------------------------------*/
 static void
 try_send_packet(void)
 {
@@ -604,8 +603,8 @@ try_send_packet(void)
   state.tx_busy = true;
 
   NETSTACK_MAC.send(tx_done, NULL);
+/*---------------------------------------------------------------------------*/
 }
-
 static PT_THREAD(cmd_radio_test(struct pt *pt, shell_output_func output, char *args))
 {
   char *next_args;
@@ -844,6 +843,7 @@ static PT_THREAD(cmd_radio_test(struct pt *pt, shell_output_func output, char *a
                "Usage: radio-test [status|status-brief|target|clear-target|start|run|stop|once|interval|len|txmax|channel|power|verbose|reset]\n");
 
   PT_END(pt);
+/*---------------------------------------------------------------------------*/
 }
 
 PROCESS_THREAD(radio_test_process, ev, data)
@@ -908,3 +908,4 @@ PROCESS_THREAD(radio_test_process, ev, data)
 
   PROCESS_END();
 }
+/*---------------------------------------------------------------------------*/

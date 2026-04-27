@@ -44,7 +44,7 @@ static volatile uint64_t last_tick_syscounter;
 static volatile uint32_t recover_count;
 
 static void schedule_next_tick(void);
-
+/*---------------------------------------------------------------------------*/
 static void
 clock_update(void)
 {
@@ -53,7 +53,7 @@ clock_update(void)
     etimer_request_poll();
   }
 }
-
+/*---------------------------------------------------------------------------*/
 static void
 grtc_tick_handler(int32_t id, uint64_t cc_value, void *context)
 {
@@ -65,10 +65,9 @@ grtc_tick_handler(int32_t id, uint64_t cc_value, void *context)
   clock_update();
   schedule_next_tick();
 }
-
 static void wait_for_lfclk_ready(void);
 static void wait_for_syscounter_ready(void);
-
+/*---------------------------------------------------------------------------*/
 static void
 schedule_next_tick(void)
 {
@@ -100,7 +99,7 @@ schedule_next_tick(void)
     ccen_fix_count++;
   }
 }
-
+/*---------------------------------------------------------------------------*/
 static void
 lfclk_init(void)
 {
@@ -113,7 +112,7 @@ lfclk_init(void)
   nrfx_clock_lfclk_start();
   wait_for_lfclk_ready();
 }
-
+/*---------------------------------------------------------------------------*/
 void
 clock_init(void)
 {
@@ -177,19 +176,19 @@ clock_init(void)
   is_initialized = true;
   init_error_code = NRFX_SUCCESS;
 }
-
+/*---------------------------------------------------------------------------*/
 clock_time_t
 clock_time(void)
 {
   return ticks;
 }
-
+/*---------------------------------------------------------------------------*/
 unsigned long
 clock_seconds(void)
 {
   return (unsigned long)(ticks / CLOCK_SECOND);
 }
-
+/*---------------------------------------------------------------------------*/
 void
 clock_wait(clock_time_t i)
 {
@@ -198,49 +197,49 @@ clock_wait(clock_time_t i)
     __WFE();
   }
 }
-
+/*---------------------------------------------------------------------------*/
 void
 clock_delay_usec(uint16_t dt)
 {
   nrfx_coredep_delay_us(dt);
 }
-
+/*---------------------------------------------------------------------------*/
 void
 clock_delay(unsigned int i)
 {
   clock_delay_usec(i);
 }
-
+/*---------------------------------------------------------------------------*/
 uint32_t
 clock_arch_get_irq_count(void)
 {
   return grtc_irq_count;
 }
-
+/*---------------------------------------------------------------------------*/
 nrfx_err_t
 clock_arch_get_last_schedule_err(void)
 {
   return last_schedule_err;
 }
-
+/*---------------------------------------------------------------------------*/
 uint32_t
 clock_arch_get_schedule_failures(void)
 {
   return schedule_failure_count;
 }
-
+/*---------------------------------------------------------------------------*/
 uint8_t
 clock_arch_get_tick_channel(void)
 {
   return tick_channel_id;
 }
-
+/*---------------------------------------------------------------------------*/
 uint32_t
 clock_arch_get_tick_interval_us(void)
 {
   return tick_interval_us;
 }
-
+/*---------------------------------------------------------------------------*/
 uint64_t
 clock_arch_get_syscounter(void)
 {
@@ -253,36 +252,37 @@ clock_arch_get_syscounter(void)
   } while(hi != NRF_GRTC->SYSCOUNTER[1].SYSCOUNTERH);
   return ((uint64_t)(hi & 0x001FFFFFUL) << 32) | lo;
 }
-
+/*---------------------------------------------------------------------------*/
 uint32_t
 clock_arch_get_ccen_fix_count(void)
 {
   return ccen_fix_count;
 }
-
+/*---------------------------------------------------------------------------*/
 uint32_t
 clock_arch_get_grtc_inten(void)
 {
   return NRF_GRTC->INTENSET2;
 }
-
+/*---------------------------------------------------------------------------*/
 uint32_t
 clock_arch_get_grtc_ccen(void)
 {
   return NRF_GRTC->CC[tick_channel_id].CCEN;
 }
-
+/*---------------------------------------------------------------------------*/
 bool
 clock_arch_is_initialized(void)
 {
   return is_initialized;
 }
-
+/*---------------------------------------------------------------------------*/
 nrfx_err_t
 clock_arch_get_init_error(void)
 {
   return init_error_code;
 }
+/*---------------------------------------------------------------------------*/
 void
 clock_arch_check_and_recover(void)
 {
@@ -311,7 +311,7 @@ clock_arch_check_and_recover(void)
     schedule_next_tick();
   }
 }
-
+/*---------------------------------------------------------------------------*/
 static void
 wait_for_lfclk_ready(void)
 {
@@ -319,7 +319,7 @@ wait_for_lfclk_ready(void)
     __NOP();
   }
 }
-
+/*---------------------------------------------------------------------------*/
 static void
 wait_for_syscounter_ready(void)
 {
@@ -327,3 +327,4 @@ wait_for_syscounter_ready(void)
     __NOP();
   }
 }
+/*---------------------------------------------------------------------------*/

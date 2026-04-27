@@ -47,7 +47,7 @@ static struct shell_command_set_t rf_switch_shell_set = {
   .commands = rf_switch_commands,
 };
 #endif
-
+/*---------------------------------------------------------------------------*/
 static void
 rf_switch_apply(void)
 {
@@ -71,7 +71,7 @@ rf_switch_apply(void)
     nrf_gpio_pin_clear(rf_sw_pwr);
   }
 }
-
+/*---------------------------------------------------------------------------*/
 void
 platform_init_board(void)
 {
@@ -81,7 +81,7 @@ platform_init_board(void)
   rf_sw_power_on = true;
   rf_switch_apply();
 }
-
+/*---------------------------------------------------------------------------*/
 void
 platform_init_board_stage_two(void)
 {
@@ -89,8 +89,8 @@ platform_init_board_stage_two(void)
   process_start(&xiao_nrf54l15_rf_switch_shell_process, NULL);
 #endif
 }
-
 #if BUILD_WITH_SHELL
+/*---------------------------------------------------------------------------*/
 static void
 rf_switch_print_status(shell_output_func output)
 {
@@ -106,8 +106,8 @@ rf_switch_print_status(shell_output_func output)
                path, power,
                (unsigned)nrf_gpio_pin_read(rf_sw_sel),
                (unsigned)nrf_gpio_pin_read(rf_sw_pwr));
+/*---------------------------------------------------------------------------*/
 }
-
 static PT_THREAD(cmd_rf_switch(struct pt *pt, shell_output_func output, char *args))
 {
   char *next_args;
@@ -165,6 +165,7 @@ static PT_THREAD(cmd_rf_switch(struct pt *pt, shell_output_func output, char *ar
 
   SHELL_OUTPUT(output, "Usage: rf-sw status|ceramic|external|power [0|1|off|on]\n");
   PT_END(pt);
+/*---------------------------------------------------------------------------*/
 }
 
 PROCESS_THREAD(xiao_nrf54l15_rf_switch_shell_process, ev, data)
@@ -180,4 +181,5 @@ PROCESS_THREAD(xiao_nrf54l15_rf_switch_shell_process, ev, data)
 
   PROCESS_END();
 }
+/*---------------------------------------------------------------------------*/
 #endif

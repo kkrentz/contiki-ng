@@ -23,22 +23,24 @@
 #define TIMESTAMP_CC 3
 
 static uint32_t unexpected_sync;
-
+/*---------------------------------------------------------------------------*/
 static inline uint32_t
 timer_time_get(void)
 {
   nrf_timer_task_trigger(HP_TIMER, (nrf_timer_task_t)NRF_TIMER_TASK_CAPTURE1);
   return nrf_timer_cc_get(HP_TIMER, (nrf_timer_cc_channel_t)CAPTURE_CC);
 }
-
-void nrf_802154_hp_timer_init(void)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_hp_timer_init(void)
 {
   nrf_timer_bit_width_set(HP_TIMER, NRF_TIMER_BIT_WIDTH_32);
   nrf_timer_prescaler_set(HP_TIMER, NRF_TIMER_FREQ_1MHz);
   nrf_timer_mode_set(HP_TIMER, NRF_TIMER_MODE_TIMER);
 }
-
-void nrf_802154_hp_timer_deinit(void)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_hp_timer_deinit(void)
 {
 #if NRF_TIMER_HAS_SHUTDOWN
   nrf_timer_task_trigger(HP_TIMER, NRF_TIMER_TASK_SHUTDOWN);
@@ -47,13 +49,15 @@ void nrf_802154_hp_timer_deinit(void)
   HP_TIMER->TASKS_CLEAR = 1;
 #endif
 }
-
-void nrf_802154_hp_timer_start(void)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_hp_timer_start(void)
 {
   nrf_timer_task_trigger(HP_TIMER, NRF_TIMER_TASK_START);
 }
-
-void nrf_802154_hp_timer_stop(void)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_hp_timer_stop(void)
 {
 #if NRF_TIMER_HAS_SHUTDOWN
   nrf_timer_task_trigger(HP_TIMER, NRF_TIMER_TASK_SHUTDOWN);
@@ -62,26 +66,30 @@ void nrf_802154_hp_timer_stop(void)
   nrf_timer_task_trigger(HP_TIMER, NRF_TIMER_TASK_CLEAR);
 #endif
 }
-
-uint32_t nrf_802154_hp_timer_current_time_get(void)
+/*---------------------------------------------------------------------------*/
+uint32_t
+nrf_802154_hp_timer_current_time_get(void)
 {
   return timer_time_get();
 }
-
-uint32_t nrf_802154_hp_timer_sync_task_get(void)
+/*---------------------------------------------------------------------------*/
+uint32_t
+nrf_802154_hp_timer_sync_task_get(void)
 {
   return nrf_timer_task_address_get(HP_TIMER, (nrf_timer_task_t)NRF_TIMER_TASK_CAPTURE2);
 }
-
-void nrf_802154_hp_timer_sync_prepare(void)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_hp_timer_sync_prepare(void)
 {
   uint32_t past_time = timer_time_get() - 1;
 
   unexpected_sync = past_time;
   nrf_timer_cc_set(HP_TIMER, (nrf_timer_cc_channel_t)SYNC_CC, past_time);
 }
-
-bool nrf_802154_hp_timer_sync_time_get(uint32_t *p_timestamp)
+/*---------------------------------------------------------------------------*/
+bool
+nrf_802154_hp_timer_sync_time_get(uint32_t *p_timestamp)
 {
   uint32_t sync_time = nrf_timer_cc_get(HP_TIMER, (nrf_timer_cc_channel_t)SYNC_CC);
 
@@ -92,13 +100,16 @@ bool nrf_802154_hp_timer_sync_time_get(uint32_t *p_timestamp)
 
   return false;
 }
-
-uint32_t nrf_802154_hp_timer_timestamp_task_get(void)
+/*---------------------------------------------------------------------------*/
+uint32_t
+nrf_802154_hp_timer_timestamp_task_get(void)
 {
   return nrf_timer_task_address_get(HP_TIMER, (nrf_timer_task_t)NRF_TIMER_TASK_CAPTURE3);
 }
-
-uint32_t nrf_802154_hp_timer_timestamp_get(void)
+/*---------------------------------------------------------------------------*/
+uint32_t
+nrf_802154_hp_timer_timestamp_get(void)
 {
   return nrf_timer_cc_get(HP_TIMER, (nrf_timer_cc_channel_t)TIMESTAMP_CC);
 }
+/*---------------------------------------------------------------------------*/

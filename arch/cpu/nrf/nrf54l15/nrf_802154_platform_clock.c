@@ -20,7 +20,7 @@
 
 static volatile bool hfclk_running;
 static volatile bool lfclk_running;
-
+/*---------------------------------------------------------------------------*/
 static void
 set_constant_latency(bool enable)
 {
@@ -34,8 +34,9 @@ set_constant_latency(bool enable)
   (void)enable;
 #endif
 }
-
-void nrf_802154_clock_init(void)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_clock_init(void)
 {
   lfclk_running = true; /* LFCLK already started by clock-arch.c */
   set_constant_latency(false);
@@ -44,23 +45,27 @@ void nrf_802154_clock_init(void)
    * GRTC clock tick ISR keeps running during the busy-wait. */
   NRF_CLOCK->EVENTS_XOSTARTED = 0;
   NRF_CLOCK->TASKS_XOSTART = 1;
-  while(NRF_CLOCK->EVENTS_XOSTARTED == 0) { }
+  while(NRF_CLOCK->EVENTS_XOSTARTED == 0) {
+  }
   NRF_CLOCK->EVENTS_XOSTARTED = 0;
 
   NRF_CLOCK->EVENTS_PLLSTARTED = 0;
   NRF_CLOCK->TASKS_PLLSTART = 1;
-  while(NRF_CLOCK->EVENTS_PLLSTARTED == 0) { }
+  while(NRF_CLOCK->EVENTS_PLLSTARTED == 0) {
+  }
   NRF_CLOCK->EVENTS_PLLSTARTED = 0;
 
   hfclk_running = true;
 }
-
-void nrf_802154_clock_deinit(void)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_clock_deinit(void)
 {
   /* Nothing to do. */
 }
-
-void nrf_802154_clock_hfclk_start(void)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_clock_hfclk_start(void)
 {
   /*
    * HFXO+PLL are pre-started in nrf_802154_clock_init() so this is always
@@ -71,12 +76,14 @@ void nrf_802154_clock_hfclk_start(void)
     /* Emergency start — should not happen if init was called. */
     NRF_CLOCK->EVENTS_XOSTARTED = 0;
     NRF_CLOCK->TASKS_XOSTART = 1;
-    while(NRF_CLOCK->EVENTS_XOSTARTED == 0) { }
+    while(NRF_CLOCK->EVENTS_XOSTARTED == 0) {
+    }
     NRF_CLOCK->EVENTS_XOSTARTED = 0;
 
     NRF_CLOCK->EVENTS_PLLSTARTED = 0;
     NRF_CLOCK->TASKS_PLLSTART = 1;
-    while(NRF_CLOCK->EVENTS_PLLSTARTED == 0) { }
+    while(NRF_CLOCK->EVENTS_PLLSTARTED == 0) {
+    }
     NRF_CLOCK->EVENTS_PLLSTARTED = 0;
 
     hfclk_running = true;
@@ -84,20 +91,23 @@ void nrf_802154_clock_hfclk_start(void)
   set_constant_latency(true);
   nrf_802154_clock_hfclk_ready();
 }
-
-void nrf_802154_clock_hfclk_stop(void)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_clock_hfclk_stop(void)
 {
   /* Keep HFXO+PLL always running — stopping them on nRF54L15 can disrupt
    * the GRTC syscounter that Contiki-NG uses for clock ticks. */
   set_constant_latency(false);
 }
-
-bool nrf_802154_clock_hfclk_is_running(void)
+/*---------------------------------------------------------------------------*/
+bool
+nrf_802154_clock_hfclk_is_running(void)
 {
   return hfclk_running;
 }
-
-void nrf_802154_clock_lfclk_start(void)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_clock_lfclk_start(void)
 {
   /* LFCLK is already started by clock-arch.c via nrfx_clock_lfclk_start().
    * Do NOT touch the CLOCK peripheral registers again — on nRF54L15 this
@@ -105,13 +115,16 @@ void nrf_802154_clock_lfclk_start(void)
   lfclk_running = true;
   nrf_802154_clock_lfclk_ready();
 }
-
-void nrf_802154_clock_lfclk_stop(void)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_clock_lfclk_stop(void)
 {
   /* Never stop LFCLK — GRTC depends on it. */
 }
-
-bool nrf_802154_clock_lfclk_is_running(void)
+/*---------------------------------------------------------------------------*/
+bool
+nrf_802154_clock_lfclk_is_running(void)
 {
   return lfclk_running;
 }
+/*---------------------------------------------------------------------------*/

@@ -53,8 +53,7 @@ static nrf_802154_sl_timer_t *alarm_head;
 static uint64_t alarm_target_lpticks;
 static uint64_t sync_fire_lpticks;
 
-enum hw_task_state
-{
+enum hw_task_state {
   HW_TASK_STATE_IDLE,
   HW_TASK_STATE_SETTING_UP,
   HW_TASK_STATE_READY,
@@ -69,7 +68,7 @@ static uint64_t hw_task_fire_lpticks;
 static bool timer_initialized;
 static uint64_t timer_time_upper;
 static uint32_t timer_last_low;
-
+/*---------------------------------------------------------------------------*/
 static inline uint32_t
 irq_lock_local(void)
 {
@@ -80,43 +79,43 @@ irq_lock_local(void)
 
   return primask;
 }
-
+/*---------------------------------------------------------------------------*/
 static inline void
 irq_unlock_local(uint32_t primask)
 {
   __DMB();
   __set_PRIMASK(primask);
 }
-
+/*---------------------------------------------------------------------------*/
 static inline nrf_802154_sl_timer_t *
 timer_next_get(nrf_802154_sl_timer_t *timer)
 {
   return (nrf_802154_sl_timer_t *)(uintptr_t)timer->priv.placeholder[0];
 }
-
+/*---------------------------------------------------------------------------*/
 static inline void
 timer_next_set(nrf_802154_sl_timer_t *timer, nrf_802154_sl_timer_t *next)
 {
   timer->priv.placeholder[0] = (uint64_t)(uintptr_t)next;
 }
-
+/*---------------------------------------------------------------------------*/
 static inline bool
 timer_is_active(nrf_802154_sl_timer_t *timer)
 {
   return timer->priv.placeholder[1] != 0U;
 }
-
+/*---------------------------------------------------------------------------*/
 static inline void
 timer_active_set(nrf_802154_sl_timer_t *timer, bool active)
 {
   timer->priv.placeholder[1] = active ? 1U : 0U;
 }
-
+/*---------------------------------------------------------------------------*/
 __attribute__((weak)) void
 nrf_802154_sl_timestamper_synchronized(void)
 {
 }
-
+/*---------------------------------------------------------------------------*/
 static inline bool
 hw_task_state_set_locked(enum hw_task_state expected, enum hw_task_state new_state)
 {
@@ -127,43 +126,43 @@ hw_task_state_set_locked(enum hw_task_state expected, enum hw_task_state new_sta
   hw_task_state = new_state;
   return true;
 }
-
+/*---------------------------------------------------------------------------*/
 static inline uint32_t
 timer_event_address_get(uint8_t cc_channel)
 {
   return nrf_timer_event_address_get(LP_TIMER, nrf_timer_compare_event_get(cc_channel));
 }
-
+/*---------------------------------------------------------------------------*/
 static inline bool
 timer_event_check_cc(uint8_t cc_channel)
 {
   return nrf_timer_event_check(LP_TIMER, nrf_timer_compare_event_get(cc_channel));
 }
-
+/*---------------------------------------------------------------------------*/
 static inline void
 timer_event_clear_cc(uint8_t cc_channel)
 {
   nrf_timer_event_clear(LP_TIMER, nrf_timer_compare_event_get(cc_channel));
 }
-
+/*---------------------------------------------------------------------------*/
 static inline uint32_t
 timer_int_mask_get(uint8_t cc_channel)
 {
   return nrf_timer_compare_int_get(cc_channel);
 }
-
+/*---------------------------------------------------------------------------*/
 static inline void
 timer_compare_int_enable(uint8_t cc_channel)
 {
   nrf_timer_int_enable(LP_TIMER, timer_int_mask_get(cc_channel));
 }
-
+/*---------------------------------------------------------------------------*/
 static inline void
 timer_compare_int_disable(uint8_t cc_channel)
 {
   nrf_timer_int_disable(LP_TIMER, timer_int_mask_get(cc_channel));
 }
-
+/*---------------------------------------------------------------------------*/
 static inline bool
 timer_compare_int_lock(uint8_t cc_channel)
 {
@@ -175,7 +174,7 @@ timer_compare_int_lock(uint8_t cc_channel)
 
   return enabled;
 }
-
+/*---------------------------------------------------------------------------*/
 static inline void
 timer_compare_int_unlock(uint8_t cc_channel, bool key)
 {
@@ -186,7 +185,7 @@ timer_compare_int_unlock(uint8_t cc_channel, bool key)
     }
   }
 }
-
+/*---------------------------------------------------------------------------*/
 static inline uint64_t
 timer_time_get_locked(void)
 {
@@ -203,7 +202,7 @@ timer_time_get_locked(void)
 
   return timer_time_upper | low;
 }
-
+/*---------------------------------------------------------------------------*/
 static uint64_t
 timer_time_get(void)
 {
@@ -212,13 +211,13 @@ timer_time_get(void)
   irq_unlock_local(primask);
   return now;
 }
-
+/*---------------------------------------------------------------------------*/
 static inline bool
 target_is_too_distant(uint64_t now, uint64_t target)
 {
   return (target > now) && ((target - now) > COUNTER_HALF_SPAN);
 }
-
+/*---------------------------------------------------------------------------*/
 static int
 timer_compare_set_locked(uint8_t cc_channel, uint64_t target, bool exact)
 {
@@ -258,13 +257,13 @@ timer_compare_set_locked(uint8_t cc_channel, uint64_t target, bool exact)
 
   return 0;
 }
-
+/*---------------------------------------------------------------------------*/
 static inline bool
 hw_task_triggered_check_locked(uint64_t now)
 {
   return timer_event_check_cc(HW_TASK_CC) || now >= hw_task_fire_lpticks;
 }
-
+/*---------------------------------------------------------------------------*/
 static inline void
 hw_task_ppi_bind_locked(uint32_t ppi_channel)
 {
@@ -274,7 +273,7 @@ hw_task_ppi_bind_locked(uint32_t ppi_channel)
 
   nrfx_gppi_event_endpoint_setup((uint8_t)ppi_channel, timer_event_address_get(HW_TASK_CC));
 }
-
+/*---------------------------------------------------------------------------*/
 static inline void
 hw_task_ppi_unbind_locked(uint32_t ppi_channel)
 {
@@ -284,7 +283,7 @@ hw_task_ppi_unbind_locked(uint32_t ppi_channel)
 
   nrfx_gppi_event_endpoint_clear((uint8_t)ppi_channel, timer_event_address_get(HW_TASK_CC));
 }
-
+/*---------------------------------------------------------------------------*/
 static void
 alarm_reschedule_locked(void)
 {
@@ -309,7 +308,7 @@ alarm_reschedule_locked(void)
     }
   }
 }
-
+/*---------------------------------------------------------------------------*/
 static void
 sync_schedule_locked(uint64_t fire_lpticks)
 {
@@ -325,7 +324,7 @@ sync_schedule_locked(uint64_t fire_lpticks)
     }
   }
 }
-
+/*---------------------------------------------------------------------------*/
 static nrf_802154_sl_timer_ret_t
 timer_remove_locked(nrf_802154_sl_timer_t *timer)
 {
@@ -354,7 +353,7 @@ timer_remove_locked(nrf_802154_sl_timer_t *timer)
 
   return NRF_802154_SL_TIMER_RET_INACTIVE;
 }
-
+/*---------------------------------------------------------------------------*/
 static void
 alarm_process(void)
 {
@@ -391,7 +390,7 @@ alarm_process(void)
     }
   }
 }
-
+/*---------------------------------------------------------------------------*/
 static void
 sync_process(uint64_t now)
 {
@@ -400,7 +399,7 @@ sync_process(uint64_t now)
     nrf_802154_sl_timestamper_synchronized();
   }
 }
-
+/*---------------------------------------------------------------------------*/
 void
 TIMER20_IRQHandler(void)
 {
@@ -426,7 +425,7 @@ TIMER20_IRQHandler(void)
     sync_process(timer_time_get());
   }
 }
-
+/*---------------------------------------------------------------------------*/
 void
 nrf_802154_platform_sl_lp_timer_init(void)
 {
@@ -470,7 +469,7 @@ nrf_802154_platform_sl_lp_timer_init(void)
 
   irq_unlock_local(primask);
 }
-
+/*---------------------------------------------------------------------------*/
 void
 nrf_802154_platform_sl_lp_timer_deinit(void)
 {
@@ -496,26 +495,26 @@ nrf_802154_platform_sl_lp_timer_deinit(void)
 
   irq_unlock_local(primask);
 }
-
+/*---------------------------------------------------------------------------*/
 uint64_t
 nrf_802154_platform_sl_lptimer_current_lpticks_get(void)
 {
   return timer_time_get();
 }
-
+/*---------------------------------------------------------------------------*/
 uint64_t
 nrf_802154_platform_sl_lptimer_us_to_lpticks_convert(uint64_t us, bool round_up)
 {
   (void)round_up;
   return us;
 }
-
+/*---------------------------------------------------------------------------*/
 uint64_t
 nrf_802154_platform_sl_lptimer_lpticks_to_us_convert(uint64_t lpticks)
 {
   return lpticks;
 }
-
+/*---------------------------------------------------------------------------*/
 void
 nrf_802154_platform_sl_lptimer_schedule_at(uint64_t fire_lpticks)
 {
@@ -534,7 +533,7 @@ nrf_802154_platform_sl_lptimer_schedule_at(uint64_t fire_lpticks)
 
   irq_unlock_local(primask);
 }
-
+/*---------------------------------------------------------------------------*/
 void
 nrf_802154_platform_sl_lptimer_disable(void)
 {
@@ -548,7 +547,7 @@ nrf_802154_platform_sl_lptimer_disable(void)
 
   irq_unlock_local(primask);
 }
-
+/*---------------------------------------------------------------------------*/
 void
 nrf_802154_platform_sl_lptimer_critical_section_enter(void)
 {
@@ -563,7 +562,7 @@ nrf_802154_platform_sl_lptimer_critical_section_enter(void)
 
   irq_unlock_local(primask);
 }
-
+/*---------------------------------------------------------------------------*/
 void
 nrf_802154_platform_sl_lptimer_critical_section_exit(void)
 {
@@ -591,7 +590,6 @@ nrf_802154_platform_sl_lptimer_critical_section_exit(void)
 
   irq_unlock_local(primask);
 }
-
 nrf_802154_sl_lptimer_platform_result_t
 nrf_802154_platform_sl_lptimer_hw_task_prepare(uint64_t fire_lpticks,
                                                uint32_t ppi_channel)
@@ -637,7 +635,7 @@ nrf_802154_platform_sl_lptimer_hw_task_prepare(uint64_t fire_lpticks,
 
   return NRF_802154_SL_LPTIMER_PLATFORM_SUCCESS;
 }
-
+/*---------------------------------------------------------------------------*/
 nrf_802154_sl_lptimer_platform_result_t
 nrf_802154_platform_sl_lptimer_hw_task_cleanup(void)
 {
@@ -657,7 +655,7 @@ nrf_802154_platform_sl_lptimer_hw_task_cleanup(void)
 
   return NRF_802154_SL_LPTIMER_PLATFORM_SUCCESS;
 }
-
+/*---------------------------------------------------------------------------*/
 nrf_802154_sl_lptimer_platform_result_t
 nrf_802154_platform_sl_lptimer_hw_task_update_ppi(uint32_t ppi_channel)
 {
@@ -678,9 +676,9 @@ nrf_802154_platform_sl_lptimer_hw_task_update_ppi(uint32_t ppi_channel)
   irq_unlock_local(primask);
 
   return too_late ? NRF_802154_SL_LPTIMER_PLATFORM_TOO_LATE :
-                    NRF_802154_SL_LPTIMER_PLATFORM_SUCCESS;
+         NRF_802154_SL_LPTIMER_PLATFORM_SUCCESS;
 }
-
+/*---------------------------------------------------------------------------*/
 void
 nrf_802154_platform_sl_lptimer_sync_schedule_now(void)
 {
@@ -691,7 +689,7 @@ nrf_802154_platform_sl_lptimer_sync_schedule_now(void)
 
   irq_unlock_local(primask);
 }
-
+/*---------------------------------------------------------------------------*/
 void
 nrf_802154_platform_sl_lptimer_sync_schedule_at(uint64_t fire_lpticks)
 {
@@ -701,7 +699,7 @@ nrf_802154_platform_sl_lptimer_sync_schedule_at(uint64_t fire_lpticks)
 
   irq_unlock_local(primask);
 }
-
+/*---------------------------------------------------------------------------*/
 void
 nrf_802154_platform_sl_lptimer_sync_abort(void)
 {
@@ -714,57 +712,57 @@ nrf_802154_platform_sl_lptimer_sync_abort(void)
 
   irq_unlock_local(primask);
 }
-
+/*---------------------------------------------------------------------------*/
 uint32_t
 nrf_802154_platform_sl_lptimer_sync_event_get(void)
 {
   return timer_event_address_get(SYNC_CC);
 }
-
+/*---------------------------------------------------------------------------*/
 uint64_t
 nrf_802154_platform_sl_lptimer_sync_lpticks_get(void)
 {
   return sync_fire_lpticks;
 }
-
+/*---------------------------------------------------------------------------*/
 uint32_t
 nrf_802154_platform_sl_lptimer_granularity_get(void)
 {
   return 1U;
 }
-
+/*---------------------------------------------------------------------------*/
 void
 nrf_802154_sl_timer_module_init(void)
 {
   alarm_head = NULL;
   nrf_802154_platform_sl_lp_timer_init();
 }
-
+/*---------------------------------------------------------------------------*/
 void
 nrf_802154_sl_timer_module_uninit(void)
 {
   alarm_head = NULL;
 }
-
+/*---------------------------------------------------------------------------*/
 uint64_t
 nrf_802154_sl_timer_current_time_get(void)
 {
   return timer_time_get();
 }
-
+/*---------------------------------------------------------------------------*/
 void
 nrf_802154_sl_timer_init(nrf_802154_sl_timer_t *p_timer)
 {
   timer_next_set(p_timer, NULL);
   timer_active_set(p_timer, false);
 }
-
+/*---------------------------------------------------------------------------*/
 void
 nrf_802154_sl_timer_deinit(nrf_802154_sl_timer_t *p_timer)
 {
   (void)nrf_802154_sl_timer_remove(p_timer);
 }
-
+/*---------------------------------------------------------------------------*/
 nrf_802154_sl_timer_ret_t
 nrf_802154_sl_timer_add(nrf_802154_sl_timer_t *p_timer)
 {
@@ -801,7 +799,7 @@ nrf_802154_sl_timer_add(nrf_802154_sl_timer_t *p_timer)
 
   return NRF_802154_SL_TIMER_RET_SUCCESS;
 }
-
+/*---------------------------------------------------------------------------*/
 nrf_802154_sl_timer_ret_t
 nrf_802154_sl_timer_remove(nrf_802154_sl_timer_t *p_timer)
 {
@@ -814,7 +812,7 @@ nrf_802154_sl_timer_remove(nrf_802154_sl_timer_t *p_timer)
 
   return ret;
 }
-
+/*---------------------------------------------------------------------------*/
 nrf_802154_sl_timer_ret_t
 nrf_802154_sl_timer_update_ppi(nrf_802154_sl_timer_t *p_timer, uint32_t ppi_chn)
 {
@@ -822,36 +820,37 @@ nrf_802154_sl_timer_update_ppi(nrf_802154_sl_timer_t *p_timer, uint32_t ppi_chn)
   (void)ppi_chn;
   return NRF_802154_SL_TIMER_RET_SUCCESS;
 }
-
+/*---------------------------------------------------------------------------*/
 void
 nrf_802154_timer_coord_init(void)
 {
 }
-
+/*---------------------------------------------------------------------------*/
 void
 nrf_802154_timer_coord_uninit(void)
 {
 }
-
+/*---------------------------------------------------------------------------*/
 void
 nrf_802154_timer_coord_start(void)
 {
 }
-
+/*---------------------------------------------------------------------------*/
 void
 nrf_802154_timer_coord_stop(void)
 {
 }
-
+/*---------------------------------------------------------------------------*/
 void
 nrf_802154_timer_coord_timestamp_prepare(const nrf_802154_sl_event_handle_t *p_event)
 {
   (void)p_event;
 }
-
+/*---------------------------------------------------------------------------*/
 bool
 nrf_802154_timer_coord_timestamp_get(uint64_t *p_timestamp)
 {
   (void)p_timestamp;
   return false;
 }
+/*---------------------------------------------------------------------------*/

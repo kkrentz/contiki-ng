@@ -19,7 +19,7 @@
 
 static nrfx_grtc_channel_t rtimer_channel;
 static bool rtimer_channel_active;
-
+/*---------------------------------------------------------------------------*/
 static void
 rtimer_grtc_handler(int32_t id, uint64_t cc_value, void *context)
 {
@@ -29,7 +29,7 @@ rtimer_grtc_handler(int32_t id, uint64_t cc_value, void *context)
 
   rtimer_run_next();
 }
-
+/*---------------------------------------------------------------------------*/
 static void
 ensure_grtc_started(void)
 {
@@ -40,7 +40,7 @@ ensure_grtc_started(void)
     }
   }
 }
-
+/*---------------------------------------------------------------------------*/
 void
 rtimer_arch_init(void)
 {
@@ -61,7 +61,7 @@ rtimer_arch_init(void)
 
   rtimer_channel_active = true;
 }
-
+/*---------------------------------------------------------------------------*/
 rtimer_clock_t
 rtimer_arch_now(void)
 {
@@ -69,7 +69,7 @@ rtimer_arch_now(void)
   nrfx_grtc_syscounter_get(&counter);
   return (rtimer_clock_t)counter;
 }
-
+/*---------------------------------------------------------------------------*/
 void
 rtimer_arch_schedule(rtimer_clock_t t)
 {
@@ -88,3 +88,4 @@ rtimer_arch_schedule(rtimer_clock_t t)
 
   nrfx_grtc_syscounter_cc_absolute_set(&rtimer_channel, target, true);
 }
+/*---------------------------------------------------------------------------*/

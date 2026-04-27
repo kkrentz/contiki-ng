@@ -11,18 +11,22 @@
 
 #include "platform/nrf_802154_random.h"
 #include "lib/random.h"
-
-void nrf_802154_random_init(void)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_random_init(void)
 {
   /* Contiki-NG random is already initialized. */
 }
-
-void nrf_802154_random_deinit(void)
+/*---------------------------------------------------------------------------*/
+void
+nrf_802154_random_deinit(void)
 {
   /* Nothing to do. */
 }
-
-uint32_t nrf_802154_random_get(void)
+/*---------------------------------------------------------------------------*/
+uint32_t
+nrf_802154_random_get(void)
 {
   return (uint32_t)random_rand() | ((uint32_t)random_rand() << 16);
 }
+/*---------------------------------------------------------------------------*/
