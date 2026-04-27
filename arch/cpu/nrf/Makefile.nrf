@@ -66,12 +66,16 @@ NRFX_C_SRCS += $(NRFX_ROOT)/drivers/src/nrfx_ipc.c
 NRFX_C_SRCS += $(NRFX_ROOT)/soc/nrfx_atomic.c
 
 NRFX_C_SRCS += $(NRFX_ROOT)/helpers/nrfx_flag32_allocator.c
+NRFX_C_SRCS += $(NRFX_ROOT)/helpers/nrfx_gppi_ppi.c
+NRFX_C_SRCS += $(NRFX_ROOT)/helpers/nrfx_gppi_dppi.c
 
 #assembly files common to all targets
 NRFX_ASM_SRCS += 
 
 CONTIKI_SOURCEFILES += $(notdir $(NRFX_C_SRCS))
 CONTIKI_SOURCEFILES += $(notdir $(NRFX_ASM_SRCS))
+
+$(OBJECTDIR)/nrfx_uarte.o: CFLAGS += -Wno-error=unused-variable
 
 #includes common to all targets
 NRFX_INC_PATHS += .
