@@ -45,3 +45,12 @@ LDGENFLAGS += -x c -P -E
 include $(CONTIKI)/$(CONTIKI_NG_CM33_DIR)/Makefile.cm33
 
 include $(CONTIKI_CPU)/Makefile.nrf
+
+# In TRUSTZONE_SECURE_BUILD the secure firmware/SPM provides its own
+# HardFault_Handler (and related fault handlers). Drop the shared nrf
+# hardfault-handler.c here so we do not get duplicate-symbol link errors
+# against the secure-side definitions.
+ifeq ($(TRUSTZONE_SECURE_BUILD),1)
+  CONTIKI_CPU_SOURCEFILES := $(filter-out hardfault-handler.c,$(CONTIKI_CPU_SOURCEFILES))
+  CONTIKI_SOURCEFILES := $(filter-out hardfault-handler.c,$(CONTIKI_SOURCEFILES))
+endif
