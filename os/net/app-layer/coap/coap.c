@@ -490,9 +490,17 @@ coap_parse_message(coap_message_t *coap_pkt, uint8_t *data, uint16_t data_len)
   uint32_t option_length = 0;
 
   while(current_option < data + data_len) {
-    /* payload marker 0xFF, currently only checking for 0xF* because rest is reserved */
-    if((current_option[0] & 0xF0) == 0xF0) {
-      coap_pkt->payload = ++current_option;
+    /* Payload marker. Per RFC 7252 §3.1, the marker is exactly 0xFF;
+     * any other byte with delta or length nibble = 15 is reserved and
+     * MUST be processed as a message format error. The marker followed
+     * by a zero-length payload is also a message format error. */
+    if(current_option[0] == 0xFF) {
+      ++current_option;
+      if(current_option >= data + data_len) {
+        LOG_WARN("BAD REQUEST: payload marker with zero-length payload\n");
+        return BAD_REQUEST_4_00;
+      }
+      coap_pkt->payload = current_option;
       coap_pkt->payload_len = data_len - (coap_pkt->payload - data);
 
       /* also for receiving, the Erbium upper bound is COAP_MAX_CHUNK_SIZE */
@@ -508,6 +516,12 @@ coap_parse_message(coap_message_t *coap_pkt, uint8_t *data, uint16_t data_len)
     option_delta = current_option[0] >> 4;
     option_length = current_option[0] & 0x0F;
     ++current_option;
+
+    if(option_delta == 15 || option_length == 15) {
+      /* Reserved nibble values per RFC 7252 §3.1. */
+      LOG_WARN("BAD REQUEST: reserved option delta/length nibble 15\n");
+      return BAD_REQUEST_4_00;
+    }
 
     if(option_delta == 13) {
       CHECK_OPTION_BOUNDARY(1);
