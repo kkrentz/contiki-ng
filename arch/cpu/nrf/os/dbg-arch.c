@@ -100,14 +100,14 @@ dbg_putchar(int c)
 unsigned int
 dbg_send_bytes(const unsigned char *s, unsigned int len)
 {
-  unsigned int i = 0;
+  unsigned int i;
 
-  while(s && *s != 0) {
-    if(i >= len) {
-      break;
-    }
-    dbg_putchar(*s++);
-    i++;
+  if(s == NULL) {
+    return 0;
+  }
+
+  for(i = 0; i < len; i++) {
+    dbg_putchar(s[i]);
   }
 
   flush();
