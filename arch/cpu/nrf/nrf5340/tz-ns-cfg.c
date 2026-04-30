@@ -49,7 +49,11 @@
 void
 tz_arch_init_ns_signal(void)
 {
-  NVIC_ClearPendingIRQ(EGU0_IRQn);
+  /*
+   * Do not clear pending before enabling: the only source of an EGU0
+   * pending bit is a deliberate tz_arch_signal_ns() from secure code,
+   * so clearing here would silently discard a legitimate wake request.
+   */
   NVIC_EnableIRQ(EGU0_IRQn);
 }
 /*---------------------------------------------------------------------------*/

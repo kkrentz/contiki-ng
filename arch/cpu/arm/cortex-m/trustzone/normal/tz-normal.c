@@ -102,8 +102,18 @@ PROCESS_THREAD(tz_normal_process, ev, data)
 void
 platform_main_loop(void)
 {
-  init_tz_api();
+  /*
+   * Start tz_normal_process before init_tz_api so the EGU doorbell
+   * armed by tz_arch_init_ns_signal() can validly poll a process in
+   * PROCESS_STATE_RUNNING if the IRQ fires immediately on enable.
+   * Then issue one explicit poll to drain trustzone_init_event and
+   * any other secure-side events queued during init -- process_post
+   * does not fire PROCESS_POLL_REQUESTED, so without this kick the
+   * init events would sit unread until something else woke NS.
+   */
   process_start(&tz_normal_process, NULL);
+  init_tz_api();
+  tz_normal_request_poll();
 
   while(1) {
     process_num_events_t r;
