@@ -148,7 +148,12 @@ SECTIONS
         . = ALIGN(4);
         __bss_end__ = .;
     } > RAM
-    
+
+    .noinit (NOLOAD) :
+    {
+        *(.noinit*)
+    } > RAM
+
     .heap (COPY):
     {
         __HeapBase = .;

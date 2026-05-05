@@ -59,14 +59,8 @@ setup(void)
 {
   LOG_INFO("Initializing TrustZone\n");
 
-  /* SPM example */
-  LOG_INFO("Enabling fault handlers: ");
-  if(enable_fault_handlers() == TFM_PLAT_ERR_SUCCESS) {
-    LOG_INFO_("success\n");
-  } else {
-    LOG_INFO_("failure\n");
-    return NULL;
-  }
+  LOG_INFO("Enabling fault handlers\n");
+  enable_fault_handlers();
 
   /*
    * Set flash and RAM secure.
@@ -87,10 +81,9 @@ setup(void)
     return NULL;
   }
 
-  enum tfm_plat_err_t tfm_err = nvic_interrupt_target_state_cfg();
-  if(tfm_err != TFM_PLAT_ERR_SUCCESS) {
-    LOG_DBG("Interrupt state: 0x%x\n", tfm_err);
-  }
+  system_reset_cfg();
+  nvic_interrupt_target_state_cfg();
+  nvic_interrupt_enable();
 
   uintptr_t *vtor_ns = (uintptr_t *)NS_CODE_START;
   LOG_DBG("NS image at %p\n", vtor_ns);
@@ -126,6 +119,7 @@ void
 platform_main_loop(void)
 {
   tz_fault_init();
+  spu_report_violation();
 
   /* Process all events before switching to non-secure */
   process_num_events_t r;

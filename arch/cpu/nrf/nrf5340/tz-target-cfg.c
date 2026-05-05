@@ -21,6 +21,7 @@
 
 #include "tz-target-cfg.h"
 #include "region_defs.h"
+#include "trustzone/tz-api.h"
 
 #include <spu.h>
 #include <nrfx.h>
@@ -42,7 +43,7 @@
  */
 #define SCB_AIRCR_WRITE_MASK ((0x5FAUL << SCB_AIRCR_VECTKEY_Pos))
 /******************************************************************************/
-enum tfm_plat_err_t
+void
 enable_fault_handlers(void)
 {
   /* Explicitly set secure fault priority to the highest */
@@ -50,10 +51,9 @@ enable_fault_handlers(void)
 
   /* Enables BUS, MEM, USG and Secure faults */
   SCB->SHCSR |= SCB_SHCSR_USGFAULTENA_Msk | SCB_SHCSR_BUSFAULTENA_Msk | SCB_SHCSR_MEMFAULTENA_Msk | SCB_SHCSR_SECUREFAULTENA_Msk;
-  return TFM_PLAT_ERR_SUCCESS;
 }
 /******************************************************************************/
-enum tfm_plat_err_t
+void
 system_reset_cfg(void)
 {
   uint32_t reg_value = SCB->AIRCR;
@@ -65,21 +65,18 @@ system_reset_cfg(void)
   reg_value |= (uint32_t)(SCB_AIRCR_WRITE_MASK | SCB_AIRCR_SYSRESETREQS_Msk);
 
   SCB->AIRCR = reg_value;
-
-  return TFM_PLAT_ERR_SUCCESS;
 }
 /******************************************************************************/
 /*----------------- NVIC interrupt target state to NS configuration ----------*/
-enum tfm_plat_err_t
+void
 nvic_interrupt_target_state_cfg(void)
 {
-  /* Target most interrupt to NS; unimplemented interrupts will be
-     Write-Ignored */
-
-  NVIC_SetTargetState(NRFX_IRQ_NUMBER_GET(NRF_TIMER0));
-  NVIC_SetTargetState(NRFX_IRQ_NUMBER_GET(NRF_RTC0));
-
-  for(uint8_t i = 1; i < sizeof(NVIC->ITNS) / sizeof(NVIC->ITNS[0]); i++) {
+  /*
+   * Target all interrupts to NS by default; unimplemented interrupts
+   * will be Write-Ignored. Peripherals that must remain secure are
+   * cleared explicitly below.
+   */
+  for(uint8_t i = 0; i < sizeof(NVIC->ITNS) / sizeof(NVIC->ITNS[0]); i++) {
     NVIC->ITNS[i] = 0xffffffff;
   }
 
@@ -96,11 +93,15 @@ nvic_interrupt_target_state_cfg(void)
   NVIC_ClearTargetState(NRFX_IRQ_NUMBER_GET(NRF_UARTE1));
 #endif
 
-  return TFM_PLAT_ERR_SUCCESS;
+  /* TIMER1 is kept secure for the secure-world rtimer. */
+  NVIC_ClearTargetState(NRFX_IRQ_NUMBER_GET(NRF_TIMER1));
+
+  /* RTC1 is kept secure for the secure-world clock. */
+  NVIC_ClearTargetState(NRFX_IRQ_NUMBER_GET(NRF_RTC1));
 }
 /******************************************************************************/
 /*----------------- NVIC interrupt enabling for S peripherals ----------------*/
-enum tfm_plat_err_t
+void
 nvic_interrupt_enable(void)
 {
   /* SPU interrupt enabling */
@@ -108,8 +109,63 @@ nvic_interrupt_enable(void)
 
   NVIC_ClearPendingIRQ(NRFX_IRQ_NUMBER_GET(NRF_SPU));
   NVIC_EnableIRQ(NRFX_IRQ_NUMBER_GET(NRF_SPU));
+}
+/******************************************************************************/
+/*----------------- TrustZone API platform hooks -----------------------------*/
+/*
+ * Borrow EGU0_IRQn as a software-pended doorbell to wake the normal
+ * world from a secure ISR. The EGU peripheral itself is left unused;
+ * we only need an NS-targeted NVIC slot. EGU0 is configured non-secure
+ * and the ITNS bit is set by nvic_interrupt_target_state_cfg above.
+ */
+void
+tz_arch_signal_ns(void)
+{
+  TZ_NVIC_SetPendingIRQ_NS(EGU0_IRQn);
+}
+/******************************************************************************/
+/*----------------- SPU violation diagnostics --------------------------------*/
+#define SPU_VIOLATION_MAGIC 0x5BADACCEUL
+struct spu_violation_info {
+  uint32_t magic;
+  uint32_t flashaccerr;
+  uint32_t ramaccerr;
+  uint32_t periphaccerr;
+};
+__attribute__((section(".noinit"))) static volatile struct spu_violation_info
+  spu_violation_info;
 
-  return TFM_PLAT_ERR_SUCCESS;
+void
+spu_report_violation(void)
+{
+  if(spu_violation_info.magic != SPU_VIOLATION_MAGIC) {
+    return;
+  }
+  spu_violation_info.magic = 0;
+
+  LOG_WARN("Reboot caused by SPU violation:%s%s%s\n",
+           spu_violation_info.flashaccerr ? " FLASHACCERR" : "",
+           spu_violation_info.ramaccerr ? " RAMACCERR" : "",
+           spu_violation_info.periphaccerr ? " PERIPHACCERR" : "");
+}
+/******************************************************************************/
+/*----------------- SPU interrupt handler ------------------------------------*/
+void
+SPU_IRQHandler(void)
+{
+  /*
+   * Stash the violation type in .noinit for spu_report_violation() to
+   * print on the next boot. No log call here: the UARTE TX path would
+   * block waiting for an ENDTX ISR that cannot run while this handler
+   * is active.
+   */
+  spu_violation_info.flashaccerr = NRF_SPU->EVENTS_FLASHACCERR;
+  spu_violation_info.ramaccerr = NRF_SPU->EVENTS_RAMACCERR;
+  spu_violation_info.periphaccerr = NRF_SPU->EVENTS_PERIPHACCERR;
+  spu_violation_info.magic = SPU_VIOLATION_MAGIC;
+
+  spu_clear_events();
+  NVIC_SystemReset();
 }
 /******************************************************************************/
 /*------------------- SAU/IDAU configuration functions -----------------------*/
@@ -123,7 +179,7 @@ sau_and_idau_cfg(void)
   SAU->CTRL |= SAU_CTRL_ALLNS_Msk;
 }
 /******************************************************************************/
-enum tfm_plat_err_t
+void
 spu_periph_init_cfg(void)
 {
   /* Peripheral configuration */
@@ -164,10 +220,7 @@ spu_periph_init_cfg(void)
   NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_TIMER0));
   spu_peripheral_config_non_secure((uint32_t)NRF_TIMER0, false);
 
-#if 0
-  NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_TIMER1));
-  spu_peripheral_config_non_secure((uint32_t)NRF_TIMER1, false);
-#endif
+  /* TIMER1 is kept secure: used by the secure world for rtimer. */
 
   NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_TIMER2));
   spu_peripheral_config_non_secure((uint32_t)NRF_TIMER2, false);
@@ -175,10 +228,7 @@ spu_periph_init_cfg(void)
   NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_RTC0));
   spu_peripheral_config_non_secure((uint32_t)NRF_RTC0, false);
 
-#if 0
-  NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_RTC1));
-  spu_peripheral_config_non_secure((uint32_t)NRF_RTC1, false);
-#endif
+  /* RTC1 is kept secure: used by the secure world for the clock. */
 
   NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_DPPIC));
   spu_peripheral_config_non_secure((uint32_t)NRF_DPPIC, false);
@@ -275,7 +325,6 @@ spu_periph_init_cfg(void)
   spu_peripheral_config_non_secure((uint32_t)NRF_UARTE1, false);
 #endif /* SECURE_UART1 */
 
-  /* Skip this one because it is secure explicitly. */
   NVIC_DisableIRQ(NRFX_IRQ_NUMBER_GET(NRF_UARTE2));
   spu_peripheral_config_non_secure((uint32_t)NRF_UARTE2, false);
 
@@ -324,8 +373,6 @@ spu_periph_init_cfg(void)
    * code; that's why it is placed here).
    */
   NRF_CACHE->ENABLE = CACHE_ENABLE_ENABLE_Enabled;
-
-  return TFM_PLAT_ERR_SUCCESS;
 }
 /******************************************************************************/
 void

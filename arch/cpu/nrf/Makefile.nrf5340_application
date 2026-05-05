@@ -27,6 +27,9 @@ ifeq ($(TRUSTZONE_SECURE_BUILD),1)
 else ifeq ($(TRUSTZONE_SECURE_BUILD),0)
   # Use a custom linker script for the normal world when TrustZone is enabled.
   SOURCE_LDSCRIPT ?= $(CONTIKI_CPU)/nrf5340/tz-mdk/nrf5340_xxaa_application_SPM_ns.lds
+
+  CONTIKI_CPU_DIRS += nrf5340
+  CONTIKI_CPU_SOURCEFILES += tz-ns-cfg.c
 else
   # Use the regular linker script when TrustZone is disabled.
   SOURCE_LDSCRIPT ?= $(NRFX_ROOT)/mdk/nrf5340_xxaa_application.ld

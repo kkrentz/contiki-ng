@@ -1,15 +1,18 @@
 /*
- * Copyright (C) 2020 Yago Fontoura do Rosario <yago.rosario@hotmail.com.br>
+ * Copyright (c) 2026, RISE Research Institutes of Sweden
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
+ *
  * 1. Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
+ *
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
+ *
  * 3. Neither the name of the copyright holder nor the names of its
  *    contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
@@ -29,94 +32,34 @@
  */
 
 /**
- * \addtogroup nrf
- * @{
- *
- * \addtogroup nrf-os OS drivers
- * @{
- *
- * \addtogroup nrf-dbg Debug driver
- * @{
- *
  * \file
- *         Debug driver for the nRF.
- * \author
- *         Yago Fontoura do Rosario <yago.rosario@hotmail.com.br>
+ *   Normal-world nRF5340 hooks for the TrustZone API.
  *
+ *   Provides the NS-side wake mechanism that the secure side pends
+ *   via tz_arch_signal_ns. EGU0_IRQn is borrowed as a software-only
+ *   doorbell: the EGU peripheral itself is unused, only its NVIC slot.
  */
-/*---------------------------------------------------------------------------*/
+
 #include "contiki.h"
+#include "trustzone/normal/tz-normal.h"
 
-#include "uarte-arch.h"
-#include "usb.h"
-/*---------------------------------------------------------------------------*/
-#if PLATFORM_DBG_CONF_USB
-#define write_byte(b) usb_write((uint8_t *)&b, sizeof(uint8_t))
-#define flush()       usb_flush()
-#else /* PLATFORM_DBG_CONF_USB */
-#define write_byte(b) uarte_write(b)
-#define flush()
-#endif /* PLATFORM_DBG_CONF_USB */
-/*---------------------------------------------------------------------------*/
-#if TRUSTZONE_NONSECURE
-#include "trustzone/tz-api.h"
+#include <nrfx.h>
 
-#define DBG_BUF_SIZE 256
-static char dbg_buf[DBG_BUF_SIZE];
-static uint16_t dbg_pos;
 /*---------------------------------------------------------------------------*/
-int
-dbg_putchar(int c)
+void
+tz_arch_init_ns_signal(void)
 {
-  if(dbg_pos < DBG_BUF_SIZE - 1) {
-    dbg_buf[dbg_pos++] = c;
-  }
-
-  if(c == '\n' || dbg_pos >= DBG_BUF_SIZE - 1) {
-    /* Strip the trailing newline; tz_api_println adds one. */
-    uint16_t len = (dbg_pos > 0 && dbg_buf[dbg_pos - 1] == '\n')
-                   ? dbg_pos - 1 : dbg_pos;
-    dbg_buf[len] = '\0';
-    tz_api_println(dbg_buf, len);
-    dbg_pos = 0;
-  }
-
-  return c;
-}
-#else
-int
-dbg_putchar(int c)
-{
-  write_byte(c);
-
-  if(c == '\n') {
-    flush();
-  }
-
-  return c;
-}
-#endif /* TRUSTZONE_NONSECURE */
-/*---------------------------------------------------------------------------*/
-unsigned int
-dbg_send_bytes(const unsigned char *s, unsigned int len)
-{
-  unsigned int i = 0;
-
-  while(s && *s != 0) {
-    if(i >= len) {
-      break;
-    }
-    dbg_putchar(*s++);
-    i++;
-  }
-
-  flush();
-
-  return i;
+  /*
+   * Do not clear pending before enabling: the only source of an EGU0
+   * pending bit is a deliberate tz_arch_signal_ns() from secure code,
+   * so clearing here would silently discard a legitimate wake request.
+   */
+  NVIC_EnableIRQ(EGU0_IRQn);
 }
 /*---------------------------------------------------------------------------*/
-/**
- * @}
- * @}
- * @}
- */
+void
+EGU0_IRQHandler(void)
+{
+  tz_normal_request_poll();
+}
+/*---------------------------------------------------------------------------*/
