@@ -1087,6 +1087,18 @@ pending_packet(void)
   }
 
   INFO("RF: Pending (%d)\n", ret);
+  /* Throttle: callers (e.g. CSMA's RTIMER_BUSYWAIT_UNTIL after TX) poll
+   * this function very tightly. Unthrottled, the rapid LOCK_SPI /
+   * single_read cycle starves the RX IRQ chain that needs the same SPI
+   * bus to drain the incoming ACK frame from the radio's RX FIFO into
+   * rx_pkt[]. The net effect is that the ACK is received over the air
+   * but never delivered to MAC, so every unicast retransmits to the
+   * MAC retry cap. 300 us is the empirical minimum that resolves this
+   * on the CC2538 SoC at 32 MHz (the race threshold sits between 200
+   * and 300 us). Until DEBUG_LEVEL >= 3 was disabled this was masked
+   * by the printf above, which provided the same throttle as a side
+   * effect of UART blocking. */
+  clock_delay_usec(300);
   return ret;
 
 }
