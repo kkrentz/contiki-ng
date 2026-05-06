@@ -382,7 +382,17 @@ static const struct select_callback nat64_select_cb = {
 static bool
 register_fd(struct nat64_session *s)
 {
-  fcntl(s->fd, F_SETFL, O_NONBLOCK);
+  if(fcntl(s->fd, F_SETFL, O_NONBLOCK) < 0) {
+    /* If the socket stays blocking, a single slow IPv4 server can
+     * stall the entire main loop on the next send/recv.  Refuse the
+     * session rather than risk that. */
+    LOG_ERR("fcntl(F_SETFL, O_NONBLOCK) failed for fd %d: %s\n",
+            s->fd, strerror(errno));
+    close(s->fd);
+    s->fd = -1;
+    s->active = false;
+    return false;
+  }
   if(!select_set_callback(s->fd, &nat64_select_cb)) {
     LOG_ERR("select_set_callback failed for fd %d\n", s->fd);
     close(s->fd);
