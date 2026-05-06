@@ -15,6 +15,7 @@
 #include "net/netstack.h"
 #include "net/packetbuf.h"
 #include "net/linkaddr.h"
+#include "net/mac/framer/frame802154.h"
 #include "sys/energest.h"
 #include "nrf_802154.h"
 #include "nrf_802154_config.h"
