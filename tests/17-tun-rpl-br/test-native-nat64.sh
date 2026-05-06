@@ -77,8 +77,12 @@ for _ in 1 2 3 4 5; do
 done
 
 echo "Starting native border-router with NAT64"
+# NAT64_ALLOW_LOOPBACK=1 lets the gateway forward to 127.0.0.0/8 so it
+# can reach the echo server on the BR's loopback.  Test-only — the BR
+# rejects loopback destinations by default.
 make -C "$CONTIKI/examples/rpl-border-router" -B \
      connect-router-cooja TARGET=native PREFIX="--nat64 fd00::1/64" \
+     NAT64_ALLOW_LOOPBACK=1 \
      >"$BR_LOG" 2>&1 &
 MPID=$!
 

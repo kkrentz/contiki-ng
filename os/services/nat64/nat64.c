@@ -76,6 +76,15 @@
 #define NAT64_ICMP6_QUEUE_SIZE 8
 #endif
 
+/* Test-only override: when set, 127.0.0.0/8 is treated as a permitted
+ * NAT64 destination so the gateway can be exercised against an echo
+ * server bound to the BR's loopback interface.  Never enable this in
+ * production; doing so lets the IoT mesh reach the BR host's local
+ * services. */
+#ifndef NAT64_CONF_ALLOW_LOOPBACK
+#define NAT64_CONF_ALLOW_LOOPBACK 0
+#endif
+
 /* Each queued ICMPv6 message holds an IPv6 header (40) + ICMPv6 header
  * (8) + as much of the invoking packet as fits.  256 bytes is plenty
  * for IPv6+TCP (60) or IPv6+UDP (48) headers and a small slack. */
@@ -144,7 +153,7 @@ ipv4_dst_is_forbidden(const uip_ip4addr_t *addr)
   }
   /* 127.0.0.0/8 — loopback */
   if(a == 127) {
-    return true;
+    return !NAT64_CONF_ALLOW_LOOPBACK;
   }
   /* 169.254.0.0/16 — link-local */
   if(a == 169 && b == 254) {
