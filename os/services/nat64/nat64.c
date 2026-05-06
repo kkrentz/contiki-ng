@@ -76,6 +76,17 @@
 #define NAT64_ICMP6_QUEUE_SIZE 8
 #endif
 
+/* Maximum DNS query payload that can be rewritten in place (AAAA->A
+ * substitution).  Sized to cover EDNS0 messages up to typical 6LoWPAN
+ * MTUs; larger queries are forwarded without translation, which means
+ * the upstream resolver answers an AAAA query as AAAA and the IoT
+ * node sees no A->AAAA synthesis -- harmless for the data path but a
+ * miss for DNS64.  Override at compile time if a deployment uses a
+ * larger EDNS payload size. */
+#ifndef NAT64_DNS_BUF_SIZE
+#define NAT64_DNS_BUF_SIZE 1500
+#endif
+
 /* Test-only override: when set, 127.0.0.0/8 is treated as a permitted
  * NAT64 destination so the gateway can be exercised against an echo
  * server bound to the BR's loopback interface.  Never enable this in
@@ -408,7 +419,7 @@ handle_udp_output(const uint8_t *pkt, const struct v6hdr *ip6,
   const struct udphdr *udp;
   const uint8_t *data;
   uint16_t data_len;
-  static uint8_t dns_buf[512];
+  static uint8_t dns_buf[NAT64_DNS_BUF_SIZE];
 
   if(payload_len < sizeof(struct udphdr)) {
     LOG_WARN("udp_output: payload too short (%u bytes)\n", payload_len);
@@ -419,10 +430,16 @@ handle_udp_output(const uint8_t *pkt, const struct v6hdr *ip6,
   data = pkt + IPV6_HDRLEN + sizeof(struct udphdr);
   data_len = payload_len - sizeof(struct udphdr);
 
-  if(udp->dport == UIP_HTONS(DNS_PORT) && data_len <= sizeof(dns_buf)) {
-    memcpy(dns_buf, data, data_len);
-    nat64_dns64_6to4(dns_buf, data_len);
-    data = dns_buf;
+  if(udp->dport == UIP_HTONS(DNS_PORT)) {
+    if(data_len <= sizeof(dns_buf)) {
+      memcpy(dns_buf, data, data_len);
+      nat64_dns64_6to4(dns_buf, data_len);
+      data = dns_buf;
+    } else {
+      LOG_WARN("DNS64: query of %u bytes exceeds buffer (%u), forwarding "
+               "without AAAA->A rewrite\n",
+               data_len, (unsigned)sizeof(dns_buf));
+    }
   }
 
   return nat64_platform_udp_send(dst4, uip_ntohs(udp->dport),
