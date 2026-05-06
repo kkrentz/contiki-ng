@@ -49,9 +49,6 @@ cleanup() {
     rm -f "$ECHO_PIDFILE"
   fi
   if [ -n "${MPID:-}" ]; then
-    # connect-router-cooja runs the binary under sudo rlwrap; killing
-    # the make process leaves children running, so signal the BR too.
-    sudo pkill -f "border-router.native -a localhost" 2>/dev/null || true
     kill "$MPID" 2>/dev/null || true
   fi
 }
@@ -80,10 +77,16 @@ echo "Starting native border-router with NAT64"
 # NAT64_ALLOW_LOOPBACK=1 lets the gateway forward to 127.0.0.0/8 so it
 # can reach the echo server on the BR's loopback.  Test-only — the BR
 # rejects loopback destinations by default.
+#
+# --no-tun lets the BR run without CAP_NET_ADMIN/sudo: NAT64 traffic is
+# served entirely from the BR's own AF_INET sockets, and any non-NAT64
+# IPv6 traffic from the motes is dropped at the fallback interface.
 make -C "$CONTIKI/examples/rpl-border-router" -B \
-     connect-router-cooja TARGET=native PREFIX="--nat64 fd00::1/64" \
-     NAT64_ALLOW_LOOPBACK=1 \
-     >"$BR_LOG" 2>&1 &
+     border-router.native TARGET=native NAT64_ALLOW_LOOPBACK=1 \
+     >"$BR_LOG" 2>&1
+"$CONTIKI/examples/rpl-border-router/build/native/border-router.native" \
+     -a localhost --nat64 --no-tun fd00::1/64 \
+     >>"$BR_LOG" 2>&1 &
 MPID=$!
 
 echo "Waiting $WAIT_TIME seconds for convergence and probes (nodes: ${NODE_IDS[*]})"
