@@ -194,6 +194,10 @@ nat64_dns64_4to6(const uint8_t *ipv4data, uint16_t ipv4len,
       goto truncate;
     }
     size_t name_len = name_end - src;
+    if(dst + name_len > dst_end) {
+      LOG_WARN("DNS64 4to6: output buffer full at name copy\n");
+      goto truncate;
+    }
     memcpy(dst, src, name_len);
     src += name_len;
     dst += name_len;
