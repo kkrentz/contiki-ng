@@ -529,7 +529,18 @@ nat64_platform_tcp_send(struct nat64_session *s,
   sent = send(s->fd, data, len, 0);
   if(sent < 0) {
     if(errno == EAGAIN || errno == EWOULDBLOCK) {
-      LOG_WARN("TCP send would block (fd %d)\n", s->fd);
+      /* Kernel send buffer full.  Returning 0 leaves peer_next un-
+       * advanced in nat64_tcp_output(), so the IoT-side TCP layer
+       * sees no ACK progress and retransmits on its RTO.  We don't
+       * register for write-readiness here because we don't buffer
+       * the IoT-side payload locally — the source of truth for the
+       * unsent bytes is the IoT TCP send queue, not us, so polling
+       * for writability would have nothing to flush.  Sustained
+       * EAGAIN under 6LoWPAN throughput is essentially unreachable
+       * (kernel buffers >>> radio bandwidth); log it and rely on
+       * IoT retransmits for recovery. */
+      LOG_WARN("TCP send would block (fd %d), IoT will retransmit\n",
+               s->fd);
       return 0;
     }
     LOG_ERR("TCP send error (fd %d): %s\n", s->fd, strerror(errno));
