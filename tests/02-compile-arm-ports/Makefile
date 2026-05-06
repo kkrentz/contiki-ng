@@ -102,6 +102,8 @@ hello-world/nrf:BOARD=nrf52840/dk \
 hello-world/nrf:BOARD=nrf52840/dongle \
 hello-world/nrf:BOARD=nrf5340/dk/application \
 hello-world/nrf:BOARD=nrf5340/dk/network \
+hello-world/nrf:BOARD=nrf54l15/dk \
+hello-world/nrf:BOARD=nrf54l15/xiao \
 hello-world/nrf:BOARD=nrf52840/dk:NRF_NATIVE_USB=1 \
 hello-world/nrf:BOARD=nrf52840/dongle:NRF_NATIVE_USB=1 \
 hello-world/nrf:BOARD=nrf5340/dk/application:NRF_NATIVE_USB=1 \
