@@ -446,9 +446,11 @@ nat64_tcp_output(const uint8_t *pkt, uint16_t len)
   struct nat64_session *s = ts->session;
 
   if(tcp->flags & TCP_RST) {
-    LOG_INFO("TCP RST\n");
-    nat64_platform_tcp_close(s);
-    ts->in_use = false;
+    LOG_INFO("TCP RST from IoT, aborting session\n");
+    /* Full teardown: the IPv4 socket is closed with SO_LINGER=0 so
+     * the upstream server sees an equivalent RST instead of a
+     * delayed graceful FIN. */
+    nat64_platform_tcp_abort(s);
     return 1;
   }
 
@@ -505,9 +507,8 @@ nat64_tcp_output(const uint8_t *pkt, uint16_t len)
                new_len, skip > 0 ? " (skipped retransmitted prefix)" : "");
       int sent = nat64_platform_tcp_send(s, new_data, new_len);
       if(sent < 0) {
-        LOG_ERR("TCP send failed, closing session\n");
-        nat64_platform_tcp_close(s);
-        ts->in_use = false;
+        LOG_ERR("TCP send failed, aborting session\n");
+        nat64_platform_tcp_abort(s);
         return 1;
       }
       ts->peer_next += (uint32_t)sent;
@@ -532,6 +533,16 @@ nat64_tcp_output(const uint8_t *pkt, uint16_t len)
        * eventually closes its end. */
       nat64_platform_tcp_close(s);
       ts->pending_ack = true;
+
+      if(s->tcp_state == NAT64_TCP_CLOSING) {
+        /* Server already closed and we already injected our FIN;
+         * receiving the IoT-side FIN means both halves are done.
+         * Tear down the session now rather than waiting for the
+         * idle timer. */
+        LOG_INFO("TCP both sides FIN'd, destroying session\n");
+        nat64_platform_tcp_destroy(s);
+        return 1;
+      }
     } else {
       LOG_DBG("TCP duplicate FIN from IoT node (already half-closed)\n");
     }
@@ -629,10 +640,8 @@ nat64_tcp_flush_acks(void)
      * so we recover from radio losses purely on this timer. */
     if(ts->in_flight > 0 && timer_expired(&ts->rtx_timer)) {
       if(++ts->rtx_count > NAT64_TCP_MAX_RETRIES) {
-        LOG_ERR("TCP retransmit limit reached, tearing down session\n");
-        nat64_platform_tcp_close(ts->session);
-        ts->in_use = false;
-        ts->session = NULL;
+        LOG_ERR("TCP retransmit limit reached, aborting session\n");
+        nat64_platform_tcp_abort(ts->session);
         continue;
       }
       LOG_WARN("TCP retransmit %u/%u (%u bytes)\n",
@@ -744,6 +753,13 @@ nat64_tcp_has_pending_data(const struct nat64_session *s)
 {
   struct tcp_seqstate *ts = find_seqstate(s);
   return ts != NULL && ts->rxbuf_len > ts->rxbuf_offset;
+}
+/*---------------------------------------------------------------------------*/
+bool
+nat64_tcp_peer_fin_received(const struct nat64_session *s)
+{
+  struct tcp_seqstate *ts = find_seqstate(s);
+  return ts != NULL && ts->peer_fin_received;
 }
 /*---------------------------------------------------------------------------*/
 void

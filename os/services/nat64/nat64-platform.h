@@ -161,6 +161,30 @@ int nat64_platform_tcp_send(struct nat64_session *s,
 void nat64_platform_tcp_close(struct nat64_session *s);
 
 /**
+ * \brief Fully tear down a TCP session.
+ * \param s The session to destroy.
+ *
+ * Closes the IPv4 socket, releases the per-session sequence state, and
+ * frees the platform-layer session slot.  After this call the session
+ * pointer is no longer valid.  Use this when both sides have FIN'd and
+ * the connection is fully closed; for RST/abort semantics use
+ * ::nat64_platform_tcp_abort instead.
+ */
+void nat64_platform_tcp_destroy(struct nat64_session *s);
+
+/**
+ * \brief Abort a TCP session by sending RST upstream.
+ * \param s The session to abort.
+ *
+ * Sets SO_LINGER with a zero linger time so that close() emits a TCP
+ * RST instead of a graceful FIN, then tears down the session as in
+ * ::nat64_platform_tcp_destroy.  Used when the IoT node sends a RST,
+ * so the IPv4 server sees an equivalent abort rather than a delayed
+ * graceful close.
+ */
+void nat64_platform_tcp_abort(struct nat64_session *s);
+
+/**
  * \brief Forward an ICMPv4 Echo Request to an IPv4 destination.
  * \param dst        IPv4 destination address.
  * \param ip6_src    IoT node's IPv6 source address.

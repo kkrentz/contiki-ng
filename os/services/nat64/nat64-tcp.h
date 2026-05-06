@@ -96,6 +96,18 @@ void nat64_tcp_flush_acks(void);
 bool nat64_tcp_has_pending_data(const struct nat64_session *s);
 
 /**
+ * \brief Check whether the IoT node has already half-closed the session.
+ * \param s The session to check.
+ * \return true if the IoT-side FIN has been received, false otherwise.
+ *
+ * Used by the platform layer when the IPv4 server closes its end: if
+ * the IoT side had already FIN'd, both halves are now closed and the
+ * platform can destroy the session immediately rather than waiting
+ * for the idle timer to reap it.
+ */
+bool nat64_tcp_peer_fin_received(const struct nat64_session *s);
+
+/**
  * \brief Free any TCP sequence state associated with a session.
  * \param s The session being closed.
  *

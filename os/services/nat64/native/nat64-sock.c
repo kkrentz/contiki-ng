@@ -133,6 +133,24 @@ close_session(struct nat64_session *s)
   s->proto = NAT64_PROTO_NONE;
 }
 /*---------------------------------------------------------------------------*/
+/**
+ * \brief Reap an expired session, notifying its peer if applicable.
+ * \param s The session whose expiry timer has fired.
+ *
+ * For ESTABLISHED TCP sessions this synthesizes a FIN toward the IoT
+ * node before tearing down, so the IoT-side TCP layer doesn't keep a
+ * zombie connection until its own keepalive fires.
+ */
+static void
+expire_session(struct nat64_session *s)
+{
+  if(s->proto == NAT64_PROTO_TCP &&
+     s->tcp_state == NAT64_TCP_ESTABLISHED) {
+    nat64_tcp_closed(s);
+  }
+  close_session(s);
+}
+/*---------------------------------------------------------------------------*/
 static struct nat64_session *
 find_session(enum nat64_session_proto proto,
              const uip_ip6addr_t *ip6_src, uint16_t srcport,
@@ -148,7 +166,7 @@ find_session(enum nat64_session_proto proto,
        uip_ip6addr_cmp(&s->ip6_peer, ip6_src) &&
        uip_ip4addr_cmp(&s->ip4_remote, dst)) {
       if(timer_expired(&s->expiry)) {
-        close_session(s);
+        expire_session(s);
         return NULL;
       }
       return s;
@@ -187,7 +205,7 @@ alloc_session(const uip_ip6addr_t *ip6_src)
       return &sessions[i];
     }
     if(timer_expired(&sessions[i].expiry)) {
-      close_session(&sessions[i]);
+      expire_session(&sessions[i]);
       return &sessions[i];
     }
   }
@@ -294,11 +312,7 @@ generic_handle_fd(fd_set *rset, fd_set *wset)
     }
 
     if(timer_expired(&s->expiry)) {
-      if(s->proto == NAT64_PROTO_TCP &&
-         s->tcp_state == NAT64_TCP_ESTABLISHED) {
-        nat64_tcp_closed(s);
-      }
-      close_session(s);
+      expire_session(s);
       continue;
     }
 
@@ -325,10 +339,19 @@ generic_handle_fd(fd_set *rset, fd_set *wset)
         LOG_INFO("TCP server closed connection (fd %d)\n", s->fd);
         nat64_tcp_closed(s);
         s->tcp_state = NAT64_TCP_CLOSING;
+        if(nat64_tcp_peer_fin_received(s)) {
+          /* IoT side already FIN'd — both halves done, reap now. */
+          LOG_INFO("TCP both sides FIN'd, destroying session\n");
+          close_session(s);
+        }
       } else if(errno != EAGAIN && errno != EWOULDBLOCK) {
         LOG_ERR("TCP recv error (fd %d): %s\n", s->fd, strerror(errno));
         nat64_tcp_closed(s);
         s->tcp_state = NAT64_TCP_CLOSING;
+        if(nat64_tcp_peer_fin_received(s)) {
+          LOG_INFO("TCP both sides done, destroying session\n");
+          close_session(s);
+        }
       }
     } else if(s->proto == NAT64_PROTO_UDP) {
       uint8_t buf[1500];
@@ -519,6 +542,33 @@ nat64_platform_tcp_close(struct nat64_session *s)
    * closes (recv() returns 0 in generic_handle_fd) or when an explicit
    * teardown occurs. */
   shutdown(s->fd, SHUT_WR);
+}
+/*---------------------------------------------------------------------------*/
+void
+nat64_platform_tcp_destroy(struct nat64_session *s)
+{
+  if(s == NULL) {
+    return;
+  }
+  LOG_DBG("TCP destroy fd %d\n", s->fd);
+  close_session(s);
+}
+/*---------------------------------------------------------------------------*/
+void
+nat64_platform_tcp_abort(struct nat64_session *s)
+{
+  if(s == NULL) {
+    return;
+  }
+  if(s->fd >= 0) {
+    /* SO_LINGER with l_linger=0 makes the subsequent close() emit a
+     * TCP RST instead of a graceful FIN, so the upstream server sees
+     * the connection abort directly. */
+    struct linger lin = { .l_onoff = 1, .l_linger = 0 };
+    setsockopt(s->fd, SOL_SOCKET, SO_LINGER, &lin, sizeof(lin));
+  }
+  LOG_DBG("TCP abort fd %d\n", s->fd);
+  close_session(s);
 }
 /*---------------------------------------------------------------------------*/
 int
