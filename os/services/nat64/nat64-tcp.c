@@ -433,20 +433,50 @@ nat64_tcp_output(const uint8_t *pkt, uint16_t len)
 
   if(data_len > 0) {
     const uint8_t *data = pkt + IPV6_HDRLEN + data_offset;
-    LOG_INFO("TCP forwarding %u bytes to IPv4 server\n", data_len);
-    int sent = nat64_platform_tcp_send(s, data, data_len);
-    if(sent < 0) {
-      LOG_ERR("TCP send failed, closing session\n");
-      nat64_platform_tcp_close(s);
-      ts->in_use = false;
+    uint32_t seq_end = seq + (uint32_t)data_len;
+    int32_t gap = (int32_t)(seq - ts->peer_next);
+
+    if(gap > 0) {
+      /* The IoT node skipped ahead in the sequence space — we never
+       * saw the bytes between peer_next and seq.  Drop the segment
+       * (including any FIN) so it retransmits from peer_next. */
+      LOG_WARN("TCP out-of-order seq=%lu peer_next=%lu, dropping\n",
+               (unsigned long)seq, (unsigned long)ts->peer_next);
+      ts->pending_ack = true;
       return 1;
     }
-    ts->peer_next = seq + (uint32_t)sent;
-    ts->pending_ack = true;
-    if((uint32_t)sent < data_len) {
-      /* Short write — only ACK what was forwarded.  Don't process
-       * FIN yet; the IoT node will retransmit the remaining data. */
-      return 1;
+
+    if((int32_t)(seq_end - ts->peer_next) <= 0) {
+      /* Pure retransmit: every byte was already forwarded to the IPv4
+       * server.  Re-ACK so the IoT node stops resending, but do not
+       * forward the duplicate payload — that would corrupt the
+       * server-side stream. */
+      LOG_DBG("TCP retransmit seq=%lu len=%u (already forwarded)\n",
+              (unsigned long)seq, data_len);
+      ts->pending_ack = true;
+    } else {
+      /* Partial overlap: skip the prefix that was already forwarded
+       * and send only the new tail. */
+      uint32_t skip = ts->peer_next - seq;
+      const uint8_t *new_data = data + skip;
+      uint16_t new_len = data_len - (uint16_t)skip;
+
+      LOG_INFO("TCP forwarding %u bytes to IPv4 server%s\n",
+               new_len, skip > 0 ? " (skipped retransmitted prefix)" : "");
+      int sent = nat64_platform_tcp_send(s, new_data, new_len);
+      if(sent < 0) {
+        LOG_ERR("TCP send failed, closing session\n");
+        nat64_platform_tcp_close(s);
+        ts->in_use = false;
+        return 1;
+      }
+      ts->peer_next += (uint32_t)sent;
+      ts->pending_ack = true;
+      if((uint32_t)sent < new_len) {
+        /* Short write — only ACK what was forwarded.  Don't process
+         * FIN yet; the IoT node will retransmit the remaining data. */
+        return 1;
+      }
     }
   }
 
