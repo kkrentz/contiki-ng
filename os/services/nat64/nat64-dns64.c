@@ -187,7 +187,14 @@ nat64_dns64_4to6(const uint8_t *ipv4data, uint16_t ipv4len,
    * sections rather than attempting to relocate them — their data would
    * be at wrong offsets after expansion, and IoT resolvers do not need
    * them. */
+  uint16_t emitted_ancount = 0;
+  /* Marks the start of the current answer's output bytes.  On a
+   * mid-RR truncate, dst is rewound to this point so the message
+   * doesn't end on a partially-written record. */
+  uint8_t *rr_start = dst;
   for(uint16_t i = 0; i < ancount; i++) {
+    rr_start = dst;
+
     /* Copy/skip the name in the answer. */
     const uint8_t *name_end = skip_dns_name(src, src_end);
     if(name_end == NULL) {
@@ -244,9 +251,16 @@ nat64_dns64_4to6(const uint8_t *ipv4data, uint16_t ipv4len,
       src += rr_total;
       dst += rr_total;
     }
+    emitted_ancount++;
   }
+  /* All answers emitted successfully: nothing to rewind. */
+  rr_start = dst;
 
 truncate:
+  /* Rewind any partially-written final RR so the message ends on a
+   * complete record, then publish the count actually emitted. */
+  dst = rr_start;
+  WR16(&ipv6data[DNS_HDR_ANCOUNT], emitted_ancount);
   /* Drop authority and additional sections — they would be at wrong
    * offsets after answer expansion, and IoT resolvers don't need them. */
   WR16(&ipv6data[DNS_HDR_NSCOUNT], 0);
