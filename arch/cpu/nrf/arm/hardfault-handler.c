@@ -360,7 +360,10 @@ fault_print_and_reset(char f1, char f2)
 void BusFault_Handler(void)       { fault_print_and_reset('B', 'F'); }
 void UsageFault_Handler(void)     { fault_print_and_reset('U', 'F'); }
 void MemoryManagement_Handler(void) { fault_print_and_reset('M', 'M'); }
+#ifndef TRUSTZONE_SECURE
+/* In a TrustZone secure build, tz-fault.c owns SecureFault_Handler. */
 void SecureFault_Handler(void)    { fault_print_and_reset('S', 'F'); }
+#endif
 /*---------------------------------------------------------------------------*/
 /**
  * @}
