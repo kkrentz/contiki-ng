@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, RISE Research Institutes of Sweden AB
+ * Copyright (c) 2026, RISE Research Institutes of Sweden AB
  * All rights reserved.
  *
  * Author: Joakim Eriksson <joakim.eriksson@ri.se>
@@ -52,8 +52,9 @@ static uint8_t tx_buf[1 + MAX_PAYLOAD_LEN + 2]; /* +2 for FCS space */
 static volatile uint8_t tx_buf_len;
 
 /* RX state */
-/* Match Zephyr's software staging depth to avoid dropping bursts of received
- * frames while the upper layer drains them outside ISR context. */
+/* Stage as many software RX buffers as the driver advertises so that bursts
+ * of received frames are not dropped while the upper layer drains them
+ * outside of ISR context. */
 #define RX_BUF_COUNT NRF_802154_RX_BUFFERS
 static uint8_t *rx_bufs[RX_BUF_COUNT];
 static int8_t rx_rssi[RX_BUF_COUNT];
@@ -557,8 +558,7 @@ set_object(radio_param_t param, const void *src, size_t size)
   }
 }
 /*---------------------------------------------------------------------------*/
-/* nrf_802154 callbacks -- called from ISR context */
-/*---------------------------------------------------------------------------*/
+/* nrf_802154 callbacks below are invoked from ISR context. */
 void
 nrf_802154_received_timestamp_raw(uint8_t *p_data, int8_t power,
                                   uint8_t lqi, uint64_t time)
@@ -668,8 +668,7 @@ nrf_802154_energy_detection_failed(nrf_802154_ed_error_t error)
   (void)error;
 }
 /*---------------------------------------------------------------------------*/
-/* Contiki-NG process for async RX delivery */
-/*---------------------------------------------------------------------------*/
+/* Contiki-NG process for async RX delivery. */
 PROCESS_THREAD(nrf54l15_radio_process, ev, data)
 {
   PROCESS_BEGIN();

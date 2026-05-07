@@ -1,4 +1,11 @@
 /*
+ * Copyright (c) 2026, RISE Research Institutes of Sweden AB
+ * All rights reserved.
+ *
+ * Author: Joakim Eriksson <joakim.eriksson@ri.se>
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
  * Minimal rtimer implementation backed by the nRF54L15 GRTC syscounter.
  */
 

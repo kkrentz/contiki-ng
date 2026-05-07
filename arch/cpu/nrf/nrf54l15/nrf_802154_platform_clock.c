@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, RISE Research Institutes of Sweden AB
+ * Copyright (c) 2026, RISE Research Institutes of Sweden AB
  * All rights reserved.
  *
  * Author: Joakim Eriksson <joakim.eriksson@ri.se>

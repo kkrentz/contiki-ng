@@ -603,8 +603,8 @@ try_send_packet(void)
   state.tx_busy = true;
 
   NETSTACK_MAC.send(tx_done, NULL);
-/*---------------------------------------------------------------------------*/
 }
+/*---------------------------------------------------------------------------*/
 static PT_THREAD(cmd_radio_test(struct pt *pt, shell_output_func output, char *args))
 {
   char *next_args;
@@ -843,9 +843,8 @@ static PT_THREAD(cmd_radio_test(struct pt *pt, shell_output_func output, char *a
                "Usage: radio-test [status|status-brief|target|clear-target|start|run|stop|once|interval|len|txmax|channel|power|verbose|reset]\n");
 
   PT_END(pt);
-/*---------------------------------------------------------------------------*/
 }
-
+/*---------------------------------------------------------------------------*/
 PROCESS_THREAD(radio_test_process, ev, data)
 {
   static struct etimer periodic_timer;

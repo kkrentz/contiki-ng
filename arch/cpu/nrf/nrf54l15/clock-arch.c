@@ -1,4 +1,11 @@
 /*
+ * Copyright (c) 2026, RISE Research Institutes of Sweden AB
+ * All rights reserved.
+ *
+ * Author: Joakim Eriksson <joakim.eriksson@ri.se>
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
  * Minimal GRTC-backed clock implementation for nRF54L15.
  *
  * NOTE: This ignores advanced low-power tuning and only provides the
@@ -144,8 +151,8 @@ clock_init(void)
   NVIC_ClearPendingIRQ(GRTC_IRQn);
   NVIC_EnableIRQ(GRTC_IRQn);
 
-  /* Start the GRTC syscounter with busy wait (Zephyr approach)
-   * This allocates a main CC channel automatically */
+  /* Start the GRTC syscounter and busy-wait until it is ready.
+   * This call also allocates a main CC channel automatically. */
   uint8_t main_cc_channel = 0;
   err = nrfx_grtc_syscounter_start(true, &main_cc_channel);
   if(err != NRFX_SUCCESS && err != NRFX_ERROR_ALREADY) {

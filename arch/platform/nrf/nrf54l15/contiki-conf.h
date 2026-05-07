@@ -1,4 +1,13 @@
-
+/*
+ * Copyright (c) 2026, RISE Research Institutes of Sweden AB
+ * All rights reserved.
+ *
+ * Author: Joakim Eriksson <joakim.eriksson@ri.se>
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Top-level Contiki-NG configuration for the nRF54L15 platform.
+ */
 #ifndef CONTIKI_CONF_H
 #define CONTIKI_CONF_H
 

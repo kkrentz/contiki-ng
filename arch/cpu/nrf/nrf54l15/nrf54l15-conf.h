@@ -1,4 +1,11 @@
 /*
+ * Copyright (c) 2026, RISE Research Institutes of Sweden AB
+ * All rights reserved.
+ *
+ * Author: Joakim Eriksson <joakim.eriksson@ri.se>
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
  * Minimal configuration header for the nRF54L15 Cortex-M33 application core.
  *
  * Mirrors the existing nRF52/nRF53 style so platform code can include a

@@ -1,4 +1,11 @@
 /*
+ * Copyright (c) 2026, RISE Research Institutes of Sweden AB
+ * All rights reserved.
+ *
+ * Author: Joakim Eriksson <joakim.eriksson@ri.se>
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
  * Placeholder configuration header for the XIAO nRF54L15 board.
  * Extend with board-specific overrides as the port matures.
  */

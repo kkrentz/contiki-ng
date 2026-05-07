@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, RISE Research Institutes of Sweden AB
+ * Copyright (c) 2026, RISE Research Institutes of Sweden AB
  * All rights reserved.
  *
  * Author: Joakim Eriksson <joakim.eriksson@ri.se>
@@ -27,9 +27,9 @@ void
 nrf_802154_irq_init(uint32_t irqn, int32_t prio, nrf_802154_isr_t isr)
 {
   if(prio < 0) {
-    /* Match Zephyr's behaviour as closely as possible: negative priorities
-     * request zero-latency IRQs there, but bare-metal Contiki only has the
-     * NVIC priority value, so clamp to the highest programmable priority. */
+    /* Negative priorities are reserved by the driver for zero-latency IRQs.
+     * Bare-metal Contiki only exposes the NVIC priority value, so clamp to
+     * the highest programmable priority. */
     prio = 0;
   }
 

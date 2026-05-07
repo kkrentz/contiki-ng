@@ -106,8 +106,8 @@ rf_switch_print_status(shell_output_func output)
                path, power,
                (unsigned)nrf_gpio_pin_read(rf_sw_sel),
                (unsigned)nrf_gpio_pin_read(rf_sw_pwr));
-/*---------------------------------------------------------------------------*/
 }
+/*---------------------------------------------------------------------------*/
 static PT_THREAD(cmd_rf_switch(struct pt *pt, shell_output_func output, char *args))
 {
   char *next_args;
@@ -165,9 +165,8 @@ static PT_THREAD(cmd_rf_switch(struct pt *pt, shell_output_func output, char *ar
 
   SHELL_OUTPUT(output, "Usage: rf-sw status|ceramic|external|power [0|1|off|on]\n");
   PT_END(pt);
-/*---------------------------------------------------------------------------*/
 }
-
+/*---------------------------------------------------------------------------*/
 PROCESS_THREAD(xiao_nrf54l15_rf_switch_shell_process, ev, data)
 {
   static struct etimer register_timer;

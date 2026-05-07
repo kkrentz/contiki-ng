@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, RISE Research Institutes of Sweden AB
+ * Copyright (c) 2026, RISE Research Institutes of Sweden AB
  * All rights reserved.
  *
  * Author: Joakim Eriksson <joakim.eriksson@ri.se>
@@ -12,7 +12,7 @@
 #ifndef NRF_802154_PROJECT_CONFIG_H_
 #define NRF_802154_PROJECT_CONFIG_H_
 
-/* Match Zephyr's SL-opensource setup on nRF54LX: the driver owns RADIO IRQ. */
+/* On nRF54LX the driver owns the RADIO IRQ directly. */
 #define NRF_802154_INTERNAL_RADIO_IRQ_HANDLING 1
 #define NRF_802154_INTERNAL_SWI_IRQ_HANDLING   0
 
@@ -20,7 +20,7 @@
 #define NRF_802154_NOTIFICATION_IMPL NRF_802154_NOTIFICATION_IMPL_DIRECT
 #define NRF_802154_REQUEST_IMPL      NRF_802154_REQUEST_IMPL_DIRECT
 
-/* Align with Zephyr defaults where possible. */
+/* CCA defaults (ED mode, threshold/correlation values) used by nrf_802154. */
 #define NRF_802154_CCA_MODE_DEFAULT            NRF_RADIO_CCA_MODE_ED
 #define NRF_802154_CCA_ED_THRESHOLD_DBM_DEFAULT (-75)
 #define NRF_802154_CCA_CORR_THRESHOLD_DEFAULT  45
@@ -32,9 +32,9 @@
 /* Match Nordic's SL-opensource integration: frame timestamping is disabled. */
 #define NRF_802154_FRAME_TIMESTAMP_ENABLED     0
 
-/* nRF54L15 on the application core still needs extra ACK turnaround slack on
- * this bare-metal Contiki port. The Zephyr-closer timer fixes help, but they
- * do not eliminate the remaining scheduling gap. */
+/* nRF54L15 on the application core needs extra ACK turnaround slack on this
+ * bare-metal Contiki port; the timer backend reduces but does not eliminate
+ * the remaining scheduling gap. */
 #define NRF_802154_ACK_IFS_EXTRA_TIME_US       160U
 
 /* Disable features not available in the open-source SL or not needed. */

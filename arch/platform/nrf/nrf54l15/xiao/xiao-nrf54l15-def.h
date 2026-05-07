@@ -1,4 +1,11 @@
 /*
+ * Copyright (c) 2026, RISE Research Institutes of Sweden AB
+ * All rights reserved.
+ *
+ * Author: Joakim Eriksson <joakim.eriksson@ri.se>
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
  * Board definition header for the Seeed Studio XIAO nRF54L15.
  * Mirrors the structure used by other nRF boards.
  */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, RISE Research Institutes of Sweden AB
+ * Copyright (c) 2026, RISE Research Institutes of Sweden AB
  * All rights reserved.
  *
  * Author: Joakim Eriksson <joakim.eriksson@ri.se>
@@ -8,12 +8,11 @@
  *
  * Low Power Timer + SL Timer + Timer Coordinator for nrf_802154 on nRF54L15.
  *
- * This backend ports the important scheduling semantics from Zephyr's
- * nrf_rtc_timer-based implementation onto a dedicated application-core timer.
- * The app core on nRF54L15 does not expose the classic RTC instance used by
- * Zephyr, so we use TIMER20 at 1 MHz and preserve the behavior that matters:
- * safe compare programming, exact-vs-adjusted scheduling, pending IRQ replay
- * after critical sections, and a dedicated hardware-task compare channel.
+ * The application core on nRF54L15 does not expose a classic RTC instance,
+ * so this backend uses TIMER20 at 1 MHz instead. The scheduling semantics
+ * preserved here -- safe compare programming, exact-vs-adjusted scheduling,
+ * pending IRQ replay after critical sections, and a dedicated hardware-task
+ * compare channel -- are inspired by Zephyr's nrf_rtc_timer.
  */
 
 #include "nrf_802154_sl_timer.h"
