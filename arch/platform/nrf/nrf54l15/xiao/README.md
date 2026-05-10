@@ -192,9 +192,6 @@ default in `nrf54l15-conf.h`:
 #define QUEUEBUF_CONF_NUM 4
 ```
 
-A minimal stub driver (`nrf-ieee-driver-stub.c`) is kept for builds with the
-radio disabled.
-
 ## Troubleshooting
 
 ### Build Issues

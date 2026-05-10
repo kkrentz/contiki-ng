@@ -589,6 +589,7 @@ nrf_802154_platform_sl_lptimer_critical_section_exit(void)
 
   irq_unlock_local(primask);
 }
+/*---------------------------------------------------------------------------*/
 nrf_802154_sl_lptimer_platform_result_t
 nrf_802154_platform_sl_lptimer_hw_task_prepare(uint64_t fire_lpticks,
                                                uint32_t ppi_channel)

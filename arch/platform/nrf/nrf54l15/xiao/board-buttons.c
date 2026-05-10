@@ -19,7 +19,7 @@
 #include <stddef.h>
 
 /* Provide empty button list */
-void *button_hal_buttons[] = { NULL };
+button_hal_button_t *button_hal_buttons[] = { NULL };
 unsigned char button_hal_button_cnt = 0;
 
 /* Stub for v2.x API compatibility */

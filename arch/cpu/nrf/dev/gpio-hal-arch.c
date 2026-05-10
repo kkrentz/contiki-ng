@@ -227,7 +227,7 @@ gpio_hal_arch_port_pin_cfg_set(gpio_hal_port_t port, gpio_hal_pin_t pin, gpio_ha
   } else {
     gpio_hal_arch_interrupt_disable_nrfx_v3(port, pin);
   }
-#else
+#else /* NRFX_API_VER_AT_LEAST(3, 2, 0) */
   nrfx_gpiote_in_config_t gpiote_config = {
     .is_watcher = false,
     .hi_accuracy = true,
@@ -261,7 +261,7 @@ gpio_hal_arch_port_pin_cfg_set(gpio_hal_port_t port, gpio_hal_pin_t pin, gpio_ha
   } else if(tmp == GPIO_HAL_PIN_CFG_INT_ENABLE) {
     nrfx_gpiote_in_event_enable(pin_number, true);
   }
-#endif
+#endif /* NRFX_API_VER_AT_LEAST(3, 2, 0) */
 }
 /*---------------------------------------------------------------------------*/
 gpio_hal_pin_cfg_t

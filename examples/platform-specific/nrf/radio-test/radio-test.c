@@ -510,6 +510,7 @@ tx_done(void *ptr, int status, int transmissions)
 
   process_poll(&radio_test_process);
 }
+/*---------------------------------------------------------------------------*/
 static void
 input_callback(const void *data, uint16_t len, const linkaddr_t *src,
                const linkaddr_t *dest)
@@ -840,7 +841,9 @@ static PT_THREAD(cmd_radio_test(struct pt *pt, shell_output_func output, char *a
   }
 
   SHELL_OUTPUT(output,
-               "Usage: radio-test [status|status-brief|target|clear-target|start|run|stop|once|interval|len|txmax|channel|power|verbose|reset]\n");
+               "Usage: radio-test [status|status-brief|target|clear-target|"
+               "start|run|stop|once|interval|len|txmax|channel|power|"
+               "verbose|reset]\n");
 
   PT_END(pt);
 }
