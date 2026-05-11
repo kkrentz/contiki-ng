@@ -84,7 +84,12 @@ uart0_init(unsigned long ubr)
   UCA0BRW = 4;
   UCA0MCTLW = (5 << 4) | (0x55 << 8) | UCOS16;
 
-  /* Configure pins: P2.0 = TXD, P2.1 = RXD */
+  /* Configure pins: P2.0 = TXD (output), P2.1 = RXD (input).
+   * msp430_cpu_init() previously drove every port pin as an output
+   * low, so the RX direction must be reset explicitly before the
+   * eUSCI peripheral function is selected. */
+  P2DIR |= BIT0;
+  P2DIR &= ~BIT1;
   P2SEL0 &= ~(BIT0 | BIT1);
   P2SEL1 |= BIT0 | BIT1;
 
