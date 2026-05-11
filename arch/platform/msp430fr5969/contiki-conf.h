@@ -78,7 +78,9 @@
 /*---------------------------------------------------------------------------*/
 /* Network stack configuration - No radio on this platform */
 /*---------------------------------------------------------------------------*/
+#ifndef NETSTACK_CONF_RADIO
 #define NETSTACK_CONF_RADIO   nullradio_driver
+#endif
 
 /* Disable networking by default since there is no radio */
 #ifndef NETSTACK_CONF_WITH_IPV6
