@@ -51,13 +51,19 @@ int msp430_dco_required;
  * Configure:
  * - DCO at 8 MHz
  * - MCLK = SMCLK = DCO
- * - ACLK = VLOCLK (~10 kHz)
+ * - ACLK = LFXT (32.768 kHz on-board crystal), with VLOCLK fallback
+ *   if the crystal fails to stabilize.
  *
  * Also configures FRAM wait states for 8MHz operation.
  */
 static void
 msp430_init_dco(void)
 {
+  /* Route PJ.4/PJ.5 to the LFXT crystal before unlocking the LPM5
+   * port latch so the pins come up in peripheral function. */
+  PJSEL0 |= BIT4 | BIT5;
+  PJSEL1 &= ~(BIT4 | BIT5);
+
   /* Disable the GPIO power-on default high-impedance mode to activate
    * previously configured port settings */
   PM5CTL0 &= ~LOCKLPM5;
@@ -74,15 +80,31 @@ msp430_init_dco(void)
   /* Configure DCO to 8MHz */
   CSCTL1 = DCOFSEL_6;  /* DCO = 8 MHz */
 
-  /* Set clock sources:
-   * MCLK = DCO
-   * SMCLK = DCO
-   * ACLK = VLOCLK (~10kHz internal very low power oscillator)
-   */
+  /* Start LFXT with default drive strength. Source ACLK from VLO
+   * initially so the system can run even before the crystal
+   * stabilizes; we switch to LFXT below once OFIFG stays cleared. */
+  CSCTL4 = (CSCTL4 & ~(LFXTOFF | LFXTBYPASS)) | LFXTDRIVE_3;
   CSCTL2 = SELA__VLOCLK | SELS__DCOCLK | SELM__DCOCLK;
 
   /* Set clock dividers (all divide by 1) */
   CSCTL3 = DIVA__1 | DIVS__1 | DIVM__1;
+
+  /* Wait up to ~500 ms for the LFXT to stabilize. Each iteration
+   * clears LFXTOFFG and the system oscillator fault flag, then
+   * delays ~10 ms at 8 MHz; 50 iterations gives a 500 ms cap. If
+   * the crystal never stabilizes (e.g. unpopulated or broken), we
+   * leave ACLK on VLOCLK so etimer/rtimer still tick. */
+  for(int retries = 0; retries < 50; retries++) {
+    CSCTL5 &= ~LFXTOFFG;
+    SFRIFG1 &= ~OFIFG;
+    __delay_cycles(80000);
+    if((CSCTL5 & LFXTOFFG) == 0 && (SFRIFG1 & OFIFG) == 0) {
+      break;
+    }
+  }
+  if((SFRIFG1 & OFIFG) == 0) {
+    CSCTL2 = SELA__LFXTCLK | SELS__DCOCLK | SELM__DCOCLK;
+  }
 
   /* Lock CS registers */
   CSCTL0_H = 0;
