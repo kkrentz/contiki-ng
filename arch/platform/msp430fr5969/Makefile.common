@@ -75,9 +75,11 @@ else
   RESET_TIMEOUT := $(TIMEOUT_CMD) $(MSPDEBUG_RESET_TIMEOUT)
 endif
 
-### Upload support using mspdebug
+### Upload support using mspdebug. After programming, "reset" releases
+### the target from halt so the firmware starts running immediately,
+### and "exit" disconnects tilib cleanly.
 %.upload: $(BUILD_DIR_BOARD)/%.$(TARGET)
-	$(UPLOAD_TIMEOUT) mspdebug tilib "prog $<"
+	$(UPLOAD_TIMEOUT) mspdebug tilib "prog $<" "reset" "exit"
 
 ### Reset the device using mspdebug
 .PHONY: reset
