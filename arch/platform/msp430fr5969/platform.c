@@ -36,6 +36,7 @@
 #include <string.h>
 #include "contiki.h"
 #include "sys/energest.h"
+#include "dev/button-hal.h"
 #include "dev/leds.h"
 #include "dev/serial-line.h"
 #include "dev/uart0.h"
@@ -103,6 +104,8 @@ platform_init_stage_two(void)
 void
 platform_init_stage_three(void)
 {
+  button_hal_init();
+
   LOG_INFO("Node ID: %u\n", node_id);
 
   /* Enable serial line input */
