@@ -53,15 +53,70 @@ extern int msp430_dco_required;
 #define LOG_LEVEL LOG_LEVEL_MAIN
 
 /*---------------------------------------------------------------------------*/
+/*
+ * The MSP430FR5969 carries a factory-programmed Device Descriptor
+ * Table at 0x1A00. After an 8-byte header it stores a sequence of
+ * TLV entries; tag 0x08 is the per-die Random Number, which gives a
+ * unique seed for the link-layer address. Tag 0xfe marks the end of
+ * the table.
+ */
+#define DEVICE_DESCRIPTOR_BASE    ((const uint8_t *)0x1A00)
+#define DEVICE_DESCRIPTOR_MAX_LEN 256
+#define TLV_TAG_RANDOM_NUMBER     0x08
+#define TLV_TAG_END               0xfe
+
+static int
+lladdr_from_device_descriptor(linkaddr_t *addr)
+{
+  const uint8_t *desc = DEVICE_DESCRIPTOR_BASE;
+  uint8_t info_len_words = desc[0];
+  const uint8_t *p;
+  const uint8_t *end;
+
+  /* Sanity-check the header so an unprogrammed/erased descriptor
+   * cannot send us walking off into FRAM. */
+  if(info_len_words == 0 || info_len_words > DEVICE_DESCRIPTOR_MAX_LEN / 4) {
+    return 0;
+  }
+
+  p = desc + 8;
+  end = desc + info_len_words * 4;
+
+  while(p + 1 < end) {
+    uint8_t tag = p[0];
+    uint8_t len = p[1];
+
+    if(tag == TLV_TAG_END || p + 2 + len > end) {
+      break;
+    }
+    if(tag == TLV_TAG_RANDOM_NUMBER && len > 0) {
+      /* Replicate the random bytes if the entry is shorter than
+       * LINKADDR_SIZE so every byte of the address contributes to
+       * uniqueness. */
+      for(size_t i = 0; i < LINKADDR_SIZE; i++) {
+        addr->u8[i] = p[2 + (i % len)];
+      }
+      /* Mark the address as locally administered (EUI-64 convention)
+       * and clear the multicast bit. */
+      addr->u8[0] = (addr->u8[0] & ~0x01) | 0x02;
+      return 1;
+    }
+    p += 2 + len;
+  }
+  return 0;
+}
+/*---------------------------------------------------------------------------*/
 static void
 set_lladdr(void)
 {
   linkaddr_t addr;
 
   memset(&addr, 0, sizeof(linkaddr_t));
-  /* Use node_id for link layer address since there's no unique ID chip */
-  addr.u8[0] = (node_id >> 8) & 0xff;
-  addr.u8[1] = node_id & 0xff;
+  if(!lladdr_from_device_descriptor(&addr)) {
+    /* No usable factory random-number entry: fall back to node_id. */
+    addr.u8[0] = (node_id >> 8) & 0xff;
+    addr.u8[1] = node_id & 0xff;
+  }
   linkaddr_set_node_addr(&addr);
 }
 /*---------------------------------------------------------------------------*/
