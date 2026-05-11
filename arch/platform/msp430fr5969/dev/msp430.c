@@ -92,6 +92,11 @@ msp430_init_dco(void)
 /*---------------------------------------------------------------------------*/
 /**
  * Initialize all ports to output low to reduce power consumption.
+ *
+ * PJ is intentionally left at its reset default (all inputs):
+ *   - PJ.0..PJ.3 carry the JTAG signals used by the XDS110 probe.
+ *   - PJ.4/PJ.5 are the LFXT crystal pins; driving them as outputs
+ *     would jam the 32.768 kHz oscillator that sources ACLK.
  */
 static void
 init_ports(void)
@@ -105,8 +110,6 @@ init_ports(void)
   P3DIR = 0xFF;
   P4OUT = 0;
   P4DIR = 0xFF;
-  PJOUT = 0;
-  PJDIR = 0xFF;
 }
 /*---------------------------------------------------------------------------*/
 void
