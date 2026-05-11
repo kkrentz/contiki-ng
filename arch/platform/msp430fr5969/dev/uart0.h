@@ -35,6 +35,11 @@
 #ifndef UART0_H_
 #define UART0_H_
 
+/**
+ * \brief Initialize eUSCI_A0 as the backchannel UART.
+ * \param ubr Ignored; kept for API compatibility with other MSP430
+ *            UART drivers. The driver hard-codes 115200 baud at 8 MHz.
+ */
 void uart0_init(unsigned long ubr);
 void uart0_writeb(unsigned char c);
 void uart0_set_input(int (*input)(unsigned char c));

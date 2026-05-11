@@ -68,17 +68,19 @@ uart0_writeb(unsigned char c)
 void
 uart0_init(unsigned long ubr)
 {
+  /* The baud rate is fixed at 115200 with an 8 MHz SMCLK; ubr is
+   * accepted for API compatibility with other MSP430 UART drivers but
+   * is not used to derive the divider values. */
+  (void)ubr;
+
   /* Put eUSCI in reset */
   UCA0CTLW0 = UCSWRST;
 
   /* Configure eUSCI_A0: 8N1, SMCLK source */
   UCA0CTLW0 |= UCSSEL__SMCLK;
 
-  /* Set baud rate (assuming 8MHz SMCLK)
-   * For 115200 baud: BR = 8000000 / 115200 = 69.44
-   * UCBRx = 69, UCBRF = 7, UCBRS = 0x04 (from table)
-   * Or use oversampling: UCOS16 = 1, UCBRx = 4, UCBRF = 5, UCBRS = 0x55
-   */
+  /* Set baud rate at 115200 with oversampling (8 MHz SMCLK):
+   * 8000000 / 115200 = 69.44 → UCBRx = 4, UCBRF = 5, UCBRS = 0x55. */
   UCA0BRW = 4;
   UCA0MCTLW = (5 << 4) | (0x55 << 8) | UCOS16;
 
