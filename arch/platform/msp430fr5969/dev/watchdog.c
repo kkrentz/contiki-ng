@@ -56,11 +56,9 @@ watchdog_start(void)
   /* Make sure we're not counting down */
   counter--;
   if(counter == 0) {
-    /* Configure watchdog for ~1 second timeout @ 8MHz:
-     * WDTSSEL = SMCLK, WDTIS = /8192 => ~1ms per tick
-     * Or use ACLK with /32768 for ~1s at 32kHz
-     * Here we use SMCLK/8192/1024 for approximately 1 second timeout
-     */
+    /* WDTSSEL = SMCLK (8 MHz), WDTIS__8192K selects a 2^23-cycle
+     * interval, giving a watchdog timeout of 8388608 / 8000000
+     * ~= 1.05 seconds. */
     WDTCTL = WDTPW | WDTCNTCL | WDTSSEL__SMCLK | WDTIS__8192K;
   }
 }
