@@ -85,10 +85,10 @@ platform_init_stage_two(void)
    * to UART passthrough mode. The debug probe buffers UART data while a
    * debug session is active. This delay ensures serial output occurs after
    * the debugger has released the device. Experimentally, 200ms is the
-   * minimum; we use 250ms for margin.
-   * At 8MHz, 2000000 cycles = 250ms.
+   * minimum; we use 250ms for margin. The argument to __delay_cycles must
+   * be a compile-time constant, so derive it from F_CPU.
    */
-  __delay_cycles(2000000);
+  __delay_cycles(F_CPU / 4);
 
   leds_on(LEDS_GREEN);
 
