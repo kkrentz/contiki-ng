@@ -42,9 +42,12 @@ static int counter = 0;
 void
 watchdog_init(void)
 {
-  /* Stop the watchdog timer */
-  WDTCTL = WDTPW | WDTHOLD;
+  /* The MSP430 watchdog is enabled at boot, so stop it via watchdog_stop()
+   * so that the reference counter ends up at 1. This way, the first
+   * watchdog_start() will decrement it back to 0 and actually configure
+   * WDTCTL. */
   counter = 0;
+  watchdog_stop();
 }
 /*---------------------------------------------------------------------------*/
 void
