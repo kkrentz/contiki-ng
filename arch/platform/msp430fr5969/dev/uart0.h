@@ -38,7 +38,8 @@
 /**
  * \brief Initialize eUSCI_A0 as the backchannel UART.
  * \param ubr Ignored; kept for API compatibility with other MSP430
- *            UART drivers. The driver hard-codes 115200 baud at 8 MHz.
+ *            UART drivers. The driver hard-codes 115200 baud at 8 MHz
+ *            SMCLK; callers should pass 0.
  */
 void uart0_init(unsigned long ubr);
 void uart0_writeb(unsigned char c);

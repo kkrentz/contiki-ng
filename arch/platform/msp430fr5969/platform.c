@@ -78,8 +78,9 @@ platform_init_stage_one(void)
 void
 platform_init_stage_two(void)
 {
-  /* Initialize UART for serial communication */
-  uart0_init(BAUD2UBR(UART0_CONF_BAUD_RATE));
+  /* Initialize UART for serial communication. The argument is
+   * ignored; the driver hard-codes 115200 baud at 8 MHz SMCLK. */
+  uart0_init(0);
 
   /*
    * Delay to allow the XDS110 debug probe to fully disconnect and switch
