@@ -54,15 +54,32 @@ endif
 
 ### mspdebug tilib occasionally hangs; cap each invocation with a timeout
 ### so CI runs and user scripts cannot stall indefinitely. Allow override
-### per environment.
+### per environment. macOS does not ship `timeout`; `gtimeout` (coreutils
+### from Homebrew) is the standard equivalent.
+ifeq ($(shell uname -s),Darwin)
+  TIMEOUT_CMD ?= gtimeout
+else
+  TIMEOUT_CMD ?= timeout
+endif
 MSPDEBUG_UPLOAD_TIMEOUT ?= 60
 MSPDEBUG_RESET_TIMEOUT ?= 10
 
+### If the timeout command is not installed, run mspdebug without a timeout
+### wrapper instead of failing with "command not found". The prefix carries
+### both the command and the duration so it can be dropped as a unit.
+ifeq ($(shell command -v $(TIMEOUT_CMD) 2>/dev/null),)
+  UPLOAD_TIMEOUT :=
+  RESET_TIMEOUT :=
+else
+  UPLOAD_TIMEOUT := $(TIMEOUT_CMD) $(MSPDEBUG_UPLOAD_TIMEOUT)
+  RESET_TIMEOUT := $(TIMEOUT_CMD) $(MSPDEBUG_RESET_TIMEOUT)
+endif
+
 ### Upload support using mspdebug
 %.upload: $(BUILD_DIR_BOARD)/%.$(TARGET)
-	timeout $(MSPDEBUG_UPLOAD_TIMEOUT) mspdebug tilib "prog $<"
+	$(UPLOAD_TIMEOUT) mspdebug tilib "prog $<"
 
 ### Reset the device using mspdebug
 .PHONY: reset
 reset:
-	timeout $(MSPDEBUG_RESET_TIMEOUT) mspdebug tilib "reset" "exit"
+	$(RESET_TIMEOUT) mspdebug tilib "reset" "exit"
