@@ -52,11 +52,17 @@ ifeq ($(IPT_ENABLED),1)
   LDFLAGS += -Wl,--defsym=_nvm_size=0x780
 endif
 
+### mspdebug tilib occasionally hangs; cap each invocation with a timeout
+### so CI runs and user scripts cannot stall indefinitely. Allow override
+### per environment.
+MSPDEBUG_UPLOAD_TIMEOUT ?= 60
+MSPDEBUG_RESET_TIMEOUT ?= 10
+
 ### Upload support using mspdebug
 %.upload: $(BUILD_DIR_BOARD)/%.$(TARGET)
-	mspdebug tilib "prog $<"
+	timeout $(MSPDEBUG_UPLOAD_TIMEOUT) mspdebug tilib "prog $<"
 
 ### Reset the device using mspdebug
 .PHONY: reset
 reset:
-	timeout 10 mspdebug tilib "reset" "exit"
+	timeout $(MSPDEBUG_RESET_TIMEOUT) mspdebug tilib "reset" "exit"
