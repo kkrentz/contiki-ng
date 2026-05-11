@@ -42,13 +42,12 @@
 #include <msp430.h>
 
 static int (*uart0_input_handler)(unsigned char c);
-static volatile uint8_t transmitting;
 
 /*---------------------------------------------------------------------------*/
 int
 uart0_active(void)
 {
-  return (UCA0STATW & UCBUSY) || transmitting;
+  return (UCA0STATW & UCBUSY) != 0;
 }
 /*---------------------------------------------------------------------------*/
 void
@@ -63,7 +62,6 @@ uart0_writeb(unsigned char c)
   /* Wait for previous transmission to complete */
   while(!(UCA0IFG & UCTXIFG));
 
-  transmitting = 1;
   UCA0TXBUF = c;
 }
 /*---------------------------------------------------------------------------*/
@@ -93,8 +91,6 @@ uart0_init(unsigned long ubr)
 
   /* Enable RX interrupt */
   UCA0IE |= UCRXIE;
-
-  transmitting = 0;
 }
 /*---------------------------------------------------------------------------*/
 ISR(USCI_A0, uart0_rx_interrupt)
@@ -111,14 +107,6 @@ ISR(USCI_A0, uart0_rx_interrupt)
         LPM4_EXIT;
       }
     }
-    break;
-
-  case USCI_UART_UCTXIFG:
-    transmitting = 0;
-    break;
-
-  case USCI_UART_UCSTTIFG:
-  case USCI_UART_UCTXCPTIFG:
     break;
   }
 
