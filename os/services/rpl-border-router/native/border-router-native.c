@@ -48,6 +48,10 @@
 #include "border-router-cmds.h"
 #include "tun6-net.h"
 
+#if BUILD_WITH_NAT64
+#include "nat64-platform.h"
+#endif /* BUILD_WITH_NAT64 */
+
 /*---------------------------------------------------------------------------*/
 /* Log configuration */
 #include "sys/log.h"
@@ -123,6 +127,14 @@ PROCESS_THREAD(border_router_process, ev, data)
 
   /* tun init is also responsible for setting up the SLIP connection */
   tun_init();
+
+#if BUILD_WITH_NAT64
+  if(nat64_is_enabled()) {
+    if(!nat64_platform_init()) {
+      LOG_ERR("Failed to initialize NAT64\n");
+    }
+  }
+#endif /* BUILD_WITH_NAT64 */
 
   while(!is_mac_set) {
     etimer_set(&et, CLOCK_SECOND);

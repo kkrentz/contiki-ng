@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Thingsquare, http://www.thingsquare.com/.
+ * Copyright (c) 2026, RISE Research Institutes of Sweden AB.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -10,7 +10,6 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- *
  * 3. Neither the name of the copyright holder nor the names of its
  *    contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
@@ -27,53 +26,25 @@
  * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
- *
  */
-#ifndef IP64_ADDR_H
-#define IP64_ADDR_H
 
-#include "net/ipv6/uip.h"
+#ifndef PROJECT_CONF_H_
+#define PROJECT_CONF_H_
 
+/* Enable TCP for the HTTP GET demo. */
+#define UIP_CONF_TCP 1
 
-/**
- * \brief Construct a NAT64 IPv6 address from four IPv4 octets.
- *
- * Uses the well-known prefix 64:ff9b::/96 (RFC 6052).
- *
- * Example: uip_nat64addr(&addr, 8, 8, 8, 8) sets addr to 64:ff9b::8.8.8.8
- *
- * \hideinitializer
- */
-#define uip_nat64addr(addr, a, b, c, d)                     \
-  uip_ip6addr(addr, 0x0064, 0xff9b, 0, 0, 0, 0,            \
-              ((a) << 8) | (b), ((c) << 8) | (d))
+/* Increase the DNS cache to hold all our lookups. */
+#define UIP_CONF_RESOLV_ENTRIES 4
 
-/**
- * \brief Is IPv4-mapped Address
- *
- * See https://tools.ietf.org/html/rfc6890#page-14
- */
-#define ip64_addr_is_ipv4_mapped_addr(a) \
-  ((((a)->u16[0])  == 0) &&              \
-   (((a)->u16[1])  == 0) &&              \
-   (((a)->u16[2])  == 0) &&              \
-   (((a)->u16[3])  == 0) &&              \
-   (((a)->u16[4])  == 0) &&              \
-   (((a)->u16[5])  == 0xFFFF))
+/* Disable MDNS — we only use unicast DNS via NAT64. */
+#define RESOLV_CONF_SUPPORTS_MDNS 0
 
-void ip64_addr_copy4(uip_ip4addr_t *dest, const uip_ip4addr_t *src);
+/* Register the NAT64 prefix as 6LoWPAN compression context 1, saving
+ * ~8 bytes of header per NAT64-bound packet.  The border router
+ * picks up the matching context automatically because its
+ * project-conf.h conditionally includes this header when built with
+ * MAKE_WITH_NAT64=1. */
+#include "services/nat64/nat64-6lowpan.h"
 
-void ip64_addr_copy6(uip_ip6addr_t *dest, const uip_ip6addr_t *src);
-
-int ip64_addr_6to4(const uip_ip6addr_t *ipv6addr,
-		   uip_ip4addr_t *ipv4addr);
-
-int ip64_addr_4to6(const uip_ip4addr_t *ipv4addr,
-		   uip_ip6addr_t *ipv6addr);
-
-int ip64_addr_is_ip64(const uip_ip6addr_t *ipv6addr);
-
-void ip64_addr_set_prefix(const uip_ip6addr_t *prefix, uint8_t prefix_len);
-
-#endif /* IP64_ADDR_H */
-
+#endif /* PROJECT_CONF_H_ */
