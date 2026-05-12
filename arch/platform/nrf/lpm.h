@@ -47,6 +47,12 @@
 /**
  * @brief Stop and wait for an interrupt
  */
+#if defined(NRF54L15_XXAA)
+extern void clock_arch_check_and_recover(void);
+#else
+#define clock_arch_check_and_recover() do { } while(0)
+#endif
+
 static inline void
 lpm_drop(void)
 {
@@ -56,10 +62,17 @@ lpm_drop(void)
   abort = process_nevents();
   if(!abort) {
     ENERGEST_SWITCH(ENERGEST_TYPE_CPU, ENERGEST_TYPE_LPM);
+#if defined(NRF54L15_XXAA)
+    /* After soft-reset on nRF54L15, GRTC interrupts may not wake the CPU
+     * from WFI. Spin instead until that is resolved. */
+    for(volatile int _i = 0; _i < 1000; _i++) { __NOP(); }
+#else
     __WFI();
+#endif
     ENERGEST_SWITCH(ENERGEST_TYPE_LPM, ENERGEST_TYPE_CPU);
   }
   critical_exit(status);
+  clock_arch_check_and_recover();
 }
 /*---------------------------------------------------------------------------*/
 #endif /* LPM_H */

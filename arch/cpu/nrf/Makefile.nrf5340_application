@@ -2,10 +2,18 @@ include $(CONTIKI_CPU)/Makefile.libs
 
 CFLAGS += -DNRF5340_XXAA_APPLICATION
 
-NRFX_ASM_SRCS += $(NRFX_ROOT)/mdk/gcc_startup_nrf5340_application.s
+# Use the locally-vendored MDK SystemInit + startup from nrfx 2.10.0 for
+# the nRF5340 application core. The 3.12.1 MDK adds peripheral access in
+# SystemInit (FICR-NS RAM copy, errata 160 writes to 0x501xxxxx) that the
+# default SPU blocks before our TZ tz-target-cfg.c runs, breaking secure
+# boot. The 2.10.0 SystemInit is the version that's known to work with
+# our TrustZone setup. Driver/HAL code still comes from the new nrfx
+# elsewhere in the tree.
+NRFX_ASM_SRCS += $(CONTIKI_CPU)/nrf5340/legacy-mdk/gcc_startup_nrf5340_application.S
 
-NRFX_C_SRCS += $(NRFX_ROOT)/mdk/system_nrf5340_application.c
+NRFX_C_SRCS += $(CONTIKI_CPU)/nrf5340/legacy-mdk/system_nrf5340_application.c
 
+EXTERNALDIRS += $(CONTIKI_CPU)/nrf5340/legacy-mdk
 EXTERNALDIRS += $(NRFX_ROOT)/mdk/
 
 NRFJPROG_OPTIONS=-f NRF53 --coprocessor CP_APPLICATION 

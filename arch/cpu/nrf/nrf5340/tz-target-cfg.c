@@ -30,6 +30,14 @@
 #include "nrf5340_application_bitfields.h"
 
 /******************************************************************************/
+#if NRF_GPIO_HAS_SEL
+#define gpio_pin_select nrf_gpio_pin_control_select
+#define GPIO_PIN_SEL_PERIPHERAL NRF_GPIO_PIN_SEL_PERIPHERAL
+#else
+#define gpio_pin_select nrf_gpio_pin_mcu_select
+#define GPIO_PIN_SEL_PERIPHERAL NRF_GPIO_PIN_MCUSEL_PERIPHERAL
+#endif
+/******************************************************************************/
 #include "sys/log.h"
 #define LOG_MODULE "TZSecureWorld"
 #define LOG_LEVEL LOG_LEVEL_DBG
@@ -365,8 +373,8 @@ spu_periph_init_cfg(void)
    * done only from secure code, as otherwise those register fields
    * are not accessible. That's why it is placed here.
    */
-  nrf_gpio_pin_mcu_select(PIN_XL1, NRF_GPIO_PIN_MCUSEL_PERIPHERAL);
-  nrf_gpio_pin_mcu_select(PIN_XL2, NRF_GPIO_PIN_MCUSEL_PERIPHERAL);
+  gpio_pin_select(PIN_XL1, GPIO_PIN_SEL_PERIPHERAL);
+  gpio_pin_select(PIN_XL2, GPIO_PIN_SEL_PERIPHERAL);
 
   /*
    * Enable the instruction and data cache (this can be done only from secure
