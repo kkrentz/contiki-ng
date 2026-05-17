@@ -382,7 +382,7 @@ mqtt_decode_var_byte_int(const uint8_t *input_data_ptr,
 {
   uint8_t read_bytes = 0;
   uint8_t byte_in;
-  uint8_t multiplier = 1;
+  uint32_t multiplier = 1;
   uint32_t input_pos_0 = 0;
 
   if(input_pos == NULL) {
