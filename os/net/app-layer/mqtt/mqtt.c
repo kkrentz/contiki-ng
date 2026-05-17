@@ -1033,12 +1033,6 @@ handle_connack(struct mqtt_connection *conn)
   }
 #endif
 
-  conn->out_packet.qos_state = MQTT_QOS_STATE_GOT_ACK;
-
-#if MQTT_PROTOCOL_VERSION >= MQTT_PROTOCOL_VERSION_3_1_1
-  connack_event.session_present = conn->in_packet.payload[0] & MQTT_VHDR_CONNACK_SESSION_PRESENT;
-#endif
-
 #if MQTT_PROTOCOL_VERSION >= MQTT_PROTOCOL_VERSION_5
   /* The CONNACK VHDR must contain:
    * 0: Connect Acknowledge Flags
@@ -1054,6 +1048,15 @@ handle_connack(struct mqtt_connection *conn)
     abort_connection(conn);
     return;
   }
+#endif
+
+  conn->out_packet.qos_state = MQTT_QOS_STATE_GOT_ACK;
+
+#if MQTT_PROTOCOL_VERSION >= MQTT_PROTOCOL_VERSION_3_1_1
+  connack_event.session_present = conn->in_packet.payload[0] & MQTT_VHDR_CONNACK_SESSION_PRESENT;
+#endif
+
+#if MQTT_PROTOCOL_VERSION >= MQTT_PROTOCOL_VERSION_5
   mqtt_prop_parse_connack_props(conn);
 #endif
 
