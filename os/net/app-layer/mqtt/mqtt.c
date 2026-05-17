@@ -1199,7 +1199,7 @@ handle_publish(struct mqtt_connection *conn)
   return MQTT_PUBLISH_OK;
 }
 /*---------------------------------------------------------------------------*/
-static void
+static int
 parse_publish_vhdr(struct mqtt_connection *conn,
                    uint32_t *pos,
                    const uint8_t *input_data_ptr,
@@ -1213,18 +1213,27 @@ parse_publish_vhdr(struct mqtt_connection *conn,
     conn->in_packet.topic_len = (input_data_ptr[(*pos)++] << 8);
     conn->in_packet.byte_counter++;
     if(*pos >= input_data_len) {
-      return;
+      return 0;
     }
     conn->in_packet.topic_len |= input_data_ptr[(*pos)++];
     conn->in_packet.byte_counter++;
     conn->in_packet.topic_len_received = 1;
+    /* Reject malformed packets where the advertised topic length does
+     * not leave room for the topic itself inside remaining_length. */
+    if((uint32_t)conn->in_packet.topic_len + 2 >
+       conn->in_packet.remaining_length) {
+      PRINTF("MQTT - PUBLISH topic_len %u exceeds remaining_length %u\n",
+             conn->in_packet.topic_len, conn->in_packet.remaining_length);
+      call_event(conn, MQTT_EVENT_ERROR, NULL);
+      abort_connection(conn);
+      return -1;
+    }
     /* Abort if topic is longer than our topic buffer */
     if(conn->in_packet.topic_len > MQTT_MAX_TOPIC_LENGTH) {
       DBG("MQTT - topic too long %u/%u\n", conn->in_packet.topic_len, MQTT_MAX_TOPIC_LENGTH);
-      return;
+      return 0;
     }
     DBG("MQTT - Read PUBLISH topic len %i\n", conn->in_packet.topic_len);
-    /* WARNING: Check here if TOPIC fits in payload area, otherwise error */
   }
 
   /* Read out topic */
@@ -1253,6 +1262,8 @@ parse_publish_vhdr(struct mqtt_connection *conn,
     /* Set this once per incomming publish message */
     conn->in_publish_msg.first_chunk = 1;
   }
+
+  return 0;
 }
 /*---------------------------------------------------------------------------*/
 /* MQTTv5 only */
@@ -1442,7 +1453,9 @@ tcp_input(struct tcp_socket *s,
 
     if((conn->in_packet.fhdr & 0xF0) == MQTT_FHDR_MSG_TYPE_PUBLISH &&
        conn->in_packet.topic_received == 0) {
-      parse_publish_vhdr(conn, &pos, input_data_ptr, input_data_len);
+      if(parse_publish_vhdr(conn, &pos, input_data_ptr, input_data_len) < 0) {
+        return 0;
+      }
     }
 
     /* Read in as much as we can into the packet payload */
