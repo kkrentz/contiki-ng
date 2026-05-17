@@ -1337,6 +1337,26 @@ parse_vhdr(struct mqtt_connection *conn)
 #endif
 }
 /*---------------------------------------------------------------------------*/
+#if MQTT_5
+static int
+trim_publish_props(struct mqtt_connection *conn)
+{
+  uint32_t prop_total = (uint32_t)conn->in_packet.properties_len +
+                        conn->in_packet.properties_enc_len;
+
+  if(prop_total > conn->in_publish_msg.payload_chunk_length) {
+    PRINTF("MQTT - Error, PUBLISH properties length exceeds buffered chunk\n");
+    call_event(conn, MQTT_EVENT_ERROR, NULL);
+    abort_connection(conn);
+    return -1;
+  }
+
+  conn->in_publish_msg.payload_chunk_length -= prop_total;
+  conn->in_publish_msg.payload_chunk += prop_total;
+  return 0;
+}
+#endif
+/*---------------------------------------------------------------------------*/
 static int
 tcp_input(struct tcp_socket *s,
           void *ptr,
@@ -1452,12 +1472,9 @@ tcp_input(struct tcp_socket *s,
       }
 
       if(conn->in_publish_msg.first_chunk) {
-        conn->in_publish_msg.payload_chunk_length -= conn->in_packet.properties_len +
-          conn->in_packet.properties_enc_len;
-
-        /* Payload chunk should point past the MQTT properties and to the payload itself */
-        conn->in_publish_msg.payload_chunk += conn->in_packet.properties_len +
-          conn->in_packet.properties_enc_len;
+        if(trim_publish_props(conn) < 0) {
+          return 0;
+        }
       }
 #endif
 
@@ -1514,11 +1531,9 @@ tcp_input(struct tcp_socket *s,
     DBG("MQTT - First chunk? %i\n", conn->in_publish_msg.first_chunk);
 #if MQTT_5
     if(conn->in_publish_msg.first_chunk) {
-      conn->in_publish_msg.payload_chunk_length -= conn->in_packet.properties_len +
-        conn->in_packet.properties_enc_len;
-      /* Payload chunk should point past the MQTT properties and to the payload itself */
-      conn->in_publish_msg.payload_chunk += conn->in_packet.properties_len +
-        conn->in_packet.properties_enc_len;
+      if(trim_publish_props(conn) < 0) {
+        return 0;
+      }
     }
 #endif
     (void)handle_publish(conn);
