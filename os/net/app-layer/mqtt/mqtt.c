@@ -1230,8 +1230,11 @@ parse_publish_vhdr(struct mqtt_connection *conn,
     }
     /* Abort if topic is longer than our topic buffer */
     if(conn->in_packet.topic_len > MQTT_MAX_TOPIC_LENGTH) {
-      DBG("MQTT - topic too long %u/%u\n", conn->in_packet.topic_len, MQTT_MAX_TOPIC_LENGTH);
-      return 0;
+      PRINTF("MQTT - PUBLISH topic too long %u/%u, aborting\n",
+             conn->in_packet.topic_len, MQTT_MAX_TOPIC_LENGTH);
+      call_event(conn, MQTT_EVENT_ERROR, NULL);
+      abort_connection(conn);
+      return -1;
     }
     DBG("MQTT - Read PUBLISH topic len %i\n", conn->in_packet.topic_len);
   }
