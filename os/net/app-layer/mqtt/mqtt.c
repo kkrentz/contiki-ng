@@ -1395,11 +1395,12 @@ tcp_input(struct tcp_socket *s,
     return 0;
   }
 
+  DBG("tcp_input with %i bytes of data:\n", input_data_len);
+
+parse_next:
   if(conn->in_packet.packet_received) {
     reset_packet(&conn->in_packet);
   }
-
-  DBG("tcp_input with %i bytes of data:\n", input_data_len);
 
   /* Read the fixed header field, if we do not have it */
   if(!conn->in_packet.fhdr) {
@@ -1413,11 +1414,16 @@ tcp_input(struct tcp_socket *s,
     }
   }
 
-  /* Read the Remaining Length field, if we do not have it */
+  /*
+   * Read the Remaining Length field, if we do not have it.
+   * byte_counter intentionally does not include the VBI bytes: the inner
+   * read-loop target is MQTT_FHDR_SIZE + remaining_length, which only
+   * accounts for the message-type byte and the remaining payload.
+   */
   if(!conn->in_packet.has_remaining_length) {
     remaining_length_bytes =
       mqtt_decode_var_byte_int(input_data_ptr, input_data_len, &pos,
-                               &conn->in_packet.byte_counter,
+                               NULL,
                                &conn->in_packet.remaining_length);
 
     if(remaining_length_bytes == 0) {
@@ -1437,13 +1443,19 @@ tcp_input(struct tcp_socket *s,
    */
   if((conn->in_packet.remaining_length > MQTT_INPUT_BUFF_SIZE) &&
      (conn->in_packet.fhdr & 0xF0) != MQTT_FHDR_MSG_TYPE_PUBLISH) {
+    uint32_t pkt_total = MQTT_FHDR_SIZE + conn->in_packet.remaining_length;
+    uint32_t drain = MIN((uint32_t)input_data_len - pos,
+                         pkt_total - conn->in_packet.byte_counter);
 
     PRINTF("MQTT - Error, unsupported payload size for non-PUBLISH message\n");
 
-    conn->in_packet.byte_counter += input_data_len;
-    if(conn->in_packet.byte_counter >=
-       (MQTT_FHDR_SIZE + conn->in_packet.remaining_length)) {
+    pos += drain;
+    conn->in_packet.byte_counter += drain;
+    if(conn->in_packet.byte_counter >= pkt_total) {
       conn->in_packet.packet_received = 1;
+      if(pos < input_data_len) {
+        goto parse_next;
+      }
     }
     return 0;
   }
@@ -1464,9 +1476,18 @@ tcp_input(struct tcp_socket *s,
       }
     }
 
-    /* Read in as much as we can into the packet payload */
+    /*
+     * Read in as much as we can into the packet payload, but not past
+     * the end of the current MQTT packet on the wire. Without this last
+     * bound, a TCP segment that spans the end of one packet and the
+     * start of the next would slurp the next packet's bytes into
+     * in_packet.payload[].
+     */
     copy_bytes = MIN(input_data_len - pos,
                      MQTT_INPUT_BUFF_SIZE - conn->in_packet.payload_pos);
+    copy_bytes = MIN(copy_bytes,
+                     (MQTT_FHDR_SIZE + conn->in_packet.remaining_length) -
+                     conn->in_packet.byte_counter);
     DBG("- Copied %i payload bytes\n", copy_bytes);
     memcpy(&conn->in_packet.payload[conn->in_packet.payload_pos],
            &input_data_ptr[pos],
@@ -1601,6 +1622,20 @@ tcp_input(struct tcp_socket *s,
   }
 
   conn->in_packet.packet_received = 1;
+
+  /*
+   * A handler above may have torn down the connection (e.g. an aborted
+   * CONNACK, a v5 DISCONNECT, or an application callback that disconnected).
+   * In that case the socket has been closed and unregistered, so we must not
+   * keep parsing trailing bytes of the segment into the dead connection.
+   */
+  if(conn->state == MQTT_CONN_STATE_NOT_CONNECTED) {
+    return 0;
+  }
+
+  if(pos < input_data_len) {
+    goto parse_next;
+  }
 
   return 0;
 }
