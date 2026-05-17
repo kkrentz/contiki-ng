@@ -389,6 +389,8 @@ mqtt_decode_var_byte_int(const uint8_t *input_data_ptr,
     input_pos = &input_pos_0;
   }
 
+  *dest = 0;
+
   do {
     if(*input_pos >= input_data_len) {
       return 0;
