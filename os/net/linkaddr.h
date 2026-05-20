@@ -85,6 +85,8 @@ typedef union {
  */
 #define linkaddr_u8(addr, addr0, addr1, addr2, addr3, addr4, addr5, addr6, addr7) \
   do { \
+    _Static_assert(LINKADDR_SIZE == 8, \
+                   "linkaddr_u8 requires LINKADDR_SIZE == 8"); \
     (addr).u8[0] = (addr0); \
     (addr).u8[1] = (addr1); \
     (addr).u8[2] = (addr2); \
