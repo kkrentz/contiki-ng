@@ -177,8 +177,18 @@ stdin_handle_fd(fd_set *rset, fd_set *wset)
 {
   char c;
   if(FD_ISSET(STDIN_FILENO, rset)) {
-    if(read(STDIN_FILENO, &c, 1) > 0) {
+    ssize_t n = read(STDIN_FILENO, &c, 1);
+    if(n > 0) {
       input_handler(c);
+    } else if(n == 0) {
+      /* EOF: stop monitoring stdin so the main loop does not busy-spin
+         on a perpetually-ready fd. */
+      LOG_INFO("stdin closed (EOF); no longer monitoring stdin\n");
+      select_set_callback(STDIN_FILENO, NULL);
+    } else if(errno != EINTR && errno != EAGAIN) {
+      LOG_ERR("read(stdin): %s; no longer monitoring stdin\n",
+              strerror(errno));
+      select_set_callback(STDIN_FILENO, NULL);
     }
   }
 }
@@ -304,7 +314,7 @@ platform_main_loop()
     retval = select(maxfd + 1, &fdr, &fdw, NULL, &tv);
     if(retval < 0) {
       if(errno != EINTR) {
-        perror("select");
+        LOG_ERR("select: %s\n", strerror(errno));
       }
     } else if(retval > 0) {
       /* timeout => retval == 0 */
