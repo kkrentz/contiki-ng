@@ -314,7 +314,7 @@ platform_main_loop()
     retval = select(maxfd + 1, &fdr, &fdw, NULL, &tv);
     if(retval < 0) {
       if(errno != EINTR) {
-        perror("select");
+        LOG_ERR("select: %s\n", strerror(errno));
       }
     } else if(retval > 0) {
       /* timeout => retval == 0 */
