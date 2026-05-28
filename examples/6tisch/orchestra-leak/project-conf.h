@@ -1,0 +1,8 @@
+#ifndef PROJECT_CONF_H_
+#define PROJECT_CONF_H_
+
+#define TSCH_CONF_AUTOSTART 0
+#define QUEUEBUF_CONF_NUM 20
+#define LOG_CONF_LEVEL_MAC 1
+
+#endif /* PROJECT_CONF_H_ */
