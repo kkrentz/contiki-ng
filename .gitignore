@@ -44,3 +44,9 @@ COOJA.testlog
 summary
 tests/18-coap-lwm2m/Californium.properties
 tests/18-coap-lwm2m/leshan-server-demo*.jar
+
+examples/ewsn2026/statistics/*.csv
+examples/ewsn2026/statistics/*.pdf
+examples/ewsn2026/statistics/*.svg
+examples/ewsn2026/statistics/.Rhistory
+examples/ewsn2026/statistics/.RData
