@@ -73,10 +73,19 @@ static void
 send_ack_if_needed(const uint8_t *frame, int len)
 {
   uint8_t ack[ACK_FRAME_LEN];
+  radio_value_t tx_mode;
 
   if(len < ACK_FRAME_LEN) {
     return;
   }
+
+  /*
+   * The net core's nRF radio has no hardware auto-ACK and does not
+   * report RADIO_RX_MODE_AUTOACK via get_value(), so the IPC MAC must
+   * generate the link-layer ACK in software for every unicast frame
+   * that requests one (checked below via the ACK request bit). The
+   * app core's CSMA relies on these ACKs to confirm its transmissions.
+   */
 
   /* Do not ACK frames that are themselves ACKs. */
   if((frame[0] & 0x07) == FRAME802154_ACKFRAME) {
@@ -93,11 +102,18 @@ send_ack_if_needed(const uint8_t *frame, int len)
   ack[1] = 0;
   ack[2] = frame[2];  /* DSN is byte 2 of the received frame. */
 
-  /* Disable CCA for ACK -- 802.15.4 requires ACKs sent without CCA. */
-  NETSTACK_RADIO.set_value(RADIO_PARAM_TX_MODE, 0);
+  /*
+   * 802.15.4 requires ACKs to be sent without CCA. Clear only the
+   * SEND_ON_CCA bit and restore the previous TX mode afterwards, so
+   * any other (current or future) TX mode flags are preserved.
+   */
+  if(NETSTACK_RADIO.get_value(RADIO_PARAM_TX_MODE, &tx_mode) != RADIO_RESULT_OK) {
+    tx_mode = RADIO_TX_MODE_SEND_ON_CCA;
+  }
+  NETSTACK_RADIO.set_value(RADIO_PARAM_TX_MODE,
+                           tx_mode & ~RADIO_TX_MODE_SEND_ON_CCA);
   NETSTACK_RADIO.send(ack, ACK_FRAME_LEN);
-  /* Re-enable CCA for normal transmissions. */
-  NETSTACK_RADIO.set_value(RADIO_PARAM_TX_MODE, RADIO_TX_MODE_SEND_ON_CCA);
+  NETSTACK_RADIO.set_value(RADIO_PARAM_TX_MODE, tx_mode);
 }
 /*---------------------------------------------------------------------------*/
 static void

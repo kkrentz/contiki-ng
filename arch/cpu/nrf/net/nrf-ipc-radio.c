@@ -276,6 +276,11 @@ ipc_radio_transmit(unsigned short transmit_len)
 {
   int result;
 
+  if(transmit_len > sizeof(tx_frame_buf)) {
+    LOG_ERR("Frame too long: %u\n", transmit_len);
+    return RADIO_TX_ERR;
+  }
+
   LOG_DBG("TX %u bytes\n", transmit_len);
 
   result = send_command(NRF_IPC_CMD_SEND, tx_frame_buf, transmit_len);
