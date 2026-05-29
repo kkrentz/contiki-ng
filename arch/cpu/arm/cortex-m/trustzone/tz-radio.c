@@ -59,9 +59,12 @@
 #define LOG_MODULE "TZRadio"
 #define LOG_LEVEL LOG_LEVEL_INFO
 /*---------------------------------------------------------------------------*/
-/* Maximum payload size for secure-side copy buffers. */
+/* Maximum payload and object sizes for secure-side copy buffers. */
 #define TZ_RADIO_MAX_PAYLOAD  128
 #define TZ_RADIO_MAX_OBJECT   140
+#define TZ_RADIO_BUF_SIZE \
+  (TZ_RADIO_MAX_OBJECT > TZ_RADIO_MAX_PAYLOAD \
+   ? TZ_RADIO_MAX_OBJECT : TZ_RADIO_MAX_PAYLOAD)
 /*---------------------------------------------------------------------------*/
 extern const struct radio_driver ipc_radio_driver;
 /*---------------------------------------------------------------------------*/
@@ -72,6 +75,15 @@ static bool rx_callback_registered;
 static int8_t last_rx_rssi;
 static uint8_t last_rx_lqi;
 /*---------------------------------------------------------------------------*/
+/*
+ * A single static bounce buffer shared by all NSC entry points that copy
+ * data across the secure/non-secure boundary. These entry points are only
+ * invoked by the single-threaded, cooperative normal-world scheduler, so at
+ * most one secure radio call runs at a time and the buffer is never used by
+ * two calls concurrently. It is sized for the largest transfer.
+ */
+static uint8_t secure_buf[TZ_RADIO_BUF_SIZE];
+/*---------------------------------------------------------------------------*/
 CC_TRUSTZONE_SECURE_CALL int
 tz_radio_init(void)
 {
@@ -81,8 +93,6 @@ tz_radio_init(void)
 CC_TRUSTZONE_SECURE_CALL int
 tz_radio_prepare(const void *payload, unsigned short payload_len)
 {
-  static uint8_t secure_buf[TZ_RADIO_MAX_PAYLOAD];
-
   if(payload_len > TZ_RADIO_MAX_PAYLOAD) {
     return 1;
   }
@@ -109,8 +119,6 @@ tz_radio_transmit(unsigned short transmit_len)
 CC_TRUSTZONE_SECURE_CALL int
 tz_radio_send(const void *payload, unsigned short payload_len)
 {
-  static uint8_t secure_buf[TZ_RADIO_MAX_PAYLOAD];
-
   if(payload_len > TZ_RADIO_MAX_PAYLOAD) {
     return RADIO_TX_ERR;
   }
@@ -129,7 +137,6 @@ tz_radio_send(const void *payload, unsigned short payload_len)
 CC_TRUSTZONE_SECURE_CALL int
 tz_radio_read(void *buf, unsigned short buf_len)
 {
-  static uint8_t secure_buf[TZ_RADIO_MAX_PAYLOAD];
   int len;
 
   if(cmse_check_address_range(buf, buf_len, CMSE_NONSECURE) == NULL) {
@@ -206,7 +213,6 @@ tz_radio_set_value(radio_param_t param, radio_value_t value)
 CC_TRUSTZONE_SECURE_CALL radio_result_t
 tz_radio_get_object(radio_param_t param, void *dest, size_t size)
 {
-  static uint8_t secure_buf[TZ_RADIO_MAX_OBJECT];
   radio_result_t result;
 
   if(size > TZ_RADIO_MAX_OBJECT) {
@@ -229,8 +235,6 @@ tz_radio_get_object(radio_param_t param, void *dest, size_t size)
 CC_TRUSTZONE_SECURE_CALL radio_result_t
 tz_radio_set_object(radio_param_t param, const void *src, size_t size)
 {
-  static uint8_t secure_buf[TZ_RADIO_MAX_OBJECT];
-
   if(size > TZ_RADIO_MAX_OBJECT) {
     return RADIO_RESULT_INVALID_VALUE;
   }
