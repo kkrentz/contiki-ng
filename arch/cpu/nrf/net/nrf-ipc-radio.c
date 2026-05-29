@@ -67,7 +67,7 @@
 #define LOG_MODULE "IPC Radio"
 #define LOG_LEVEL LOG_LEVEL_INFO
 /*---------------------------------------------------------------------------*/
-#define NET_CORE_INIT_TIMEOUT_MS  10000
+#define NET_CORE_INIT_TIMEOUT_MS  1000
 /*---------------------------------------------------------------------------*/
 static volatile struct nrf_ipc_shared_mem *shm = NRF_IPC_SHARED_MEM;
 /*---------------------------------------------------------------------------*/
@@ -229,7 +229,6 @@ ipc_radio_init(void)
   {
     clock_time_t start = clock_time();
     while(!shm->net_ready) {
-      watchdog_periodic();
       if(clock_time() - start >
          (clock_time_t)(NET_CORE_INIT_TIMEOUT_MS * CLOCK_SECOND / 1000)) {
         LOG_ERR("Network core init timeout\n");
