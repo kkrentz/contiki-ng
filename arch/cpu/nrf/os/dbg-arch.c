@@ -86,22 +86,6 @@ dbg_putchar(int c)
   return c;
 }
 /*---------------------------------------------------------------------------*/
-unsigned int
-dbg_send_bytes(const unsigned char *s, unsigned int len)
-{
-  unsigned int i = 0;
-
-  while(s && *s != 0) {
-    if(i >= len) {
-      break;
-    }
-    dbg_putchar(*s++);
-    i++;
-  }
-
-  return i;
-}
-/*---------------------------------------------------------------------------*/
 #elif NRF_TRUSTZONE_NONSECURE
 #include "trustzone/tz-api.h"
 
@@ -141,7 +125,6 @@ dbg_putchar(int c)
 }
 #endif /* NRF_TRUSTZONE_NONSECURE */
 /*---------------------------------------------------------------------------*/
-#if !defined(NRF5340_XXAA_NETWORK)
 unsigned int
 dbg_send_bytes(const unsigned char *s, unsigned int len)
 {
@@ -159,7 +142,6 @@ dbg_send_bytes(const unsigned char *s, unsigned int len)
 
   return i;
 }
-#endif /* !NRF5340_XXAA_NETWORK */
 /*---------------------------------------------------------------------------*/
 /**
  * @}

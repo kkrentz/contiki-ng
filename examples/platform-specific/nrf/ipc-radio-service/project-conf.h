@@ -31,7 +31,7 @@
 #ifndef PROJECT_CONF_H_
 #define PROJECT_CONF_H_
 /*---------------------------------------------------------------------------*/
-/* Minimal logging for the network core. */
+/* Default log level for the network core's main module. */
 #define LOG_CONF_LEVEL_MAIN LOG_LEVEL_INFO
 /*---------------------------------------------------------------------------*/
 /*

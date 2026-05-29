@@ -181,8 +181,6 @@ const struct radio_driver tz_radio_driver = {
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(tz_radio_process, ev, data)
 {
-  int len;
-
   PROCESS_BEGIN();
 
   LOG_INFO("TZ radio process started\n");
@@ -196,6 +194,7 @@ PROCESS_THREAD(tz_radio_process, ev, data)
       if(tz_radio_pending_packet()) {
         int8_t rssi;
         uint8_t lqi;
+        int len;
 
         tz_radio_get_rx_attributes(&rssi, &lqi);
 

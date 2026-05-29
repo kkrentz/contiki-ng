@@ -567,9 +567,6 @@ drain_net_log(void)
 PROCESS_THREAD(ipc_radio_process, ev, data)
 {
   static struct etimer rx_poll_timer;
-#ifndef TRUSTZONE_SECURE
-  int len;
-#endif
 
   PROCESS_BEGIN();
 
@@ -583,7 +580,7 @@ PROCESS_THREAD(ipc_radio_process, ev, data)
     drain_net_log();
 
     if(etimer_expired(&rx_poll_timer)) {
-      etimer_reset(&rx_poll_timer);
+      etimer_restart(&rx_poll_timer);
     }
 
 
@@ -606,6 +603,7 @@ PROCESS_THREAD(ipc_radio_process, ev, data)
         tz_radio_notify_rx(rssi, lqi);
 #else
         /* Deliver the frame to the MAC layer. */
+        int len;
         packetbuf_clear();
         len = ipc_radio_read(packetbuf_dataptr(), PACKETBUF_SIZE);
         if(len > 0) {
