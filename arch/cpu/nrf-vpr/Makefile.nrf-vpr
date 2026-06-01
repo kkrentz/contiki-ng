@@ -15,7 +15,8 @@ VPR_MARCH = rv32e_zicsr_zifencei
 VPR_MABI  = ilp32e
 
 CFLAGS  += -march=$(VPR_MARCH) -mabi=$(VPR_MABI)
-CFLAGS  += -mcmodel=medlow
+# (Switched to medany via earlier line)
+
 CFLAGS  += -ffunction-sections -fdata-sections
 CFLAGS  += -fshort-enums -fomit-frame-pointer
 CFLAGS  += -Os -g
@@ -35,8 +36,9 @@ NRFX_ROOT = $(CONTIKI)/arch/cpu/nrf/lib/nrfx
 CFLAGS   += -I$(NRFX_ROOT)/mdk -I$(NRFX_ROOT)
 LDFLAGS  += -L$(NRFX_ROOT)/mdk
 
-LDSCRIPT ?= $(NRFX_ROOT)/mdk/nrf54l15_xxaa_flpr.ld
+LDSCRIPT ?= $(CONTIKI_CPU)/nrf-vpr-sram.ld
 LDFLAGS  += -T$(LDSCRIPT)
+CFLAGS   += -mcmodel=medany
 
 TARGET_LIBFILES += -lgcc
 

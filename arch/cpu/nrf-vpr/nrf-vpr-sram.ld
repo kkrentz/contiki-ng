@@ -1,14 +1,15 @@
-/* Link the FLPR firmware to run from a fixed SRAM region the M33 will fill.
- * FLPR's view: code at 0x20030000, data immediately after. Shared counter
- * lives at 0x2003F000 in both M33 and FLPR views.                       */
+/* FLPR firmware linker script using Nordic's canonical FLPR SRAM partition.
+ * Per Zephyr DTS (nrf54l15_cpuflpr.dtsi): FLPR's SRAM block is at M33-view
+ * 0x20028000..0x20040000 (96 KB). The Zephyr vpr_launcher writes INITPC to
+ * the parent (M33-bus) address of execution-memory, i.e. 0x20028000.       */
 
 SEARCH_DIR(.)
 GROUP(-lgcc)
 
 MEMORY
 {
-  FLASH (rx) : ORIGIN = 0x20030000, LENGTH = 0x8000  /* 32 KB code/.rodata */
-  RAM (rwx)  : ORIGIN = 0x20038000, LENGTH = 0x6000  /* 24 KB data/.bss/stack */
+  FLASH (rx) : ORIGIN = 0x20028000, LENGTH = 0x8000   /* 32 KB code/.rodata */
+  RAM (rwx)  : ORIGIN = 0x20030000, LENGTH = 0xF000   /* 60 KB data/.bss/stack */
 }
 
 INCLUDE "nrf_common_riscv.ld"

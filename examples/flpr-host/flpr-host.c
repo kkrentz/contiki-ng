@@ -12,15 +12,32 @@
 #define LOG_MODULE "flpr-host"
 #define LOG_LEVEL  LOG_LEVEL_INFO
 
+/* Try both views and report what each one shows us. */
+#define VPR_NS ((volatile NRF_VPR_Type *)0x4004C000UL)
+#define VPR_S  ((volatile NRF_VPR_Type *)0x5004C000UL)
+
+static volatile uint32_t s_initpc_before, s_cpurun_before;
+static volatile uint32_t s_initpc_after,  s_cpurun_after;
+static volatile uint32_t ns_initpc_before, ns_cpurun_before;
+static volatile uint32_t ns_initpc_after,  ns_cpurun_after;
+
 static void
-flpr_load_and_start(void)
+flpr_diag_and_start(void)
 {
   /* 1. Copy the embedded FLPR binary into SRAM at the link address. */
   memcpy((void *)FLPR_BLOB_LOAD_ADDR, flpr_blob, flpr_blob_len);
 
-  /* 2. Tell the VPR where to start and release it from reset. */
-  nrf_vpr_initpc_set(NRF_VPR00_NS, FLPR_BLOB_ENTRY_PC);
-  nrf_vpr_cpurun_set(NRF_VPR00_NS, true);
+  /* 2. NS readback BEFORE any writes. */
+  ns_initpc_before = VPR_NS->INITPC;
+  ns_cpurun_before = VPR_NS->CPURUN;
+
+  /* 3. Write via NS view. */
+  VPR_NS->INITPC = FLPR_BLOB_ENTRY_PC;
+  VPR_NS->CPURUN = 1u;
+
+  /* 4. NS readback AFTER writes. */
+  ns_initpc_after = VPR_NS->INITPC;
+  ns_cpurun_after = VPR_NS->CPURUN;
 }
 
 PROCESS(flpr_host_process, "flpr-host");
@@ -37,9 +54,20 @@ PROCESS_THREAD(flpr_host_process, ev, data)
            (unsigned)flpr_blob_len);
 
   FLPR_SHARED_COUNTER = 0;
-  flpr_load_and_start();
+  flpr_diag_and_start();
 
-  LOG_INFO("FLPR released; polling shared counter @ 0x2003F000\n");
+  LOG_INFO("NS VPR before: INITPC=0x%08lx CPURUN=0x%lx\n",
+           (unsigned long)ns_initpc_before, (unsigned long)ns_cpurun_before);
+  LOG_INFO("NS VPR after : INITPC=0x%08lx CPURUN=0x%lx\n",
+           (unsigned long)ns_initpc_after, (unsigned long)ns_cpurun_after);
+
+  if(ns_initpc_after == FLPR_BLOB_ENTRY_PC && ns_cpurun_after == 1) {
+    LOG_INFO("Writes were ACCEPTED via NS view (SPU not blocking).\n");
+  } else if(ns_initpc_after == 0 && ns_cpurun_after == 0) {
+    LOG_INFO("Writes were DROPPED via NS view (SPU is blocking).\n");
+  } else {
+    LOG_INFO("Mixed: NS view partially accepted writes.\n");
+  }
 
   etimer_set(&et, CLOCK_SECOND);
   while(1) {
@@ -50,7 +78,8 @@ PROCESS_THREAD(flpr_host_process, ev, data)
                (unsigned)now, (int)(now - last_tick));
       last_tick = now;
     } else {
-      LOG_INFO("[FLPR] counter unchanged at %u\n", (unsigned)now);
+      LOG_INFO("[FLPR] counter unchanged at %u, CPURUN=0x%lx\n",
+               (unsigned)now, (unsigned long)VPR_NS->CPURUN);
     }
     etimer_reset(&et);
   }
