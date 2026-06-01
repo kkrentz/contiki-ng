@@ -1,0 +1,58 @@
+### Toolchain: Zephyr SDK riscv64-zephyr-elf for nRF VPR (RV32E coprocessor)
+ZSDK_RISCV ?= $(HOME)/zephyr-toolchain-riscv
+TOOLCHAIN_BIN = $(ZSDK_RISCV)/bin/riscv64-zephyr-elf-
+
+CC      = $(TOOLCHAIN_BIN)gcc
+LD      = $(TOOLCHAIN_BIN)gcc
+AS      = $(TOOLCHAIN_BIN)gcc
+AR      = $(TOOLCHAIN_BIN)ar
+NM      = $(TOOLCHAIN_BIN)nm
+OBJCOPY = $(TOOLCHAIN_BIN)objcopy
+OBJDUMP = $(TOOLCHAIN_BIN)objdump
+SIZE    = $(TOOLCHAIN_BIN)size
+
+VPR_MARCH = rv32e_zicsr_zifencei
+VPR_MABI  = ilp32e
+
+CFLAGS  += -march=$(VPR_MARCH) -mabi=$(VPR_MABI)
+CFLAGS  += -mcmodel=medlow
+CFLAGS  += -ffunction-sections -fdata-sections
+CFLAGS  += -fshort-enums -fomit-frame-pointer
+CFLAGS  += -Os -g
+CFLAGS  += -DNRF54L15_XXAA
+
+ASFLAGS += $(CFLAGS) -c
+
+LDFLAGS += -march=$(VPR_MARCH) -mabi=$(VPR_MABI)
+LDFLAGS += -nostartfiles -nostdlib
+LDFLAGS += -Wl,--gc-sections,--sort-section=alignment
+LDFLAGS += -Wl,--no-warn-rwx-segments
+LDFLAGS += -Wl,-eReset_Handler
+LDFLAGS += -Wl,--defsym=_stack=__StackTop
+LDFLAGS += -Wl,--defsym=_stack_origin=__StackTop
+
+NRFX_ROOT = $(CONTIKI)/arch/cpu/nrf/lib/nrfx
+CFLAGS   += -I$(NRFX_ROOT)/mdk -I$(NRFX_ROOT)
+LDFLAGS  += -L$(NRFX_ROOT)/mdk
+
+LDSCRIPT ?= $(NRFX_ROOT)/mdk/nrf54l15_xxaa_flpr.ld
+LDFLAGS  += -T$(LDSCRIPT)
+
+TARGET_LIBFILES += -lgcc
+
+CONTIKI_CPU_DIRS += . ../nrf/lib/nrfx/mdk
+CONTIKI_CPU_SOURCEFILES += startup-stubs.c clock-arch.c int-master-arch.c rtimer-arch.c
+CONTIKI_CPU_SOURCEFILES += gcc_startup_nrf54l15_flpr.S
+
+CONTIKI_SOURCEFILES += $(CONTIKI_CPU_SOURCEFILES)
+
+OUT_HEX = $(BUILD_DIR_BOARD)/$(CONTIKI_PROJECT).hex
+OUT_BIN = $(BUILD_DIR_BOARD)/$(CONTIKI_PROJECT).bin
+
+%.hex: $(BUILD_DIR_BOARD)/%.$(TARGET)
+	$(Q)$(OBJCOPY) -O ihex $< $(BUILD_DIR_BOARD)/$@
+	@echo "Generated hex: $(BUILD_DIR_BOARD)/$@"
+
+%.bin: $(BUILD_DIR_BOARD)/%.$(TARGET)
+	$(Q)$(OBJCOPY) -O binary $< $(BUILD_DIR_BOARD)/$@
+	@echo "Generated bin: $(BUILD_DIR_BOARD)/$@"
