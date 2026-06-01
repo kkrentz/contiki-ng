@@ -58,7 +58,35 @@
 #define flush()
 #endif /* PLATFORM_DBG_CONF_USB */
 /*---------------------------------------------------------------------------*/
-#if TRUSTZONE_NONSECURE
+#if defined(NRF5340_XXAA_NETWORK)
+/*
+ * On the nRF5340 network core, redirect all debug output to a shared
+ * memory ring buffer. The application core drains it and prints with
+ * a [NET] prefix, avoiding UART pin contention between the two cores.
+ */
+#include "nrf-ipc.h"
+/*---------------------------------------------------------------------------*/
+int
+dbg_putchar(int c)
+{
+  volatile struct nrf_ipc_shared_mem *shm = NRF_IPC_SHARED_MEM;
+  uint16_t head = shm->log.head;
+  uint16_t next = (head + 1) % NRF_IPC_LOG_BUF_SIZE;
+
+  /* Drop the character if the buffer is full. */
+  if(next == shm->log.tail) {
+    shm->log.overflow++;
+    return c;
+  }
+
+  shm->log.data[head] = (char)c;
+  __DMB();
+  shm->log.head = next;
+
+  return c;
+}
+/*---------------------------------------------------------------------------*/
+#elif NRF_TRUSTZONE_NONSECURE
 #include "trustzone/tz-api.h"
 
 #define DBG_BUF_SIZE 256
@@ -95,7 +123,7 @@ dbg_putchar(int c)
 
   return c;
 }
-#endif /* TRUSTZONE_NONSECURE */
+#endif /* NRF_TRUSTZONE_NONSECURE */
 /*---------------------------------------------------------------------------*/
 unsigned int
 dbg_send_bytes(const unsigned char *s, unsigned int len)

@@ -13,6 +13,10 @@ CONTIKI_CPU_SOURCEFILES += dbg-arch.c
 CONTIKI_CPU_SOURCEFILES += gpio-hal-arch.c
 CONTIKI_CPU_SOURCEFILES += int-master-arch.c
 CONTIKI_CPU_SOURCEFILES += nrf-ieee-driver-arch.c
+ifneq ($(TRUSTZONE_SECURE_BUILD),0)
+  CONTIKI_CPU_SOURCEFILES += nrf-ipc.c
+  CONTIKI_CPU_SOURCEFILES += nrf-ipc-radio.c
+endif
 CONTIKI_CPU_SOURCEFILES += uarte-arch.c
 CONTIKI_CPU_SOURCEFILES += temp-arch.c
 CONTIKI_CPU_SOURCEFILES += linkaddr-arch.c

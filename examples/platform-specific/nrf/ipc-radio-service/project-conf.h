@@ -1,18 +1,15 @@
 /*
- * Copyright (c) 2023, RISE Research Institutes of Sweden
+ * Copyright (c) 2026, RISE Research Institutes of Sweden AB.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
- *
  * 1. Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
- *
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- *
  * 3. Neither the name of the copyright holder nor the names of its
  *    contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
@@ -30,23 +27,27 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
-#ifndef PROJECT_CONF_H
-#define PROJECT_CONF_H
-
-#define UIP_CONF_BUFFER_SIZE sizeof(int)
-#define PACKETBUF_CONF_SIZE sizeof(int)
-#define QUEUEBUF_CONF_ENABLED 0
-#define QUEUEBUF_CONF_NUM 1
-
-#define WATCHDOG_CONF_ENABLE 0
-
-#define STACK_CHECK_CONF_ENABLED 0
-
-#define NRF_CLOCK_CONF_RTC_INSTANCE 1
-
-#define NRF_RTIMER_CONF_TIMER_INSTANCE 1
-
-#define SECURE_UART0 1
-
-#endif /* !PROJECT_CONF_H */
+/*---------------------------------------------------------------------------*/
+#ifndef PROJECT_CONF_H_
+#define PROJECT_CONF_H_
+/*---------------------------------------------------------------------------*/
+/* Default log level for the network core's main module. */
+#define LOG_CONF_LEVEL_MAIN LOG_LEVEL_INFO
+/*---------------------------------------------------------------------------*/
+/*
+ * Use the IPC MAC driver which forwards received frames to the
+ * application core via shared memory. This replaces NULLMAC and
+ * enables fully interrupt-driven frame reception.
+ */
+extern const struct mac_driver ipc_mac_driver;
+#define NETSTACK_CONF_MAC ipc_mac_driver
+/*---------------------------------------------------------------------------*/
+/*
+ * Disable UARTE on the network core. All debug output is forwarded
+ * to the application core via the IPC log ring buffer, so the net
+ * core must not initialize its UARTE or touch the shared GPIO pins.
+ */
+#undef NRF_HAS_UARTE
+#define NRF_HAS_UARTE 0
+/*---------------------------------------------------------------------------*/
+#endif /* PROJECT_CONF_H_ */
