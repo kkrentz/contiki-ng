@@ -1963,6 +1963,25 @@ idle_tx_rx(const uint8_t *payload, uint16_t payload_len)
   /* Prepare and write header */
   copy_header_to_tx_fifo(payload_len);
 
+#if USE_SFSTXON
+  /*
+   * Pre-arm the synthesizer now, before streaming the payload into
+   * the FIFO, so it settles concurrently with the burst_write below
+   * rather than stalling the subsequent STX. Under CC1200_AUTOCAL
+   * this strobe triggers calibration; otherwise it just locks the
+   * (already-calibrated) synth. The STX then transitions FSTXON->TX
+   * in ~25 us instead of the ~150-700 us cal+settle from IDLE. Must
+   * come after the SFTX issued in copy_header_to_tx_fifo() - SFSTXON
+   * before SFTX leaves the synth in an undefined state.
+   *
+   * The strobe was inadvertently dropped in b5e12154c (2018) while
+   * the wait below was left in place, turning the wait into a
+   * RTIMER_SECOND/100 (~10 ms) dead timeout on every TX in non-TSCH
+   * builds. TSCH builds set USE_SFSTXON=0 and skip this block.
+   */
+  strobe(CC1200_SFSTXON);
+#endif
+
   /*
    * Fill FIFO with data. If SPI is slow it might make sense
    * to divide this process into several chunks.
@@ -1981,22 +2000,7 @@ idle_tx_rx(const uint8_t *payload, uint16_t payload_len)
 #endif /* CC1200_WITH_TX_BUF */
 
 #if USE_SFSTXON
-  /*
-   * Pre-arm the synthesizer before STX. Under CC1200_AUTOCAL this
-   * strobe triggers calibration; otherwise it just locks the
-   * (already-calibrated) synth. The subsequent STX then transitions
-   * FSTXON->TX in ~25 us instead of the ~150-700 us cal+settle from
-   * IDLE. Must come after the last SFTX (issued in
-   * copy_header_to_tx_fifo) - SFSTXON before SFTX leaves the synth
-   * in an undefined state.
-   *
-   * The strobe was inadvertently dropped in b5e12154c (2018) while
-   * the wait below was left in place, turning the wait into a
-   * RTIMER_SECOND/100 (~10 ms) dead timeout on every TX in non-TSCH
-   * builds. TSCH builds set USE_SFSTXON=0 and skip this block.
-   */
-  strobe(CC1200_SFSTXON);
-  /* Wait for synthesizer to be ready */
+  /* Wait for the synthesizer (pre-armed above) to reach FSTXON */
   RTIMER_BUSYWAIT_UNTIL_STATE(STATE_FSTXON, RTIMER_SECOND / 100);
 #endif
 
