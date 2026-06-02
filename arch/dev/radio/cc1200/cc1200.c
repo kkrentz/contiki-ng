@@ -1960,9 +1960,36 @@ idle_tx_rx(const uint8_t *payload, uint16_t payload_len)
   single_write(CC1200_IOCFG0, CC1200_IOCFG_MARC_2PIN_STATUS_0);
 
 #if CC1200_WITH_TX_BUF
-  /* Prepare and write header */
+  /* Prepare and write header (issues the SFTX flush) */
   copy_header_to_tx_fifo(payload_len);
+#endif /* CC1200_WITH_TX_BUF */
 
+#if USE_SFSTXON
+  /*
+   * Pre-arm the synthesizer now, before streaming the payload into
+   * the FIFO (when CC1200_WITH_TX_BUF is set), so it settles
+   * concurrently with the burst_write below rather than stalling the
+   * subsequent STX. Under CC1200_AUTOCAL this strobe triggers
+   * calibration; otherwise it just locks the (already-calibrated)
+   * synth. The STX then transitions FSTXON->TX in ~25 us instead of
+   * the ~150-700 us cal+settle from IDLE.
+   *
+   * This is gated on USE_SFSTXON only (not CC1200_WITH_TX_BUF) so the
+   * strobe is never dropped if the two options are configured
+   * independently. The SFTX it must follow has already been issued by
+   * this point in both configurations: copy_header_to_tx_fifo() above
+   * for CC1200_WITH_TX_BUF, or earlier in prepare() otherwise. SFSTXON
+   * before SFTX leaves the synth in an undefined state.
+   *
+   * The strobe was inadvertently dropped in b5e12154c (2018) while
+   * the wait below was left in place, turning the wait into a
+   * RTIMER_SECOND/100 (~10 ms) dead timeout on every TX in non-TSCH
+   * builds. TSCH builds set USE_SFSTXON=0 and skip this block.
+   */
+  strobe(CC1200_SFSTXON);
+#endif
+
+#if CC1200_WITH_TX_BUF
   /*
    * Fill FIFO with data. If SPI is slow it might make sense
    * to divide this process into several chunks.
@@ -1981,7 +2008,7 @@ idle_tx_rx(const uint8_t *payload, uint16_t payload_len)
 #endif /* CC1200_WITH_TX_BUF */
 
 #if USE_SFSTXON
-  /* Wait for synthesizer to be ready */
+  /* Wait for the synthesizer (pre-armed above) to reach FSTXON */
   RTIMER_BUSYWAIT_UNTIL_STATE(STATE_FSTXON, RTIMER_SECOND / 100);
 #endif
 
