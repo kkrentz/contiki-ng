@@ -21,6 +21,7 @@ CFLAGS  += -ffunction-sections -fdata-sections
 CFLAGS  += -fshort-enums -fomit-frame-pointer
 CFLAGS  += -Os -g
 CFLAGS  += -DNRF54L15_XXAA
+CFLAGS  += -D__STARTUP_CLEAR_BSS
 
 ASFLAGS += $(CFLAGS) -c
 

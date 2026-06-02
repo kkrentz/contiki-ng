@@ -13,9 +13,9 @@ read_cycles(void)
 {
   uint32_t lo1, hi, lo2;
   do {
-    __asm__ volatile ("csrr %0, cycleh" : "=r"(hi));
-    __asm__ volatile ("csrr %0, cycle"  : "=r"(lo1));
-    __asm__ volatile ("csrr %0, cycleh" : "=r"(lo2));
+    __asm__ volatile ("csrr %0, mcycleh" : "=r"(hi));
+    __asm__ volatile ("csrr %0, mcycle"  : "=r"(lo1));
+    __asm__ volatile ("csrr %0, mcycleh" : "=r"(lo2));
   } while(hi != lo2);
   return ((uint64_t)hi << 32) | lo1;
 }
@@ -26,11 +26,14 @@ clock_init(void)
   epoch_cycles = read_cycles();
 }
 
+/* PoC: cycle/mcycle CSRs are 0 on the VPR. Advance time by one tick per
+ * call — wrong rate, but proves the Contiki kernel + etimer + scheduler
+ * are all wired correctly. Replace with VTIM-driven clock once running. */
+static volatile clock_time_t fake_time = 0;
 clock_time_t
 clock_time(void)
 {
-  uint64_t d = read_cycles() - epoch_cycles;
-  return (clock_time_t)((d * CLOCK_SECOND) / VPR_CYCLE_HZ);
+  return ++fake_time;
 }
 
 unsigned long

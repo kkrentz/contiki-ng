@@ -38,7 +38,33 @@ int memcmp(const void *a, const void *b, size_t n) {
 void SystemInit(void) { }
 
 extern int main(void);
-void _start(void) { main(); for(;;); }
+
+/* Override the spinning Trap_Handler from nrfx startup. Read mcause + mepc
+ * so we know what kind of exception fired and at what PC. */
+__attribute__((naked,aligned(8)))
+void my_trap_handler(void)
+{
+  __asm__ volatile (
+    "csrr  t0, mcause           \n"
+    "csrr  t1, mepc             \n"
+    "li    t2, 0x2003F000       \n"
+    "li    a4, 0xFA110000       \n"
+    "andi  t0, t0, 0xFF         \n"
+    "or    a4, a4, t0           \n"
+    "sw    a4, 0(t2)            \n"   /* counter = 0xFA1100|cause   */
+    "sw    t1, 4(t2)            \n"   /* +4      = faulting PC      */
+    "1: j  1b                   \n"
+  );
+}
+
+void _start(void) {
+  /* Reroute mtvec from the silent-spin Trap_Handler to ours. */
+  __asm__ volatile ("csrw mtvec, %0" :: "r"(my_trap_handler));
+  *(volatile unsigned int *)0x2003F000UL = 0xA0000001U;
+  main();
+  *(volatile unsigned int *)0x2003F000UL = 0xA000FFFFU;
+  for(;;);
+}
 
 void watchdog_periodic(void) { }
 void watchdog_init(void)     { }

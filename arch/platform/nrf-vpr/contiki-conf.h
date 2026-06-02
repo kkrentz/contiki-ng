@@ -10,6 +10,8 @@
 
 #define LINKADDR_CONF_SIZE     2
 
+#define PLATFORM_CONF_PROVIDES_MAIN_LOOP 1
+
 typedef unsigned int uip_stats_t;
 
 #define LOG_CONF_LEVEL_MAIN    0

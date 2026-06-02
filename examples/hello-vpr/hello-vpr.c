@@ -16,13 +16,12 @@ PROCESS_THREAD(hello_vpr_process, ev, data)
 
   PROCESS_BEGIN();
 
-  SHARED_COUNTER = 0;
-
   while(1) {
+    /* Visible to M33 while we yield in PROCESS_WAIT (99% of the time). */
+    SHARED_COUNTER = tick;
     etimer_set(&et, CLOCK_SECOND / 2);
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
     tick++;
-    SHARED_COUNTER = tick;
   }
 
   PROCESS_END();
