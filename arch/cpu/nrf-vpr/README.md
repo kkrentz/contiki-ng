@@ -15,10 +15,9 @@ tightly-coupled SRAM/RRAM partitions, controlled by the application core
 - Single openocd / J-Link session flashes both M33 image and embedded
   FLPR blob
 
-Current limitation: **clock_time() uses a software-advanced fake counter**
-(advances one tick per call). Etimer works because all timer state is
-internally consistent, but wall-clock timing is wrong. The follow-up commit
-wires GRTC SYSCOUNTER for proper time.
+`clock_time()` is sourced from **GRTC SYSCOUNTER** read via the Secure view
+(`NRF_GRTC_S`, `0x500E2000`). Wall-clock accurate: `etimer_set(CLOCK_SECOND/2)`
+fires twice per real second.
 
 ## Layout
 
@@ -89,6 +88,40 @@ is left at whatever garbage was in SRAM. Contiki globals (`process_list`,
 hangs the moment it touches them. `arch/cpu/nrf-vpr/Makefile.nrf-vpr`
 defines this; if you copy the toolchain settings elsewhere, copy this
 too.
+
+### (c) GRTC must be accessed via the Secure address
+
+`NRF_GRTC_NS` (`0x400E2000`) faults on FLPR with mcause=5 (load access
+fault). The M33-side Contiki runs Secure, so GRTC's SPU PERIPHACCESS is
+left at Secure; the NS view is gated off. From the FLPR we read
+`NRF_GRTC_S->SYSCOUNTER[0].SYSCOUNTERL/H`.
+
+The HAL macro `GRTC_SYSCOUNTER` resolves to `SYSCOUNTER[NRF_GRTC_DOMAIN_INDEX]`,
+where `NRF_GRTC_DOMAIN_INDEX = GRTC_IRQ_GROUP`, and `GRTC_IRQ_GROUP = 0` when
+the build defines `NRF_FLPR`. We add `-DNRF_FLPR` to `Makefile.nrf-vpr`.
+
+### (d) The stock nrfx FLPR template's GRTC channel mask is wrong for us
+
+`nrfx_config_nrf54l15_flpr.h:404` sets
+`NRFX_GRTC_CONFIG_ALLOWED_CC_CHANNELS_MASK = 0x000000F0`, i.e. channels 4..7.
+That collides with M33's owned channels 5, 6 and with the zero-latency
+channel 7, and it omits channel 3 entirely. The Nordic-recommended split
+for nRF54L15 is **M33: 0,1,2,5,6** and **FLPR: 3,4**, so `Makefile.nrf-vpr`
+overrides:
+
+```c
+#define NRFX_GRTC_CONFIG_ALLOWED_CC_CHANNELS_MASK 0x00000018   /* 3,4 */
+#define NRFX_GRTC_CONFIG_NUM_OF_CC_CHANNELS       2
+#define NRFX_GRTC_CONFIG_AUTOSTART                0
+```
+
+(Channels are reserved here; the current commit only reads SYSCOUNTER. CC
+channel 3 will drive the etimer compare interrupt in the next commit;
+channel 4 will drive rtimer.)
+
+The nRF54L15 radio backend uses `TIMER20`/`TIMER10`
+(`nrf_802154_platform_sl_lptimer.c`, `nrf_802154_platform_timestamper.c`),
+**not** GRTC, so there is no radio↔GRTC contention on either core.
 
 ## Other implementation notes
 

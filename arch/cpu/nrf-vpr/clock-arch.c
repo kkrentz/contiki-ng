@@ -1,45 +1,45 @@
 #include "contiki.h"
 #include "sys/clock.h"
+#include "nrf.h"
 #include <stdint.h>
 
-#ifndef VPR_CYCLE_HZ
-#define VPR_CYCLE_HZ 16000000UL
-#endif
+/* GRTC runs at 1 MHz on nRF54L15 (matches the M33 clock-arch
+ * GRTC_TICK_FREQUENCY_HZ). 1 GRTC tick = 1 us. */
+#define GRTC_TICK_HZ  1000000UL
 
-static uint64_t epoch_cycles;
+/* The HAL exposes GRTC_SYSCOUNTER = SYSCOUNTER[NRF_GRTC_DOMAIN_INDEX], where
+ * NRF_GRTC_DOMAIN_INDEX = GRTC_IRQ_GROUP. With NRF_FLPR defined,
+ * GRTC_IRQ_GROUP = 0, so we read SYSCOUNTER[0] - the FLPR's dedicated read
+ * port. The underlying 52-bit counter is shared with the M33. */
 
-static uint64_t
-read_cycles(void)
+static inline uint64_t
+grtc_syscounter_now(void)
 {
-  uint32_t lo1, hi, lo2;
+  uint32_t lo, hi;
   do {
-    __asm__ volatile ("csrr %0, mcycleh" : "=r"(hi));
-    __asm__ volatile ("csrr %0, mcycle"  : "=r"(lo1));
-    __asm__ volatile ("csrr %0, mcycleh" : "=r"(lo2));
-  } while(hi != lo2);
-  return ((uint64_t)hi << 32) | lo1;
+    lo = NRF_GRTC_S->SYSCOUNTER[0].SYSCOUNTERL;
+    hi = NRF_GRTC_S->SYSCOUNTER[0].SYSCOUNTERH;
+  } while(hi & GRTC_SYSCOUNTER_SYSCOUNTERH_BUSY_Msk);
+  return ((uint64_t)(hi & GRTC_SYSCOUNTER_SYSCOUNTERH_VALUE_Msk) << 32) | lo;
 }
 
 void
 clock_init(void)
 {
-  epoch_cycles = read_cycles();
+  /* GRTC is already running - the M33 application brings it up before
+   * releasing the VPR. Nothing to do here. */
 }
 
-/* PoC: cycle/mcycle CSRs are 0 on the VPR. Advance time by one tick per
- * call — wrong rate, but proves the Contiki kernel + etimer + scheduler
- * are all wired correctly. Replace with VTIM-driven clock once running. */
-static volatile clock_time_t fake_time = 0;
 clock_time_t
 clock_time(void)
 {
-  return ++fake_time;
+  return (clock_time_t)(grtc_syscounter_now() / (GRTC_TICK_HZ / CLOCK_SECOND));
 }
 
 unsigned long
 clock_seconds(void)
 {
-  return (unsigned long)((read_cycles() - epoch_cycles) / VPR_CYCLE_HZ);
+  return (unsigned long)(grtc_syscounter_now() / GRTC_TICK_HZ);
 }
 
 void
@@ -52,8 +52,8 @@ clock_wait(clock_time_t t)
 void
 clock_delay_usec(uint16_t us)
 {
-  uint64_t end = read_cycles() + ((uint64_t)us * VPR_CYCLE_HZ) / 1000000UL;
-  while(read_cycles() < end) { }
+  uint64_t end = grtc_syscounter_now() + us;
+  while(grtc_syscounter_now() < end) { }
 }
 
 void

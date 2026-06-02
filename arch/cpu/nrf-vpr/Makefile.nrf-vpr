@@ -21,7 +21,15 @@ CFLAGS  += -ffunction-sections -fdata-sections
 CFLAGS  += -fshort-enums -fomit-frame-pointer
 CFLAGS  += -Os -g
 CFLAGS  += -DNRF54L15_XXAA
+CFLAGS  += -DNRF_FLPR                  # picks GRTC_IRQ_GROUP=0 → SYSCOUNTER[0]
 CFLAGS  += -D__STARTUP_CLEAR_BSS
+
+# Override the stock nrfx FLPR template's GRTC channel allowlist (0xF0 = 4..7,
+# which collides with M33's 5,6 and the zero-latency 7, and omits 3).
+# Restrict FLPR to GRTC CC channels 3 and 4 per the Nordic partition.
+CFLAGS  += -DNRFX_GRTC_CONFIG_ALLOWED_CC_CHANNELS_MASK=0x00000018
+CFLAGS  += -DNRFX_GRTC_CONFIG_NUM_OF_CC_CHANNELS=2
+CFLAGS  += -DNRFX_GRTC_CONFIG_AUTOSTART=0
 
 ASFLAGS += $(CFLAGS) -c
 
