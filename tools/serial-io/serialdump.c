@@ -374,7 +374,7 @@ main(int argc, char **argv)
             }
 
             rxbuf[index++] = buf[i];
-            if(index >= sizeof(rxbuf)) {
+            if(index >= (int)sizeof(rxbuf)) {
               fprintf(stderr, "**** slip overflow\n");
               index = 0;
               flags = 2;
