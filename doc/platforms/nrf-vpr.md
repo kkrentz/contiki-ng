@@ -50,16 +50,12 @@ Same as the existing `nrf` port:
 
 Shortest path to a running demo on the nRF54L15-DK:
 
-    # 1. Build the FLPR firmware
-    cd examples/hello-vpr
-    gmake TARGET=nrf-vpr WERROR=0
-
-    # 2. Embed the FLPR blob in a header that the M33 image includes
-    cd ../flpr-host
-    python3 ../../tools/flpr-blob-gen.py ../hello-vpr/build/nrf-vpr/hello-vpr.bin > flpr-blob.h
-
-    # 3. Build + flash the M33 image
+    cd examples/flpr-host
     gmake TARGET=nrf BOARD=nrf54l15/dk WERROR=0 flpr-host.flash
+
+The `flpr-host` Makefile transparently rebuilds the FLPR firmware
+(`../hello-vpr/build/nrf-vpr/hello-vpr.bin`) and regenerates the blob
+header (`flpr-blob.h`) before the M33 build runs.
 
 You should see:
 
@@ -149,7 +145,6 @@ The nrfx-provided `Trap_Handler` is a silent infinite loop. `arch/cpu/nrf-vpr/st
 
 ## Known limitations
 
-* The FLPR-blob-in-M33-`.rodata` pattern means rebuilding the FLPR requires manually regenerating `examples/flpr-host/flpr-blob.h`. A Makefile rule that does this automatically is on the TODO list.
 * `etimer` polling rather than CC-interrupt driven — the FLPR busy-loops between events. CC channel 3 wiring is the next major commit.
 * `rtimer` is a stub. CC channel 4 will drive it later.
 * No FLPR-side UART output — the FLPR shares its `printf` channel with the M33 only through the shared counter region. A proper IPC mailbox is a future commit.

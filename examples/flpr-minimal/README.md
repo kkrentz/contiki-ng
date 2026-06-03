@@ -17,15 +17,19 @@ Produces `flpr-stamp.bin` (20 bytes, RV32E).
 
 ## Use as the FLPR side of flpr-host
 
-To run this instead of `hello-vpr.bin`, regenerate the blob header against
-this binary and reflash the M33 image:
+The `flpr-host` Makefile auto-builds from `../hello-vpr` by default. To
+swap in `flpr-stamp.bin` instead for diagnosis, regenerate the blob
+header manually and override the auto-rebuild:
 
-    cd examples/flpr-host
+    cd examples/flpr-minimal && make all
+    cd ../flpr-host
     python3 ../../tools/flpr-blob-gen.py ../flpr-minimal/flpr-stamp.bin > flpr-blob.h
+    # then comment out the FLPR sub-build block in Makefile or run only the
+    # link step:
     gmake TARGET=nrf BOARD=nrf54l15/dk WERROR=0 flpr-host.flash
 
-Then look for `0xCAFEBABE` (= 3405691582) in the console output. If you see
-it, the boot dance is correct and the problem is somewhere in your bigger
-FLPR firmware.
+Look for `0xCAFEBABE` (= 3405691582) in the console output. If you see it,
+the boot dance is correct and the problem is somewhere in your bigger FLPR
+firmware.
 
 See `doc/platforms/nrf-vpr.md` for the full port documentation.

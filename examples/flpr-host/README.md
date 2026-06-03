@@ -12,16 +12,11 @@ M33-side companion to `examples/hello-vpr`.
 
 ## Build / Flash
 
-The FLPR blob must be built first because the M33 image embeds it.
-
-    cd examples/hello-vpr
-    gmake TARGET=nrf-vpr WERROR=0
-
-    cd ../flpr-host
-    python3 ../../tools/flpr-blob-gen.py ../hello-vpr/build/nrf-vpr/hello-vpr.bin > flpr-blob.h
+    cd examples/flpr-host
     gmake TARGET=nrf BOARD=nrf54l15/dk WERROR=0 flpr-host.flash
 
-Re-run the `flpr-blob-gen.py` step whenever the FLPR firmware changes.
+The Makefile rebuilds `../hello-vpr` and regenerates `flpr-blob.h`
+automatically when needed.
 
 ## Console
 
