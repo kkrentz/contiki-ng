@@ -114,7 +114,7 @@ main(int argc, char **argv)
   char *device = MODEMDEVICE;
   char *timeformat = NULL;
   unsigned char buf[BUFSIZE];
-  char outbuf[HCOLS];
+  char timebuf[64];
   unsigned char mode = MODE_START_TEXT;
   int nfound, flags = 0;
   unsigned char lastc = '\0';
@@ -296,8 +296,8 @@ main(int argc, char **argv)
         case MODE_START_DATE: {
           time_t t;
           t = time(&t);
-          strftime(outbuf, HCOLS, timeformat, localtime(&t));
-          printf("[%s] ", outbuf);
+          strftime(timebuf, sizeof(timebuf), timeformat, localtime(&t));
+          printf("[%s] ", timebuf);
           mode = MODE_DATE;
         }
         /* continue into the MODE_DATE */
