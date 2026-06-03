@@ -19,7 +19,7 @@
 static speed_t b_rate = BAUDRATE;
 /*---------------------------------------------------------------------------*/
 #ifdef linux
-#define MODEMDEVICE "/dev/ttyS0"
+#define MODEMDEVICE "/dev/ttyUSB0"
 #else
 #define MODEMDEVICE "/dev/com1"
 #endif /* linux */
