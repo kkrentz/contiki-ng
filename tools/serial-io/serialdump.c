@@ -252,24 +252,17 @@ main(int argc, char **argv)
         perror("could not read");
         exit(-1);
       } else if(n > 0) {
-        /* because commands might need parameters, lines needs to be
-           separated which means the terminating LF must be sent */
-        /*   while(n > 0 && buf[n - 1] < 32) { */
-        /*     n--; */
-        /*   } */
-        if(n > 0) {
-          int i;
-          /*    fprintf(stderr, "SEND %d bytes\n", n);*/
-          /* write slowly */
-          for(i = 0; i < n; i++) {
-            if(write(fd, &buf[i], 1) <= 0) {
-              perror("write");
-              exit(1);
-            } else {
-              fflush(NULL);
-              usleep(6000);
-            }
+        int i;
+        /* Write slowly, one byte at a time. The whole input is forwarded
+           verbatim (including any terminating LF, which commands may need),
+           and the per-byte delay gives slow serial devices time to keep up. */
+        for(i = 0; i < n; i++) {
+          if(write(fd, &buf[i], 1) <= 0) {
+            perror("write");
+            exit(1);
           }
+          fflush(NULL);
+          usleep(6000);
         }
       } else {
         /* stdin reached EOF: stop watching it, but keep dumping the serial
