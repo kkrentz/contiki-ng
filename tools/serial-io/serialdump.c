@@ -221,7 +221,11 @@ main(int argc, char **argv)
 
   FD_ZERO(&mask);
   FD_SET(fd, &mask);
-  FD_SET(fileno(stdin), &mask);
+  /* Only watch stdin if it is a valid, open descriptor. A pre-closed fd 0
+     would otherwise make select() fail with EBADF on every iteration. */
+  if(fcntl(fileno(stdin), F_GETFD) != -1) {
+    FD_SET(fileno(stdin), &mask);
+  }
 
   index = 0;
   for(;;) {
@@ -264,8 +268,9 @@ main(int argc, char **argv)
           }
         }
       } else {
-        /* End of input, exit. */
-        exit(0);
+        /* stdin reached EOF: stop watching it, but keep dumping the serial
+           port so that, e.g., responses to piped-in commands are still shown. */
+        FD_CLR(fileno(stdin), &mask);
       }
     }
 
