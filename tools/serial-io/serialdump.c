@@ -8,7 +8,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <errno.h>
-#include <sys/time.h>
+#include <sys/select.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
