@@ -33,15 +33,17 @@ static speed_t b_rate = BAUDRATE;
 #define HCOLS           20
 #define ICOLS           18
 
-#define MODE_START_DATE  0
-#define MODE_DATE        1
-#define MODE_START_TEXT  2
-#define MODE_TEXT        3
-#define MODE_INT         4
-#define MODE_HEX         5
-#define MODE_SLIP_AUTO   6
-#define MODE_SLIP        7
-#define MODE_SLIP_HIDE   8
+enum mode {
+  MODE_START_DATE,
+  MODE_DATE,
+  MODE_START_TEXT,
+  MODE_TEXT,
+  MODE_INT,
+  MODE_HEX,
+  MODE_SLIP_AUTO,
+  MODE_SLIP,
+  MODE_SLIP_HIDE
+};
 /*---------------------------------------------------------------------------*/
 #ifndef O_SYNC
 #define O_SYNC 0
@@ -121,7 +123,7 @@ main(int argc, char **argv)
   char *timeformat = NULL;
   unsigned char buf[BUFSIZE];
   char timebuf[64];
-  unsigned char mode = MODE_START_TEXT;
+  enum mode mode = MODE_START_TEXT;
   int nfound, flags = 0;
   unsigned char lastc = '\0';
 
@@ -385,13 +387,9 @@ main(int argc, char **argv)
         }
       }
 
-      /* after processing for some output modes */
-      if(index > 0) {
-        switch(mode) {
-        case MODE_HEX:
-          print_hex_line("", rxbuf, index);
-          break;
-        }
+      /* after processing, refresh the partial line for the hex output mode */
+      if(index > 0 && mode == MODE_HEX) {
+        print_hex_line("", rxbuf, index);
       }
       fflush(stdout);
     }
