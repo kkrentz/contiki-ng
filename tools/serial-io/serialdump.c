@@ -3,6 +3,7 @@
 #include "tools-utils.h"
 
 #include <stdio.h>
+#include <ctype.h>
 #include <fcntl.h>
 #include <termios.h>
 #include <unistd.h>
@@ -87,7 +88,7 @@ print_hex_line(char *prefix, unsigned char *outbuf, int index)
     printf("  ");
   }
   for(i = 0; i < index; i++) {
-    if(outbuf[i] < 30 || outbuf[i] > 126) {
+    if(!isprint(outbuf[i])) {
       printf(".");
     } else {
       printf("%c", outbuf[i]);
