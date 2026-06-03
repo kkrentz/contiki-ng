@@ -300,7 +300,7 @@ main(int argc, char **argv)
           printf("[%s] ", timebuf);
           mode = MODE_DATE;
         }
-        /* continue into the MODE_DATE */
+        /* fall through into MODE_DATE */
         case MODE_DATE:
           printf("%c", buf[i]);
           if(buf[i] == '\n') {
@@ -330,7 +330,7 @@ main(int argc, char **argv)
             printf("%c", buf[i]);
             break;
           }
-        /* continue to slip only mode */
+        /* fall through to SLIP-only mode */
         case MODE_SLIP:
           switch(buf[i]) {
           case SLIP_ESC:
