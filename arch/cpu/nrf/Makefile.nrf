@@ -106,6 +106,7 @@ ifeq ($(NRF_NATIVE_USB),1)
   TINYUSB_C_SRCS += $(TINYUSB_ROOT)/src/device/usbd.c
   TINYUSB_C_SRCS += $(TINYUSB_ROOT)/src/device/usbd_control.c
   TINYUSB_C_SRCS += $(TINYUSB_ROOT)/src/class/cdc/cdc_device.c
+  TINYUSB_C_SRCS += $(TINYUSB_ROOT)/src/class/dfu/dfu_rt_device.c
 
   #assembly files
   TINYUSB_ASM_SRCS += 
@@ -118,6 +119,7 @@ ifeq ($(NRF_NATIVE_USB),1)
   TINYUSB_INC_PATHS += src/common/
   TINYUSB_INC_PATHS += src/device/
   TINYUSB_INC_PATHS += src/class/cdc/
+  TINYUSB_INC_PATHS += src/class/dfu/
 
   EXTERNALDIRS += $(addprefix $(TINYUSB_ROOT)/, $(TINYUSB_INC_PATHS))
 

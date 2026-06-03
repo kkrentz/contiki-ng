@@ -14,3 +14,44 @@ include $(PLATFORM_ROOT_DIR)/nrf52840/Makefile.nrf52840
 CONTIKI_TARGET_DIRS += nrf52840/dongle
 
 MODULES += $(CONTIKI_NG_DRIVERS_ETC_DIR)/rgb-led
+
+#
+# Dongle upload via Nordic open-bootloader (no J-Link). Overrides the
+# nrfjprog-based %.upload rule from arch/cpu/nrf/Makefile.nrf. Triggers
+# DFU mode on a running Contiki-NG firmware if needed, generates the
+# Nordic DFU zip, then flashes via the Rust-based nrfutil.
+#
+# Requirements:
+#   - Rust nrfutil v7+ (https://www.nordicsemi.com/Software-and-tools/
+#     Development-Tools/nrfutil) + `nrfutil install nrf5sdk-tools`
+#   - pyusb for the optional in-firmware DFU trigger
+#     (pip install pyusb). Skipped automatically if not installed.
+#
+# Override the Python interpreter with PYTHON3, the nrfutil binary
+# with NRFUTIL, or pick a specific dongle with NRF_UPLOAD_SN=<serial>.
+#
+NRFUTIL ?= nrfutil
+PYTHON3 ?= python3
+DONGLE_DFU_TRIGGER := $(CONTIKI)/tools/nrf/dongle-dfu-trigger.py
+DONGLE_DFU_ZIP := $(BUILD_DIR_BOARD)/dongle-dfu-image.zip
+
+ifdef NRF_UPLOAD_SN
+  DONGLE_PROGRAM_OPTS := --serial-number $(NRF_UPLOAD_SN)
+else
+  DONGLE_PROGRAM_OPTS := --traits nordicDfu
+endif
+
+%.upload: $(BUILD_DIR_BOARD)/%.$(TARGET)
+ifeq (,$(shell command -v $(NRFUTIL)))
+	$(error Could not find nrfutil "$(NRFUTIL)", install it from https://www.nordicsemi.com/Software-and-tools/Development-Tools/nrfutil)
+else
+	@echo "==> Converting ELF to Intel HEX"
+	$(OBJCOPY) -O ihex $< $(BUILD_DIR_BOARD)/$*.hex
+	@echo "==> Triggering DFU mode on running firmware (if any)"
+	-@$(PYTHON3) $(DONGLE_DFU_TRIGGER) $(DONGLE_TRIGGER_OPTS) || echo "    (no running firmware to trigger; assuming bootloader)"
+	@sleep 2
+	@echo "==> Generating Nordic DFU package"
+	$(NRFUTIL) nrf5sdk-tools pkg generate --hw-version 52 --sd-req 0x00 --debug-mode --application $(BUILD_DIR_BOARD)/$*.hex $(DONGLE_DFU_ZIP)
+	@echo "==> Flashing"
+	$(NRFUTIL) device program --firmware $(DONGLE_DFU_ZIP) $(DONGLE_PROGRAM_OPTS)
+endif
