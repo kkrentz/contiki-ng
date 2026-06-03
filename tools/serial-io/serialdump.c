@@ -96,16 +96,22 @@ print_hex_line(char *prefix, unsigned char *outbuf, int index)
   }
 }
 /*---------------------------------------------------------------------------*/
+static volatile sig_atomic_t should_exit = 0;
+/*---------------------------------------------------------------------------*/
 static void
 intHandler(int sig)
 {
-  exit(0);
+  should_exit = 1;
 }
 /*---------------------------------------------------------------------------*/
 int
 main(int argc, char **argv)
 {
-  signal(SIGINT, intHandler);
+  struct sigaction sa;
+  sa.sa_handler = intHandler;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = 0; /* no SA_RESTART: let select() return EINTR so we can exit */
+  sigaction(SIGINT, &sa, NULL);
 
   struct termios options;
   fd_set mask, smask;
@@ -230,10 +236,16 @@ main(int argc, char **argv)
 
   index = 0;
   for(;;) {
+    if(should_exit) {
+      break;
+    }
     smask = mask;
     nfound = select(FD_SETSIZE, &smask, (fd_set *)0, (fd_set *)0, (struct timeval *)0);
     if(nfound < 0) {
       if(errno == EINTR) {
+        if(should_exit) {
+          break;
+        }
         fprintf(stderr, "interrupted system call\n");
         continue;
       }
@@ -384,4 +396,7 @@ main(int argc, char **argv)
       fflush(stdout);
     }
   }
+
+  fflush(stdout);
+  return 0;
 }
