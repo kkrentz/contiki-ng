@@ -101,7 +101,7 @@ print_hex_line(char *prefix, unsigned char *outbuf, int index)
 static volatile sig_atomic_t should_exit = 0;
 /*---------------------------------------------------------------------------*/
 static void
-intHandler(int sig)
+sigint_handler(int sig)
 {
   should_exit = 1;
 }
@@ -110,7 +110,7 @@ int
 main(int argc, char **argv)
 {
   struct sigaction sa;
-  sa.sa_handler = intHandler;
+  sa.sa_handler = sigint_handler;
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = 0; /* no SA_RESTART: let select() return EINTR so we can exit */
   sigaction(SIGINT, &sa, NULL);
