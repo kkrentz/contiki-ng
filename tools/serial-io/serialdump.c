@@ -15,9 +15,8 @@
 #include <signal.h>
 /*---------------------------------------------------------------------------*/
 #define BAUDRATE B115200
-#define BAUDRATE_S "115200"
 
-speed_t b_rate = BAUDRATE;
+static speed_t b_rate = BAUDRATE;
 /*---------------------------------------------------------------------------*/
 #ifdef linux
 #define MODEMDEVICE "/dev/ttyS0"
@@ -29,8 +28,6 @@ speed_t b_rate = BAUDRATE;
 #define SLIP_ESC      0333
 #define SLIP_ESC_END  0334
 #define SLIP_ESC_ESC  0335
-
-#define CSNA_INIT     0x01
 
 #define BUFSIZE         40
 #define HCOLS           20
