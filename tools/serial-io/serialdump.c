@@ -162,17 +162,17 @@ main(int argc, char **argv)
         mode = MODE_START_DATE;
         break;
       case 'h':
-        return usage(0);
+        return usage(EXIT_SUCCESS);
       default:
         fprintf(stderr, "unknown option '%c'\n", argv[index][1]);
-        return usage(1);
+        return usage(EXIT_FAILURE);
       }
       index++;
     } else {
       device = argv[index++];
       if(index < argc) {
         fprintf(stderr, "too many arguments\n");
-        return usage(1);
+        return usage(EXIT_FAILURE);
       }
     }
   }
@@ -181,7 +181,7 @@ main(int argc, char **argv)
     b_rate = select_baudrate(baudrate);
     if(b_rate == 0) {
       fprintf(stderr, "unknown baudrate %d\n", baudrate);
-      exit(-1);
+      exit(EXIT_FAILURE);
     }
   }
 
@@ -192,18 +192,18 @@ main(int argc, char **argv)
   if(fd < 0) {
     fprintf(stderr, "\n");
     perror("open");
-    exit(-1);
+    exit(EXIT_FAILURE);
   }
   fprintf(stderr, " [OK]\n");
 
   if(fcntl(fd, F_SETFL, 0) < 0) {
     perror("could not set fcntl");
-    exit(-1);
+    exit(EXIT_FAILURE);
   }
 
   if(tcgetattr(fd, &options) < 0) {
     perror("could not get options");
-    exit(-1);
+    exit(EXIT_FAILURE);
   }
 
   cfsetispeed(&options, b_rate);
@@ -225,7 +225,7 @@ main(int argc, char **argv)
 
   if(tcsetattr(fd, TCSANOW, &options) < 0) {
     perror("could not set options");
-    exit(-1);
+    exit(EXIT_FAILURE);
   }
 
   FD_ZERO(&mask);
@@ -253,7 +253,7 @@ main(int argc, char **argv)
       }
       /* something is very wrong! */
       perror("select");
-      exit(1);
+      exit(EXIT_FAILURE);
     }
 
     if(FD_ISSET(fileno(stdin), &smask)) {
@@ -261,7 +261,7 @@ main(int argc, char **argv)
       int n = read(fileno(stdin), buf, sizeof(buf));
       if(n < 0) {
         perror("could not read");
-        exit(-1);
+        exit(EXIT_FAILURE);
       } else if(n > 0) {
         int i;
         /* Write slowly, one byte at a time. The whole input is forwarded
@@ -270,7 +270,7 @@ main(int argc, char **argv)
         for(i = 0; i < n; i++) {
           if(write(fd, &buf[i], 1) <= 0) {
             perror("write");
-            exit(1);
+            exit(EXIT_FAILURE);
           }
           fflush(NULL);
           usleep(6000);
@@ -286,12 +286,12 @@ main(int argc, char **argv)
       int i, n = read(fd, buf, sizeof(buf));
       if(n < 0) {
         perror("could not read");
-        exit(-1);
+        exit(EXIT_FAILURE);
       }
       if(n == 0) {
         errno = EBADF;
         perror("serial device disconnected");
-        exit(-1);
+        exit(EXIT_FAILURE);
       }
 
       for(i = 0; i < n; i++) {
@@ -396,5 +396,5 @@ main(int argc, char **argv)
   }
 
   fflush(stdout);
-  return 0;
+  return EXIT_SUCCESS;
 }
