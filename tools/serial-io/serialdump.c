@@ -57,14 +57,17 @@ static unsigned char rxbuf[2048];
 static int
 usage(int result)
 {
-  printf("Usage: serialdump [-x] [-s[on]] [-i] [-bSPEED] T[format] [SERIALDEVICE]\n");
-  printf("       -x for hexadecimal output\n");
-  printf("       -i for decimal output\n");
-  printf("       -s for automatic SLIP mode\n");
-  printf("       -so for SLIP only mode (all data is SLIP packets)\n");
-  printf("       -sn to hide SLIP packages\n");
-  printf("       -T[format] to add time for each text line\n");
-  printf("         (see man page for strftime() for format description)\n");
+  /* Send the usage to stdout when explicitly requested (-h), but to stderr
+     when it accompanies an error so it does not pollute piped serial output. */
+  FILE *out = result == 0 ? stdout : stderr;
+  fprintf(out, "Usage: serialdump [-x] [-s[on]] [-i] [-bSPEED] [-T[format]] [SERIALDEVICE]\n");
+  fprintf(out, "       -x for hexadecimal output\n");
+  fprintf(out, "       -i for decimal output\n");
+  fprintf(out, "       -s for automatic SLIP mode\n");
+  fprintf(out, "       -so for SLIP only mode (all data is SLIP packets)\n");
+  fprintf(out, "       -sn to hide SLIP packages\n");
+  fprintf(out, "       -T[format] to add time for each text line\n");
+  fprintf(out, "         (see man page for strftime() for format description)\n");
   return result;
 }
 /*---------------------------------------------------------------------------*/
