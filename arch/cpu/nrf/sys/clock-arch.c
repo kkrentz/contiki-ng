@@ -50,6 +50,7 @@
 #include "nrfx_config.h"
 #include "nrfx_rtc.h"
 #include "nrfx_clock.h"
+#include "sys/timer.h"
 
 #if CLOCK_SIZE != 4
 /* 64 bit variables may not be read atomically without extra handling */
@@ -164,8 +165,9 @@ clock_seconds(void)
 void
 clock_wait(clock_time_t i)
 {
-  clock_time_t start = clock_time();
-  while(clock_time() - start < i) {
+  struct timer timer;
+  timer_set(&timer, i);
+  while(!timer_expired(&timer)) {
     __WFE();
   }
 }

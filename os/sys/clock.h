@@ -83,17 +83,19 @@
 #if CLOCK_SIZE == 4
 #define CLOCK_MAX UINT32_MAX
 typedef uint32_t clock_time_t;
-#define CLOCK_LT(a, b)  ((int32_t)((a) - (b)) < 0)
+typedef int32_t clock_diff_t;
 #define CLOCK_PRI PRIu32
 #elif CLOCK_SIZE == 8
 typedef uint64_t clock_time_t;
+typedef int64_t clock_diff_t;
 #define CLOCK_MAX UINT64_MAX
-#define CLOCK_LT(a, b)  ((int64_t)((a) - (b)) < 0)
 #define CLOCK_PRI PRIu64
 #else
 #error Unsupported clock_time_t size (check CLOCK_CONF_SIZE)
 #endif
 
+#define CLOCK_DIFF(a, b)  ((clock_diff_t)((a) - (b)))
+#define CLOCK_LT(a, b)    (CLOCK_DIFF((a),(b)) < 0)
 #include "contiki.h"
 
 /**

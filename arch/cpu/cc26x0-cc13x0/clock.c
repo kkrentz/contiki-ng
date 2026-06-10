@@ -44,7 +44,7 @@
  */
 /*---------------------------------------------------------------------------*/
 #include "contiki.h"
-
+#include "sys/timer.h"
 #include "ti-lib.h"
 /*---------------------------------------------------------------------------*/
 static volatile uint64_t count;
@@ -148,10 +148,9 @@ clock_seconds(void)
 void
 clock_wait(clock_time_t i)
 {
-  clock_time_t start;
-
-  start = clock_time();
-  while(clock_time() - start < (clock_time_t)i);
+  struct timer timer;
+  timer_set(&timer, i);
+  while(!timer_expired(&timer));
 }
 /*---------------------------------------------------------------------------*/
 void

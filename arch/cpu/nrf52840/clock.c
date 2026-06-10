@@ -53,7 +53,7 @@
 #include "nrf_drv_clock.h"
 #include "nrf_delay.h"
 #include "app_error.h"
-
+#include "sys/timer.h"
 /*---------------------------------------------------------------------------*/
 const nrf_drv_rtc_t rtc = NRF_DRV_RTC_INSTANCE(PLATFORM_RTC_INSTANCE_ID); /**< RTC instance used for platform clock */
 /*---------------------------------------------------------------------------*/
@@ -138,9 +138,9 @@ clock_seconds(void)
 void
 clock_wait(clock_time_t i)
 {
-  clock_time_t start;
-  start = clock_time();
-  while(clock_time() - start < (clock_time_t)i) {
+  struct timer timer;
+  timer_set(&timer, i);
+  while(!timer_expired(&timer)) {
     __WFE();
   }
 }

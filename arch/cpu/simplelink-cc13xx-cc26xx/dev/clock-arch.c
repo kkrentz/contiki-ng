@@ -45,6 +45,7 @@
 #include "sys/cc.h"
 #include "sys/clock.h"
 #include "sys/etimer.h"
+#include "sys/timer.h"
 /*---------------------------------------------------------------------------*/
 #include <ti/devices/DeviceFamily.h>
 #include DeviceFamily_constructPath(driverlib/aon_rtc.h)
@@ -240,10 +241,9 @@ clock_seconds(void)
 void
 clock_wait(clock_time_t i)
 {
-  uint32_t usec;
-
-  usec = (uint32_t)((1000 * 1000 * i) / CLOCK_SECOND);
-  clock_delay_usec(usec);
+  struct timer timer;
+  timer_set(&timer, i);
+  while(!timer_expired(&timer));
 }
 /*---------------------------------------------------------------------------*/
 void
