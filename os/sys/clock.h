@@ -83,17 +83,18 @@
 #if CLOCK_SIZE == 4
 #define CLOCK_MAX UINT32_MAX
 typedef uint32_t clock_time_t;
-#define CLOCK_LT(a, b)  ((int32_t)((a) - (b)) < 0)
+typedef int32_t clock_diff_t;
 #define CLOCK_PRI PRIu32
 #elif CLOCK_SIZE == 8
 typedef uint64_t clock_time_t;
+typedef int64_t clock_diff_t;
 #define CLOCK_MAX UINT64_MAX
-#define CLOCK_LT(a, b)  ((int64_t)((a) - (b)) < 0)
 #define CLOCK_PRI PRIu64
 #else
 #error Unsupported clock_time_t size (check CLOCK_CONF_SIZE)
 #endif
 
+#define CLOCK_LT(a, b) (clock_cmp((a),(b)) < 0)
 #include "contiki.h"
 
 /**
@@ -124,6 +125,19 @@ void clock_init(void);
  * \return The current clock time, measured in system ticks.
  */
 clock_time_t clock_time(void);
+
+/**
+ * Compares two instants and returns the time span between them.
+ *
+ * \param a First instant.
+ * \param b Second instant.
+ * \return  0 if a == b, < 0 if a is before b, and > 0 otherwise.
+ *          The absolute value is the time span between a and b.
+ */
+static inline clock_diff_t clock_cmp(clock_time_t a, clock_time_t b)
+{
+  return a - b;
+}
 
 /**
  * Get the current value of the platform seconds.

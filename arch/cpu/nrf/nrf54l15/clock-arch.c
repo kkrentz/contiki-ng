@@ -25,7 +25,7 @@
  */
 #include "nrfx_grtc.h"
 #include "sys/etimer.h"
-
+#include "sys/timer.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include "nrf.h"
@@ -199,8 +199,9 @@ clock_seconds(void)
 void
 clock_wait(clock_time_t i)
 {
-  clock_time_t start = clock_time();
-  while(clock_time() - start < i) {
+  struct timer timer;
+  timer_set(&timer, i);
+  while(!timer_expired(&timer)) {
     __WFE();
   }
 }
