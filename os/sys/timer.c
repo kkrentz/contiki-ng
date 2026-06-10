@@ -45,6 +45,7 @@
  */
 
 #include "contiki.h"
+#include "sys/cc.h"
 #include "sys/clock.h"
 #include "sys/timer.h"
 
@@ -122,11 +123,7 @@ timer_restart(struct timer *t)
 bool
 timer_expired(struct timer *t)
 {
-  /* Note: Can not return diff >= t->interval so we add 1 to diff and return
-     t->interval < diff - required to avoid an internal error in mspgcc. */
-  clock_time_t diff = (clock_time() - t->start) + 1;
-  return t->interval < diff;
-
+  return clock_cmp(t->start + t->interval, clock_time()) <= 0;
 }
 /*---------------------------------------------------------------------------*/
 /**
@@ -142,7 +139,8 @@ timer_expired(struct timer *t)
 clock_time_t
 timer_remaining(struct timer *t)
 {
-  return t->start + t->interval - clock_time();
+  clock_diff_t diff = clock_cmp(t->start + t->interval, clock_time());
+  return MAX(diff, 0);
 }
 /*---------------------------------------------------------------------------*/
 
