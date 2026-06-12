@@ -37,6 +37,7 @@
  *
  */
 #include "contiki.h"
+#include "sys/atomic.h"
 #include "sys/rtimer.h"
 #include "dev/nvic.h"
 #include "dev/smwdthrosc.h"
@@ -51,6 +52,7 @@ static void set_sleep_timer_value(rtimer_clock_t);
 
 /*---------------------------------------------------------------------------*/
 static volatile rtimer_clock_t next_trigger;
+static uint8_t busy;
 /*---------------------------------------------------------------------------*/
 /**
  * \brief We don't need to explicitly initialise anything but this
@@ -142,6 +144,8 @@ rtimer_arch_cancel(void)
 static void
 set_sleep_timer_value(rtimer_clock_t t)
 {
+  atomic_cas_uint8(&busy, 0, 1);
+
   /* STLOAD must be 1 */
   while((REG(SMWDTHROSC_STLOAD) & SMWDTHROSC_STLOAD_STLOAD) != 1);
   /* ST0 latches ST[1:3] and must be written last */
@@ -149,6 +153,8 @@ set_sleep_timer_value(rtimer_clock_t t)
   REG(SMWDTHROSC_ST2) = (t >> 16) & 0x000000FF;
   REG(SMWDTHROSC_ST1) = (t >> 8) & 0x000000FF;
   REG(SMWDTHROSC_ST0) = t & 0x000000FF;
+
+  atomic_cas_uint8(&busy, 1, 0);
 }
 /*---------------------------------------------------------------------------*/
 rtimer_clock_t
@@ -166,11 +172,20 @@ rtimer_arch_now()
 {
   rtimer_clock_t rv;
 
-  /* SMWDTHROSC_ST0 latches ST[1:3] and must be read first */
-  rv = REG(SMWDTHROSC_ST0);
-  rv |= (REG(SMWDTHROSC_ST1) << 8);
-  rv |= (REG(SMWDTHROSC_ST2) << 16);
-  rv |= (REG(SMWDTHROSC_ST3) << 24);
+  do {
+    atomic_cas_uint8(&busy, 0, 1);
+
+    /* waiting for STLOAD helps avoid some timer issues */
+    while((REG(SMWDTHROSC_STLOAD) & SMWDTHROSC_STLOAD_STLOAD) != 1);
+
+    /* SMWDTHROSC_ST0 latches ST[1:3] and must be read first */
+    rv = REG(SMWDTHROSC_ST0);
+    rv |= (REG(SMWDTHROSC_ST1) << 8);
+    rv |= (REG(SMWDTHROSC_ST2) << 16);
+    rv |= (REG(SMWDTHROSC_ST3) << 24);
+
+    /* repeat if we were interrupted */
+  } while(!atomic_cas_uint8(&busy, 1, 0));
 
   return rv;
 }
