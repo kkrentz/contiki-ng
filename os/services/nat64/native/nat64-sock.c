@@ -81,7 +81,13 @@
 #endif
 
 static struct nat64_session sessions[NAT64_MAX_SESSIONS];
-static bool nat64_enabled;
+
+/* Whether NAT64 is active. Off by default and enabled with --nat64, unless a
+ * build turns it on at compile time (the standalone translator module does). */
+#ifndef NAT64_DEFAULT_ENABLED
+#define NAT64_DEFAULT_ENABLED 0
+#endif
+static bool nat64_enabled = NAT64_DEFAULT_ENABLED;
 
 /*---------------------------------------------------------------------------*/
 /**

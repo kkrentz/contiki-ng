@@ -215,6 +215,14 @@ set_lladdr(void)
 }
 /*---------------------------------------------------------------------------*/
 #if NETSTACK_CONF_WITH_IPV6
+/* The native node assumes a border router at PREFIX::1 and adds a default route
+ * to it. A node that reaches off-link networks some other way (for example the
+ * standalone NAT64 translator in os/services/nat64/native/standalone) sets this
+ * to 0 via its module-macros.h, suppressing a route that would be unreachable
+ * and would shadow the alternative path. */
+#ifndef NATIVE_WITH_IPV6_DEFAULT_ROUTE
+#define NATIVE_WITH_IPV6_DEFAULT_ROUTE 1
+#endif
 static void
 set_global_address(void)
 {
@@ -233,10 +241,12 @@ set_global_address(void)
   LOG_INFO_6ADDR(&ipaddr);
   LOG_INFO_("\n");
 
+#if NATIVE_WITH_IPV6_DEFAULT_ROUTE
   /* set the PREFIX::1 address to the IF */
   uip_ip6addr_copy(&ipaddr, default_prefix);
   ipaddr.u8[15] = 1;
   uip_ds6_defrt_add(&ipaddr, 0);
+#endif
 }
 #endif
 /*---------------------------------------------------------------------------*/
