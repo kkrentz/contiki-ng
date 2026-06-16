@@ -93,9 +93,8 @@ neighbor_has_uc_link(const linkaddr_t *linkaddr)
     return orchestra_parent_knows_us ? 1 : 0;
   }
 
-  if(nbr_table_get_from_lladdr(nbr_routes, (linkaddr_t *)linkaddr) != NULL) {
-    /* We have a route to this node;
-     * it should have selected us as its parent and installed a link */
+  if(uip_ds6_nbr_ll_lookup((const uip_lladdr_t *)linkaddr)) {
+    /* neighbor is in the neighbor cache */
     return 1;
   }
 
@@ -151,15 +150,13 @@ remove_uc_links(const linkaddr_t *linkaddr)
 }
 /*---------------------------------------------------------------------------*/
 static void
-child_added(const linkaddr_t *linkaddr)
+neighbor_updated(const linkaddr_t *linkaddr, uint8_t is_added)
 {
-  add_uc_links(linkaddr);
-}
-/*---------------------------------------------------------------------------*/
-static void
-child_removed(const linkaddr_t *linkaddr)
-{
-  remove_uc_links(linkaddr);
+  if(is_added) {
+    add_uc_links(linkaddr);
+  } else {
+    remove_uc_links(linkaddr);
+  }
 }
 /*---------------------------------------------------------------------------*/
 static int
@@ -189,15 +186,12 @@ static void
 new_time_source(const struct tsch_neighbor *old, const struct tsch_neighbor *new)
 {
   if(new != old) {
-    const linkaddr_t *old_addr = tsch_queue_get_nbr_address(old);
     const linkaddr_t *new_addr = tsch_queue_get_nbr_address(new);
     if(new_addr != NULL) {
       linkaddr_copy(&orchestra_parent_linkaddr, new_addr);
     } else {
       linkaddr_copy(&orchestra_parent_linkaddr, &linkaddr_null);
     }
-    remove_uc_links(old_addr);
-    add_uc_links(new_addr);
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -214,9 +208,9 @@ struct orchestra_rule unicast_per_neighbor_link_based = {
   init,
   new_time_source,
   select_packet,
-  child_added,
-  child_removed,
   NULL,
+  NULL,
+  neighbor_updated,
   NULL,
   "unicast per neighbor link based",
   ORCHESTRA_UNICAST_PERIOD,
