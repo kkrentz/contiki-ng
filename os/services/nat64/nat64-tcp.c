@@ -688,8 +688,8 @@ nat64_tcp_established(struct nat64_session *s)
 {
   struct tcp_seqstate *ts = alloc_seqstate(s, s->peer_isn);
   if(ts == NULL) {
-    LOG_ERR("TCP seqstate table full, closing connection\n");
-    nat64_platform_tcp_close(s);
+    LOG_ERR("TCP seqstate table full, aborting connection\n");
+    nat64_platform_tcp_abort(s);
     return;
   }
 
