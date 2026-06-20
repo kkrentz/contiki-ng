@@ -83,8 +83,10 @@
 #define NAT64_TCP_SEGMENT_SIZE 76
 #endif
 
-/* Per-session buffer for paced server-to-IoT delivery.  Must hold at
- * least one recv() worth of data from the IPv4 socket. */
+/* The native socket backend reads up to 1500 bytes at a time.  The
+ * splice proxy does not have a second staging buffer, so this buffer
+ * must be large enough to retain every byte already consumed from the
+ * IPv4 socket. */
 #ifndef NAT64_TCP_RXBUF_SIZE
 #define NAT64_TCP_RXBUF_SIZE 1500
 #endif
@@ -197,7 +199,17 @@ tcp6_checksum(const struct v6hdr *ip6, const void *tcp, uint16_t tcp_len)
 }
 
 /*---------------------------------------------------------------------------*/
-/* Per-session TCP sequence number state.                                    */
+/* Per-session TCP sequence number state.
+ *
+ * The proxy terminates TCP on both sides, so the numbers here describe
+ * only the synthetic IoT-facing stream.  our_seq is the next sequence
+ * number to send to the IoT node; peer_next is the next sequence number
+ * expected from it.  Buffered server data is stop-and-wait: while
+ * in_flight is non-zero, rxbuf_offset and our_seq still point at the
+ * retransmittable bytes and advance only after the IoT ACK covers them.
+ * initial_our_seq is kept separately so a retransmitted SYN can get the
+ * same SYN-ACK even after our_seq has advanced past the SYN.
+ */
 /*---------------------------------------------------------------------------*/
 
 struct tcp_seqstate {
@@ -209,7 +221,7 @@ struct tcp_seqstate {
   uint32_t initial_our_seq;
   uint32_t our_seq;
   uint32_t peer_next;
-  /* Paced delivery buffer for server→IoT data. */
+  /* Paced delivery buffer for server-to-IoT data. */
   uint8_t rxbuf[NAT64_TCP_RXBUF_SIZE];
   uint16_t rxbuf_len;
   uint16_t rxbuf_offset;
@@ -486,8 +498,8 @@ nat64_tcp_output(const uint8_t *pkt, uint16_t len)
         nat64_tcp_ack_confirmed(ts);
       }
     } else if(ts->rxbuf_len > ts->rxbuf_offset) {
-      /* No segment in flight but data is buffered (e.g., recovery
-       * after retransmit-limit teardown of a sibling state). */
+      /* Make progress if the previous sender stopped after clearing
+       * in_flight but before queuing the next buffered segment. */
       nat64_tcp_send_pending(ts);
     }
   }
@@ -725,8 +737,8 @@ nat64_tcp_data_in(struct nat64_session *s,
   ts->rxbuf_len = len;
   ts->rxbuf_offset = 0;
 
-  /* Send the first chunk immediately; the rest will be paced by
-   * nat64_tcp_send_pending() as ACKs arrive from the IoT node. */
+  /* ACK pacing starts immediately; later chunks are sent only after
+   * the IoT node confirms the previous one. */
   nat64_tcp_send_pending(ts);
 }
 /*---------------------------------------------------------------------------*/

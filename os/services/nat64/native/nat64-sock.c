@@ -292,8 +292,9 @@ generic_set_fd(fd_set *rset, fd_set *wset)
       FD_SET(s->fd, wset);
     } else if(s->proto == NAT64_PROTO_TCP &&
               nat64_tcp_has_pending_data(s)) {
-      /* Don't read more data while the previous chunk is still being
-       * paced to the IoT node — this provides back-pressure. */
+      /* The TCP proxy owns only one server-to-IoT buffer.  Suppressing
+       * reads here keeps unread bytes in the kernel until the IoT node
+       * ACKs the current chunk. */
     } else {
       FD_SET(s->fd, rset);
     }
@@ -536,16 +537,9 @@ nat64_platform_tcp_send(struct nat64_session *s,
   sent = send(s->fd, data, len, 0);
   if(sent < 0) {
     if(errno == EAGAIN || errno == EWOULDBLOCK) {
-      /* Kernel send buffer full.  Returning 0 leaves peer_next un-
-       * advanced in nat64_tcp_output(), so the IoT-side TCP layer
-       * sees no ACK progress and retransmits on its RTO.  We don't
-       * register for write-readiness here because we don't buffer
-       * the IoT-side payload locally — the source of truth for the
-       * unsent bytes is the IoT TCP send queue, not us, so polling
-       * for writability would have nothing to flush.  Sustained
-       * EAGAIN under 6LoWPAN throughput is essentially unreachable
-       * (kernel buffers >>> radio bandwidth); log it and rely on
-       * IoT retransmits for recovery. */
+      /* NAT64 does not own a copy of IoT-to-server bytes.  Returning 0
+       * leaves peer_next unchanged, so the IoT TCP stack remains the
+       * source of truth and retransmits the unsent data on its RTO. */
       LOG_WARN("TCP send would block (fd %d), IoT will retransmit\n",
                s->fd);
       return 0;
