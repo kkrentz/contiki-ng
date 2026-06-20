@@ -358,6 +358,7 @@ generic_handle_fd(fd_set *rset, fd_set *wset)
       ssize_t n = recv(s->fd, buf, sizeof(buf), 0);
       if(n > 0) {
         nat64_udp_input(s, buf, (uint16_t)n);
+        timer_set(&s->expiry, NAT64_SESSION_TIMEOUT);
       } else if(n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
         int e = errno;
 
