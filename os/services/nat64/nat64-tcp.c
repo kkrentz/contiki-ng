@@ -413,8 +413,8 @@ nat64_tcp_output(const uint8_t *pkt, uint16_t len)
 
   tcp = (const struct tcphdr *)(pkt + IPV6_HDRLEN);
   data_offset = ((tcp->offset >> 4) & 0x0f) * 4;
-  if(data_offset > payload_len) {
-    LOG_WARN("tcp_output: data offset %u exceeds payload %u\n",
+  if(data_offset < TCP_HDRLEN || data_offset > payload_len) {
+    LOG_WARN("tcp_output: invalid data offset %u for payload %u\n",
              data_offset, payload_len);
     return 0;
   }
