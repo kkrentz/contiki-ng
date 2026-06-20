@@ -202,6 +202,7 @@ struct tcp_seqstate {
   bool peer_fin_received;
   bool server_fin_pending;
   struct nat64_session *session;
+  uint32_t initial_our_seq;
   uint32_t our_seq;
   uint32_t peer_next;
   /* Paced delivery buffer for server→IoT data. */
@@ -287,6 +288,7 @@ alloc_seqstate(struct nat64_session *s, uint32_t peer_isn)
       tcp_seq[i].server_fin_pending = false;
       tcp_seq[i].session = s;
       tcp_seq[i].our_seq = generate_isn(s);
+      tcp_seq[i].initial_our_seq = tcp_seq[i].our_seq;
       tcp_seq[i].peer_next = peer_isn + 1;
       tcp_seq[i].rxbuf_len = 0;
       tcp_seq[i].rxbuf_offset = 0;
@@ -423,6 +425,19 @@ nat64_tcp_output(const uint8_t *pkt, uint16_t len)
            tcp->flags, data_len, (unsigned long)seq);
 
   if(tcp->flags & TCP_SYN) {
+    struct tcp_seqstate *ts = find_seqstate_by_addrs(
+      &ip6->src, uip_ntohs(tcp->sport),
+      &dst4, uip_ntohs(tcp->dport));
+    if(ts != NULL) {
+      uint32_t saved_seq = ts->our_seq;
+
+      LOG_INFO("TCP duplicate SYN: retransmitting SYN-ACK\n");
+      ts->our_seq = ts->initial_our_seq;
+      inject_tcp(ts->session, ts, TCP_SYN | TCP_ACK, NULL, 0);
+      ts->our_seq = saved_seq;
+      return 1;
+    }
+
     LOG_INFO("TCP SYN: port %u -> %u.%u.%u.%u:%u\n",
              uip_ntohs(tcp->sport),
              dst4.u8[0], dst4.u8[1], dst4.u8[2], dst4.u8[3],
