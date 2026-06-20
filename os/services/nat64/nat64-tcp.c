@@ -89,6 +89,10 @@
 #define NAT64_TCP_RXBUF_SIZE 1500
 #endif
 
+#if NAT64_TCP_RXBUF_SIZE < 1500
+#error "NAT64_TCP_RXBUF_SIZE must be at least 1500 bytes"
+#endif
+
 /* Retransmit timeout for an injected paced segment that has not been
  * ACKed by the IoT node.  Sized for typical 6LoWPAN RTTs (100 ms - 1 s)
  * with margin; the IoT-facing TCP layer does not generate dup-ACKs for
