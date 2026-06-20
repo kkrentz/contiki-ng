@@ -359,7 +359,13 @@ generic_handle_fd(fd_set *rset, fd_set *wset)
       if(n > 0) {
         nat64_udp_input(s, buf, (uint16_t)n);
       } else if(n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-        LOG_ERR("UDP recvfrom error (fd %d): %s\n", s->fd, strerror(errno));
+        int e = errno;
+
+        LOG_ERR("UDP recvfrom error (fd %d): %s\n", s->fd, strerror(e));
+        nat64_queue_icmp6_unreach_tuple(&s->ip6_peer, s->ip6_peer_port,
+                                        &s->ip4_remote, s->ip4_remote_port,
+                                        IPPROTO_UDP, errno_to_icmp6_code(e));
+        close_session(s);
       }
     } else if(s->proto == NAT64_PROTO_ICMP) {
       uint8_t buf[256];
