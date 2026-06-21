@@ -43,8 +43,8 @@
 /* Register the NAT64 prefix as 6LoWPAN compression context 1, saving
  * ~8 bytes of header per NAT64-bound packet.  The border router
  * picks up the matching context automatically because its
- * project-conf.h conditionally includes this header when built with
- * MAKE_WITH_NAT64=1. */
+ * project-conf.h includes this header whenever the NAT64 module is
+ * present in the native border-router build. */
 #include "services/nat64/nat64-6lowpan.h"
 
 #endif /* PROJECT_CONF_H_ */

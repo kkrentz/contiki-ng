@@ -50,7 +50,7 @@
 #define UIP_CONF_TCP 1
 #endif
 
-/* When the BR is built with NAT64 (MAKE_WITH_NAT64=1), register the
+/* When the native BR build includes the NAT64 module, register the
  * NAT64 prefix as a 6LoWPAN compression context so its IPHC encoder
  * matches IoT nodes that include the same header in their own
  * project-conf.h. */
