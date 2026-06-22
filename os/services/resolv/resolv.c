@@ -385,19 +385,35 @@ dns_name_isequal(const unsigned char *queryptr, const char *name,
 /** \internal
  */
 static unsigned char *
-skip_name(unsigned char *query)
+skip_name(unsigned char *query, const unsigned char *packet, size_t packet_len)
 {
+  const unsigned char *end = packet + packet_len;
+
   LOG_DBG("skip name: ");
 
-  do {
+  while(query < end) {
     unsigned char n = *query;
+
     if(n & 0xc0) {
-      LOG_DBG_("<skip-to-%d>", query[0] + ((n & ~0xC0) << 8));
-      ++query;
-      break;
+      /* A compression pointer is two bytes long and terminates the name. */
+      if(query + 2 > end) {
+        break;
+      }
+      LOG_DBG_("<skip-to-%d>\n", query[0] + ((n & ~0xC0) << 8));
+      return query + 2;
     }
 
     ++query;
+
+    if(n == 0) {
+      /* The terminating zero-length label ends the name. */
+      LOG_DBG_("\n");
+      return query;
+    }
+
+    if(query + n > end) {
+      break;
+    }
 
     while(n > 0) {
       LOG_DBG_("%c", *query);
@@ -405,9 +421,10 @@ skip_name(unsigned char *query)
       --n;
     }
     LOG_DBG_(".");
-  } while(*query != 0);
-  LOG_DBG_("\n");
-  return query + 1;
+  }
+
+  LOG_ERR("skip_name: name runs past end of packet\n");
+  return NULL;
 }
 /*---------------------------------------------------------------------------*/
 /** \internal
@@ -746,10 +763,22 @@ newdata(void)
 
 /** QUESTION HANDLING SECTION ************************************************/
 
-  for(; nquestions > 0;
-      queryptr = skip_name(queryptr) + sizeof(struct dns_question),
-      --nquestions
-      ) {
+  while(nquestions > 0) {
+    /*
+     * Skip past the question name to reach the question record. The same
+     * name is also used below for the mDNS comparison, so keep a pointer
+     * to it before advancing.
+     */
+    unsigned char *qname = queryptr;
+    unsigned char *qrecord = skip_name(qname, uip_appdata, uip_datalen());
+    if(qrecord == NULL) {
+      return;
+    }
+
+    /* Advance to the next question for the following iteration. */
+    queryptr = qrecord + sizeof(struct dns_question);
+    --nquestions;
+
 #if RESOLV_SUPPORTS_MDNS
     if(!is_request) {
       /* If this isn't a request, we don't need to bother
@@ -760,8 +789,16 @@ newdata(void)
     }
 
     {
-      struct dns_question *question =
-        (struct dns_question *)skip_name(queryptr);
+      struct dns_question *question = (struct dns_question *)qrecord;
+
+      /*
+       * Make sure the fixed-size question record lies within the packet
+       * before dereferencing it.
+       */
+      if(qrecord + sizeof(struct dns_question) >
+         (const unsigned char *)uip_appdata + uip_datalen()) {
+        return;
+      }
 
 #if !ARCH_DOESNT_NEED_ALIGNED_STRUCTS
       static struct dns_question aligned;
@@ -779,7 +816,7 @@ newdata(void)
         continue;
       }
 
-      if(!dns_name_isequal(queryptr, resolv_hostname, uip_appdata)) {
+      if(!dns_name_isequal(qname, resolv_hostname, uip_appdata)) {
 	continue;
       }
 
@@ -872,12 +909,37 @@ newdata(void)
 
   /* Answer parsing loop */
   while(nanswers > 0) {
-    struct dns_answer *ans = (struct dns_answer *)skip_name(queryptr);
+    /*
+     * The fixed part of a DNS answer record (type, class, ttl, len) is
+     * 10 bytes; the rdata that follows is ans->len bytes long.
+     */
+    const unsigned char *packet_end =
+      (const unsigned char *)uip_appdata + uip_datalen();
+    unsigned char *arecord = skip_name(queryptr, uip_appdata, uip_datalen());
+    if(arecord == NULL) {
+      break;
+    }
+
+    struct dns_answer *ans = (struct dns_answer *)arecord;
+
+    /*
+     * Make sure the fixed-size answer header lies within the packet before
+     * dereferencing it.
+     */
+    if(arecord + 10 > packet_end) {
+      break;
+    }
 
 #if !ARCH_DOESNT_NEED_ALIGNED_STRUCTS
     {
+      /*
+       * Copy only the bytes that are actually present in the packet. The
+       * rdata (ipaddr) tail is read only after the length check below has
+       * confirmed the full record is present, so a short copy here is safe.
+       */
       static struct dns_answer aligned;
-      memcpy(&aligned, ans, sizeof(aligned));
+      size_t avail = (size_t)(packet_end - arecord);
+      memcpy(&aligned, ans, avail < sizeof(aligned) ? avail : sizeof(aligned));
       ans = &aligned;
     }
 #endif /* !ARCH_DOESNT_NEED_ALIGNED_STRUCTS */
@@ -902,6 +964,15 @@ newdata(void)
 
     if(ans->type != UIP_HTONS(NATIVE_DNS_TYPE)) {
       goto skip_to_next_answer;
+    }
+
+    /*
+     * The address rdata is read below; make sure the full record (10-byte
+     * header plus ans->len bytes of rdata) lies within the packet.
+     */
+    if(arecord + 10 + uip_ntohs(ans->len) > packet_end) {
+      LOG_ERR("Answer rdata runs past end of packet\n");
+      break;
     }
 
 #if RESOLV_SUPPORTS_MDNS
@@ -982,7 +1053,12 @@ newdata(void)
     break;
 
 skip_to_next_answer:
-    queryptr = (unsigned char *)skip_name(queryptr) + 10 + uip_htons(ans->len);
+    /*
+     * Advance past this record's name (already validated above via
+     * arecord), its 10-byte header and its rdata. The next iteration
+     * re-validates the resulting pointer through skip_name().
+     */
+    queryptr = arecord + 10 + uip_ntohs(ans->len);
     --nanswers;
   }
 
