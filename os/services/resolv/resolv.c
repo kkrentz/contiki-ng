@@ -285,13 +285,22 @@ static uint8_t
 decode_name(const unsigned char *query, char *dest,
 	    const unsigned char *packet, size_t packet_len)
 {
+  const unsigned char *end = packet + packet_len;
   int dest_len = RESOLV_CONF_MAX_DOMAIN_NAME_SIZE;
-  unsigned char label_len = *query++;
+  unsigned char label_len;
 
   LOG_DBG("decoding name: \"");
 
+  if(query >= end) {
+    return 0;
+  }
+  label_len = *query++;
+
   while(dest_len && label_len) {
     if(label_len & 0xc0) {
+      if(query >= end) {
+        return 0;
+      }
       const uint16_t offset = query[0] + ((label_len & ~0xC0) << 8);
       if(offset >= packet_len) {
 	LOG_ERR("Offset %"PRIu16" exceeds packet length %zu\n",
@@ -324,6 +333,10 @@ decode_name(const unsigned char *query, char *dest,
       }
     }
 
+    if(query >= end) {
+      LOG_ERR("Cannot read outside the packet data\n");
+      return 0;
+    }
     label_len = *query++;
 
     if(label_len > 0) {
