@@ -343,22 +343,32 @@ decode_name(const unsigned char *query, char *dest,
 #if RESOLV_SUPPORTS_MDNS
 static uint8_t
 dns_name_isequal(const unsigned char *queryptr, const char *name,
-                 const unsigned char *packet)
+                 const unsigned char *packet, size_t packet_len)
 {
-  unsigned char label_len = *queryptr++;
+  const unsigned char *end = packet + packet_len;
+  unsigned char label_len;
 
-  if(*name == 0) {
+  if(*name == 0 || queryptr >= end) {
     return 0;
   }
 
+  label_len = *queryptr++;
+
   while(label_len > 0) {
     if(label_len & 0xc0) {
-      queryptr = packet + queryptr[0] + ((label_len & ~0xC0) << 8);
+      if(queryptr >= end) {
+        return 0;
+      }
+      const uint16_t offset = queryptr[0] + ((label_len & ~0xC0) << 8);
+      if(offset >= packet_len) {
+        return 0;
+      }
+      queryptr = packet + offset;
       label_len = *queryptr++;
     }
 
     for(; label_len; --label_len) {
-      if(!*name) {
+      if(!*name || queryptr >= end) {
         return 0;
       }
 
@@ -367,6 +377,9 @@ dns_name_isequal(const unsigned char *queryptr, const char *name,
       }
     }
 
+    if(queryptr >= end) {
+      return 0;
+    }
     label_len = *queryptr++;
 
     if(label_len != 0 && *name++ != '.') {
@@ -816,7 +829,7 @@ newdata(void)
         continue;
       }
 
-      if(!dns_name_isequal(qname, resolv_hostname, uip_appdata)) {
+      if(!dns_name_isequal(qname, resolv_hostname, uip_appdata, uip_datalen())) {
 	continue;
       }
 
@@ -986,7 +999,8 @@ newdata(void)
        */
       for(i = 0; i < RESOLV_ENTRIES; ++i) {
         namemapptr = &names[i];
-        if(dns_name_isequal(queryptr, namemapptr->name, uip_appdata)) {
+        if(dns_name_isequal(queryptr, namemapptr->name, uip_appdata,
+                            uip_datalen())) {
           break;
         }
         if((namemapptr->state == STATE_UNUSED)
@@ -1012,7 +1026,8 @@ newdata(void)
       if(i == RESOLV_ENTRIES) {
         LOG_DBG("Not enough room to keep track of unsolicited MDNS answer\n");
 
-        if(dns_name_isequal(queryptr, resolv_hostname, uip_appdata)) {
+        if(dns_name_isequal(queryptr, resolv_hostname, uip_appdata,
+                            uip_datalen())) {
           /* Oh snap, they say they are us! We had better report them... */
           resolv_found(resolv_hostname, (uip_ipaddr_t *)ans->ipaddr);
         }
@@ -1029,7 +1044,7 @@ newdata(void)
 
 /*  This is disabled for now, so that we don't fail on CNAME records.
  #if RESOLV_VERIFY_ANSWER_NAMES
-    if(namemapptr && !dns_name_isequal(queryptr, namemapptr->name, uip_appdata)) {
+    if(namemapptr && !dns_name_isequal(queryptr, namemapptr->name, uip_appdata, uip_datalen())) {
       LOG_DBG("Answer name doesn't match the query!\n");
       goto skip_to_next_answer;
     }
