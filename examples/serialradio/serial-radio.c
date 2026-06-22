@@ -339,6 +339,12 @@ static void send_rx_frame_event(const uint8_t *frame, uint16_t len,
 /* Report this node's link-layer (EUI-64) address to the host so a border
    router can adopt it.  Sent as raw bytes under the 'f' key since the
    8-byte address does not fit the integer-valued PARAM_RESPONSE. */
+/* 802.15.4 link addresses are 8 bytes; the border router's GET_ADDR64 handler
+   requires exactly 8 bytes and stalls otherwise.  Guard against a build with a
+   shorter LINKADDR_SIZE. */
+#if LINKADDR_SIZE != 8
+#error "serialradio requires an 8-byte (EUI-64) link-layer address (LINKADDR_SIZE == 8)"
+#endif
 static void send_addr64_response(uint8_t msg_id) {
   cbor_writer_state_t writer;
   cbor_init_writer(&writer, tx_buf, TX_BUF_SIZE);

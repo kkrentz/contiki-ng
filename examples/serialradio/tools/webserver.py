@@ -128,9 +128,14 @@ class SerialRadioWebServer:
 
         try:
             server = HTTPServer(('', self.http_port), Handler)
+            # Time out handle_request() so the loop can observe _running going
+            # False and exit promptly (instead of blocking until the next
+            # request), then release the listening socket.
+            server.timeout = 0.5
             print(f"HTTP server listening on port {self.http_port}")
             while self._running:
                 server.handle_request()
+            server.server_close()
         except Exception as e:
             if self._running:
                 print(f"HTTP server error: {e}")

@@ -349,17 +349,23 @@ class SerialRadioCLI(cmd.Cmd):
         Start or stop packet sniffing.
 
         Usage:
-            sniff           - Toggle sniffing
-            sniff on        - Start sniffing
-            sniff off       - Stop sniffing
+            sniff             - Toggle sniffing
+            sniff on|start    - Start sniffing
+            sniff off|stop    - Stop sniffing
         """
-        if arg.lower() == 'on' or (not arg and not self._sniffing):
+        action = arg.lower().strip()
+        start = action in ('on', 'start')
+        stop = action in ('off', 'stop')
+        if start or (not action and not self._sniffing):
             self._sniffing = True
+            # Enable promiscuous RX on the device so it emits RX_FRAME events.
+            self.radio.rx_on()
             self.radio.set_rx_callback(self._rx_callback)
             print("Sniffing started. Press Enter to show prompt.")
-        elif arg.lower() == 'off' or (not arg and self._sniffing):
+        elif stop or (not action and self._sniffing):
             self._sniffing = False
             self.radio.set_rx_callback(None)
+            self.radio.rx_off()
             print("Sniffing stopped.")
         else:
             print("Usage: sniff [on|off]")
@@ -636,9 +642,9 @@ class SerialRadioCLI(cmd.Cmd):
         - RSSI statistics
 
         Example:
-            webserver start            - Start with default ports
-            webserver start 8000 8001  - Start with custom ports
-            webserver stop             - Stop the server
+            webserver start       - Start on default HTTP port 8080 (WS 8081)
+            webserver start 8000  - Start on HTTP port 8000 (WS 8001)
+            webserver stop        - Stop the server
         """
         if not WEBSERVER_AVAILABLE:
             print("Web server not available. Install dependencies:")

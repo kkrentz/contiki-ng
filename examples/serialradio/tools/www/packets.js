@@ -55,12 +55,14 @@ class PacketAnalyzer {
         document.getElementById('btnJamStart').addEventListener('click', () => {
             const channel = parseInt(document.getElementById('jamChannel').value);
             const interval = parseInt(document.getElementById('jamInterval').value);
-            this.sendCommand('jam_start', { channel: channel, interval_ms: interval });
+            // The server only executes CLI text (cmd='cli_command'); map UI
+            // actions to the equivalent CLI command.
+            this.sendCommand('cli_command', { text: `jam start ${channel} ${interval}` });
             this.isJamming = true;
             this.updateJammingStatus();
         });
         document.getElementById('btnJamStop').addEventListener('click', () => {
-            this.sendCommand('jam_stop');
+            this.sendCommand('cli_command', { text: 'jam stop' });
             this.isJamming = false;
             this.updateJammingStatus();
         });
@@ -132,21 +134,20 @@ class PacketAnalyzer {
 
     handleCommandResult(data) {
         console.log(`Command '${data.cmd}' result:`, data.success ? data.result : data.error);
-        if (data.cmd === 'sniff_start' && data.success) {
-            this.isSniffing = true;
-            this.updateSniffingStatus();
-        } else if (data.cmd === 'sniff_stop' && data.success) {
-            this.isSniffing = false;
-            this.updateSniffingStatus();
-        }
     }
 
     startSniffing() {
-        this.sendCommand('sniff_start');
+        // The server only executes CLI text; "sniff on" enables RX on the
+        // device and starts streaming RX_FRAME events to the web clients.
+        this.sendCommand('cli_command', { text: 'sniff on' });
+        this.isSniffing = true;
+        this.updateSniffingStatus();
     }
 
     stopSniffing() {
-        this.sendCommand('sniff_stop');
+        this.sendCommand('cli_command', { text: 'sniff off' });
+        this.isSniffing = false;
+        this.updateSniffingStatus();
     }
 
     handleRxFrame(data) {
@@ -471,10 +472,14 @@ class PacketAnalyzer {
                 }
             }
 
-            html += `<span class="offset">${offset}</span>  ${hexPart.slice(0, 8).join(' ')}  ${hexPart.slice(8).join(' ')}  <span class="ascii">|${asciiPart.join('')}|</span>\n`;
+            // Escape the ASCII column: packet bytes are attacker-influenced and
+            // can contain '<', '>', '&', which would otherwise be injected into
+            // innerHTML below.
+            const asciiStr = asciiPart.join('')
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            html += `<span class="offset">${offset}</span>  ${hexPart.slice(0, 8).join(' ')}  ${hexPart.slice(8).join(' ')}  <span class="ascii">|${asciiStr}|</span>\n`;
         }
 
-        container.textContent = '';
         container.innerHTML = html || 'No data';
     }
 
