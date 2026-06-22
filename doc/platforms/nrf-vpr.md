@@ -46,18 +46,33 @@ Same as the existing `nrf` port:
 
 * Python 3 for the blob-embedding script (`tools/flpr-blob-gen.py`).
 
-## Getting Started
+## Build and Deploy
 
-Shortest path to a running demo on the nRF54L15-DK:
+End-to-end on an nRF54L15-DK (PCA10156). One `flpr-host` build produces a
+single M33 image with the FLPR firmware embedded in it — you flash one image.
+
+**1. Install the toolchains** (see *Prerequisites and Setup* above): the
+   `arm-none-eabi` toolchain for the M33 and the Zephyr SDK
+   `riscv64-zephyr-elf` toolchain for the FLPR (default location
+   `~/zephyr-toolchain-riscv`, override with `ZSDK_RISCV=...`).
+
+**2. Build and flash** — a single command from `examples/flpr-host`:
 
     cd examples/flpr-host
     gmake TARGET=nrf BOARD=nrf54l15/dk WERROR=0 flpr-host.flash
 
-The `flpr-host` Makefile transparently rebuilds the FLPR firmware
-(`../hello-vpr/build/nrf-vpr/hello-vpr.bin`) and regenerates the blob
-header (`flpr-blob.h`) before the M33 build runs.
+   The `flpr-host` Makefile transparently rebuilds the FLPR firmware
+   (`../hello-vpr/build/nrf-vpr/hello-vpr.bin`) with the RISC-V toolchain and
+   regenerates the embedded blob header (`flpr-blob.h`) before the M33 build
+   runs, so you never invoke the FLPR build by hand for the demo.
 
-You should see:
+   To build the two images separately instead, see *Compilation Targets* below.
+
+**3. Open the serial console:**
+
+    gmake TARGET=nrf BOARD=nrf54l15/dk WERROR=0 PORT=/dev/cu.usbmodem* login
+
+**4. Verify** — you should see:
 
 * **LED0** (green, gpio2.9) blinking at **1 Hz** — driven by the FLPR
 * **LED1** (green, gpio1.10) blinking at **2 Hz** — driven by the M33
@@ -80,7 +95,6 @@ You should see:
 | -------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `examples/hello-vpr`       | `nrf-vpr`           | Smallest possible Contiki-NG running on the FLPR: one process, etimer, LED blink, tick counter in shared SRAM. Build output is the FLPR firmware blob.              |
 | `examples/flpr-host`       | `nrf` (`nrf54l15/dk`) | M33-side companion. Embeds the FLPR blob, runs the SPU + VPR boot dance, polls the shared counter, blinks a second LED, prints over UART.                           |
-| `examples/flpr-minimal`    | `nrf-vpr`           | Five-instruction RV32E "stamp" probe (writes `0xCAFEBABE` to the shared counter and spins). Useful when porting to a new board to confirm the boot dance works.     |
 
 ## Compilation Targets
 
@@ -142,6 +156,29 @@ The nRF54L15 802.15.4 backend uses TIMER20 and TIMER10 (`nrf_802154_platform_sl_
 ### Trap handler
 
 The nrfx-provided `Trap_Handler` is a silent infinite loop. `arch/cpu/nrf-vpr/startup-stubs.c` reroutes `mtvec` to a handler that writes `0xFA1100 | mcause` to `0x2003F000` and `mepc` to `0x2003F004` before spinning, so any CPU exception is visible from the M33-side console instead of silently hanging the FLPR.
+
+### Bringing up a new board
+
+When porting to a board other than the DK, confirm the M33-side boot dance
+actually starts the VPR *before* debugging the full kernel. Replace the FLPR
+blob with this five-instruction RV32E "stamp" — it writes a known marker to the
+shared counter and spins:
+
+    .section .startup, "ax"
+    .global Reset_Handler
+    Reset_Handler:
+        li   t0, 0x2003F000     /* counter address          */
+        lui  t1, 0xCAFEC
+        addi t1, t1, -0x542     /* t1 = 0xCAFEBABE          */
+        sw   t1, 0(t0)          /* [0x2003F000] = 0xCAFEBABE */
+    1:  j    1b
+
+Assemble it with the RISC-V toolchain (`-march=rv32e -mabi=ilp32e`), point
+`tools/flpr-blob-gen.py` at the resulting `.bin`, and flash `flpr-host`. If the
+M33 reads back `0xCAFEBABE` from `0x2003F000`, INITPC/CPURUN and the SPU
+SECATTR step are correct and you can move on to the real firmware. If it stays
+`0`, the VPR is not fetching instructions — re-check the execution-memory base
+address and the SPU `PERIPH[12]` SECATTR write.
 
 ## Known limitations
 
