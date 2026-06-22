@@ -55,6 +55,7 @@
 #include "net/packetbuf.h"
 #include "cmd.h"
 #include "border-router-cmds.h"
+#include "border-router-cbor.h"
 
 extern int slip_config_verbose;
 extern int slip_config_flowcontrol;
@@ -241,7 +242,14 @@ after_fread:
             printf("\n");
           }
         }
+#if BORDER_ROUTER_CONF_SERIAL_RADIO
+        /* serialradio: a binary SLIP frame is a CBOR message with a trailing
+           CRC16.  Verify and dispatch it (RX frames, TX responses, address
+           reports, ...). */
+        border_router_cbor_input(inbuf, inbufptr);
+#else
         slip_packet_input(inbuf, inbufptr);
+#endif
       }
       inbufptr = 0;
     }

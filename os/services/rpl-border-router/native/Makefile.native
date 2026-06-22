@@ -3,6 +3,14 @@ MODULES += os/services/shell
 MODULES += os/services/nat64
 MODULES += os/services/nat64/native
 
+# Optional: drive an examples/serialradio node over the CBOR protocol instead
+# of the legacy ASCII slip-radio protocol.  Enable with BORDER_ROUTER_SERIAL_RADIO=1.
+ifeq ($(BORDER_ROUTER_SERIAL_RADIO),1)
+CFLAGS += -DBORDER_ROUTER_CONF_SERIAL_RADIO=1
+# CBOR encoder/decoder and CRC16 used by border-router-cbor.c
+MODULES += os/lib
+endif
+
 MODULES_SOURCES_EXCLUDES += serial-shell.c
 
 # NAT64 sessions need additional select callback slots.
