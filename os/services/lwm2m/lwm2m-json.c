@@ -78,6 +78,8 @@ lwm2m_json_next_token(lwm2m_context_t *ctx, struct json_data *json)
   uint8_t cont;
   uint8_t wscount = 0;
 
+  json->name = NULL;
+  json->value = NULL;
   json->name_len = 0;
   json->value_len = 0;
 

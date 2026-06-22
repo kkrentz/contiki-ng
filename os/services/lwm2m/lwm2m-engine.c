@@ -1076,7 +1076,7 @@ perform_multi_resource_write_op(lwm2m_object_t *object,
       }
       LOG_DBG_("'\n");
 
-      if(json.name[0] == 'n') {
+      if(json.name != NULL && json.name_len > 0 && json.name[0] == 'n') {
         i = parse_path((const char *) json.value, json.value_len, &oid, &iid, &rid);
         if(i > 0) {
           if(ctx->level == 1) {
