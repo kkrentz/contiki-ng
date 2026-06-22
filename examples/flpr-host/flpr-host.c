@@ -34,7 +34,33 @@
 #define PERM_SECATTR_BIT   (1u << 4)
 
 PROCESS(flpr_host_process, "flpr-host");
-AUTOSTART_PROCESSES(&flpr_host_process);
+PROCESS(m33_led_process, "m33-led");
+AUTOSTART_PROCESSES(&flpr_host_process, &m33_led_process);
+
+/* M33-side LED1 blinker (gpio1 pin 10) at 2 Hz toggle, distinct from
+ * FLPR's LED0 (gpio2 pin 9) at 1 Hz. */
+PROCESS_THREAD(m33_led_process, ev, data)
+{
+  static struct etimer led_et;
+  static uint32_t toggle;
+
+  PROCESS_BEGIN();
+
+  NRF_P1_S->DIRSET = (1u << 10);    /* LED1 = gpio1.10 output */
+
+  while(1) {
+    etimer_set(&led_et, CLOCK_SECOND / 4);   /* 250 ms, 2 Hz blink */
+    PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&led_et));
+    toggle ^= 1;
+    if(toggle) {
+      NRF_P1_S->OUTSET = (1u << 10);
+    } else {
+      NRF_P1_S->OUTCLR = (1u << 10);
+    }
+  }
+
+  PROCESS_END();
+}
 
 PROCESS_THREAD(flpr_host_process, ev, data)
 {
