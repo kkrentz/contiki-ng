@@ -262,7 +262,7 @@ frame802154_extract_linkaddr(frame802154_t *frame,
   } else {
     /* Unicast address */
     if(src_addr_len != LINKADDR_SIZE) {
-      /* Destination address has a size we can not handle */
+      /* Source address has a size we can not handle */
       return 0;
     }
     if(source_address != NULL) {
@@ -657,8 +657,8 @@ frame802154_parse(uint8_t *data, int len, frame802154_t *pf)
 #if LLSEC802154_USES_EXPLICIT_KEYS
     pf->aux_hdr.security_control.key_id_mode = (p[0] >> 3) & 3;
 #endif /* LLSEC802154_USES_EXPLICIT_KEYS */
-    pf->aux_hdr.security_control.frame_counter_suppression = p[0] >> 5;
-    pf->aux_hdr.security_control.frame_counter_size = p[0] >> 6;
+    pf->aux_hdr.security_control.frame_counter_suppression = (p[0] >> 5) & 1;
+    pf->aux_hdr.security_control.frame_counter_size = (p[0] >> 6) & 1;
     p += 1;
 
     if(pf->aux_hdr.security_control.frame_counter_suppression == 0) {
