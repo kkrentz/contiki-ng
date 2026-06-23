@@ -89,7 +89,7 @@ enum ieee802154e_ietf_subie_id {
 
 #define WRITE16(buf, val) \
   do { ((uint8_t *)(buf))[0] = (val) & 0xff; \
-       ((uint8_t *)(buf))[1] = ((val) >> 8) & 0xff; } while(0);
+       ((uint8_t *)(buf))[1] = ((val) >> 8) & 0xff; } while(0)
 
 #define READ16(buf, var) \
   (var) = ((uint8_t *)(buf))[0] | ((uint8_t *)(buf))[1] << 8
