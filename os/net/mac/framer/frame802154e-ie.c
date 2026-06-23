@@ -599,6 +599,18 @@ frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,
             break;
 #if TSCH_WITH_SIXTOP
           case PAYLOAD_IE_IETF:
+            /*
+             * The IETF payload IE carries at least a one-octet Sub-ID field,
+             * and its content must fit within the remaining buffer. Reject
+             * anything shorter or longer to avoid reading past the buffer when
+             * dereferencing the Sub-ID below, underflowing the 6top content
+             * length (len - 1), and underflowing buf_size at the loop tail.
+             */
+            if(len < 1 || len > buf_size) {
+              LOG_ERR("frame802154e: invalid IETF IE len %u (remaining %u)\n",
+                      len, buf_size);
+              return -1;
+            }
             switch(*buf) {
               case IETF_IE_6TOP:
                 /*
