@@ -490,18 +490,33 @@ frame802154e_parse_mlme_long_ie(const uint8_t *buf, int len,
 {
   switch(sub_id) {
     case MLME_LONG_IE_TSCH_CHANNEL_HOPPING_SEQUENCE:
-      if(len > 0) {
+      /*
+       * Two valid encodings: a one-octet form carrying only the hopping
+       * sequence ID, or the full form whose 10-octet fixed header is followed
+       * by the sequence list and a two-octet "current hop" field, i.e.
+       * len == 12 + sequence_len. Read the sequence-length field (buf[8..9])
+       * only once the full fixed header is known to be present, and reject any
+       * other length rather than over-reading a short IE or leaving
+       * ie_hopping_sequence_len set from an IE we did not actually copy.
+       */
+      if(len == 1) {
         if(ies != NULL) {
           ies->ie_channel_hopping_sequence_id = buf[0];
-          if(len > 1) {
-            READ16(buf+8, ies->ie_hopping_sequence_len); /* sequence len */
-            if(ies->ie_hopping_sequence_len <= sizeof(ies->ie_hopping_sequence_list)
-                && len == 12 + ies->ie_hopping_sequence_len) {
-              memcpy(ies->ie_hopping_sequence_list, buf+10, ies->ie_hopping_sequence_len); /* sequence list */
-            }
-          }
         }
         return len;
+      }
+      if(len >= 12) {
+        uint16_t seq_len;
+        READ16(buf + 8, seq_len); /* sequence len */
+        if(seq_len <= sizeof(ies->ie_hopping_sequence_list)
+            && len == 12 + seq_len) {
+          if(ies != NULL) {
+            ies->ie_channel_hopping_sequence_id = buf[0];
+            ies->ie_hopping_sequence_len = seq_len;
+            memcpy(ies->ie_hopping_sequence_list, buf + 10, seq_len); /* sequence list */
+          }
+          return len;
+        }
       }
       break;
   }
