@@ -778,17 +778,17 @@ newdata(void)
   /* We only care about the question(s) and the answers. The authrr
    * and the extrarr are simply discarded.
    */
-  uint8_t nquestions = (uint8_t)uip_ntohs(hdr->numquestions);
-  uint8_t nanswers = (uint8_t)uip_ntohs(hdr->numanswers);
+  uint16_t nquestions = uip_ntohs(hdr->numquestions);
+  uint16_t nanswers = uip_ntohs(hdr->numanswers);
 
   unsigned char *queryptr = (unsigned char *)hdr + sizeof(*hdr);
   i = 0;
 
   LOG_DBG("flags1=0x%02X flags2=0x%02X nquestions=%d, nanswers=%d, " \
           "nauthrr=%d, nextrarr=%d\n",
-          hdr->flags1, hdr->flags2, (uint8_t)nquestions, (uint8_t)nanswers,
-          (uint8_t)uip_ntohs(hdr->numauthrr),
-          (uint8_t)uip_ntohs(hdr->numextrarr));
+          hdr->flags1, hdr->flags2, nquestions, nanswers,
+          uip_ntohs(hdr->numauthrr),
+          uip_ntohs(hdr->numextrarr));
 
   if(is_request && nquestions == 0) {
     /* Skip requests with no questions. */
@@ -871,7 +871,7 @@ newdata(void)
         }
         return;
       } else {
-        uint8_t nauthrr;
+        uint16_t nauthrr;
 
         LOG_DBG("But we are still probing. Waiting...\n");
 
@@ -879,7 +879,7 @@ newdata(void)
          * probe race condition check here and make sure
          * we don't need to delay probing for a second.
          */
-        nauthrr = (uint8_t)uip_ntohs(hdr->numauthrr);
+        nauthrr = uip_ntohs(hdr->numauthrr);
 
         /* For now, we will always restart the collision check if
          * there are *any* authority records present.
