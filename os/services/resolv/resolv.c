@@ -763,7 +763,16 @@ newdata(void)
 {
   int8_t i = 0;
   struct dns_hdr const *hdr = (struct dns_hdr *)uip_appdata;
-  unsigned char *queryptr = (unsigned char *)hdr + sizeof(*hdr);
+
+  /*
+   * Make sure the fixed-size DNS header is fully present before reading
+   * any of its fields.
+   */
+  if(uip_datalen() < sizeof(*hdr)) {
+    LOG_DBG("Packet too short to contain a DNS header\n");
+    return;
+  }
+
   const uint8_t is_request = (hdr->flags1 & ~1) == 0 && hdr->flags2 == 0;
 
   /* We only care about the question(s) and the answers. The authrr
@@ -772,7 +781,7 @@ newdata(void)
   uint8_t nquestions = (uint8_t)uip_ntohs(hdr->numquestions);
   uint8_t nanswers = (uint8_t)uip_ntohs(hdr->numanswers);
 
-  queryptr = (unsigned char *)hdr + sizeof(*hdr);
+  unsigned char *queryptr = (unsigned char *)hdr + sizeof(*hdr);
   i = 0;
 
   LOG_DBG("flags1=0x%02X flags2=0x%02X nquestions=%d, nanswers=%d, " \
