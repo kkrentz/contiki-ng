@@ -1130,6 +1130,9 @@ void
 resolv_set_hostname(const char *hostname)
 {
   strncpy(resolv_hostname, hostname, RESOLV_CONF_MAX_DOMAIN_NAME_SIZE);
+  /* strncpy() does not terminate when the source is too long; do it here so
+   * the strlen() calls below cannot read past the end of the buffer. */
+  resolv_hostname[RESOLV_CONF_MAX_DOMAIN_NAME_SIZE] = '\0';
 
   /* Add the .local suffix if it isn't already there */
   if(strlen(resolv_hostname) < 7 ||
