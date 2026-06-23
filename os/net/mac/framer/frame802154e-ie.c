@@ -676,6 +676,16 @@ frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,
         }
         break;
     }
+    /*
+     * Backstop for every IE type: never advance past the end of the buffer.
+     * Each case above is expected to bound len against buf_size, but this
+     * check enforces the invariant in one place and protects buf_size
+     * (uint8_t) from underflowing should a future case forget to.
+     */
+    if(len > buf_size) {
+      LOG_ERR("frame802154e: IE len %u exceeds remaining %u\n", len, buf_size);
+      return -1;
+    }
     buf += len;
     buf_size -= len;
   }
