@@ -537,6 +537,19 @@ frame802154_parse_fcf(const uint8_t *data, frame802154_fcf_t *pfcf)
   }
 }
 /*----------------------------------------------------------------------------*/
+/*
+ * Ensure at least n more bytes remain in the input before reading them.
+ * Used throughout frame802154_parse() to bound every field access against
+ * the declared frame length, so a truncated frame whose FCF advertises a
+ * large header (addressing and/or auxiliary security) cannot cause reads
+ * past the end of the input buffer.
+ */
+#define REQUIRE_BYTES(n) do {       \
+    if((p - data) + (n) > len) {    \
+      return 0;                     \
+    }                               \
+  } while(0)
+/*----------------------------------------------------------------------------*/
 /**
  *   \brief Parses an input frame.  Scans the input frame to find each
  *   section, and stores the information of each section in a
@@ -567,6 +580,7 @@ frame802154_parse(uint8_t *data, int len, frame802154_t *pf)
   p += frame802154_parse_fcf(p, &pf->fcf);
 
   if(pf->fcf.sequence_number_suppression == 0) {
+    REQUIRE_BYTES(1);
     pf->seq = p[0];
     p++;
   }
@@ -577,6 +591,7 @@ frame802154_parse(uint8_t *data, int len, frame802154_t *pf)
   if(pf->fcf.dest_addr_mode) {
     if(has_dest_panid) {
       /* Destination PAN */
+      REQUIRE_BYTES(2);
       pf->dest_pid = p[0] + (p[1] << 8);
       p += 2;
     } else {
@@ -585,11 +600,13 @@ frame802154_parse(uint8_t *data, int len, frame802154_t *pf)
 
     /* Destination address */
     if(pf->fcf.dest_addr_mode == FRAME802154_SHORTADDRMODE) {
+      REQUIRE_BYTES(2);
       linkaddr_copy((linkaddr_t *)&(pf->dest_addr), &linkaddr_null);
       pf->dest_addr[0] = p[1];
       pf->dest_addr[1] = p[0];
       p += 2;
     } else if(pf->fcf.dest_addr_mode == FRAME802154_LONGADDRMODE) {
+      REQUIRE_BYTES(8);
       for(c = 0; c < 8; c++) {
         pf->dest_addr[c] = p[7 - c];
       }
@@ -604,6 +621,7 @@ frame802154_parse(uint8_t *data, int len, frame802154_t *pf)
   if(pf->fcf.src_addr_mode) {
     /* Source PAN */
     if(has_src_panid) {
+      REQUIRE_BYTES(2);
       pf->src_pid = p[0] + (p[1] << 8);
       p += 2;
       if(!has_dest_panid) {
@@ -615,11 +633,13 @@ frame802154_parse(uint8_t *data, int len, frame802154_t *pf)
 
     /* Source address */
     if(pf->fcf.src_addr_mode == FRAME802154_SHORTADDRMODE) {
+      REQUIRE_BYTES(2);
       linkaddr_copy((linkaddr_t *)&(pf->src_addr), &linkaddr_null);
       pf->src_addr[0] = p[1];
       pf->src_addr[1] = p[0];
       p += 2;
     } else if(pf->fcf.src_addr_mode == FRAME802154_LONGADDRMODE) {
+      REQUIRE_BYTES(8);
       for(c = 0; c < 8; c++) {
         pf->src_addr[c] = p[7 - c];
       }
@@ -632,6 +652,7 @@ frame802154_parse(uint8_t *data, int len, frame802154_t *pf)
 
 #if LLSEC802154_USES_AUX_HEADER
   if(pf->fcf.security_enabled) {
+    REQUIRE_BYTES(1);
     pf->aux_hdr.security_control.security_level = p[0] & 7;
 #if LLSEC802154_USES_EXPLICIT_KEYS
     pf->aux_hdr.security_control.key_id_mode = (p[0] >> 3) & 3;
@@ -641,9 +662,11 @@ frame802154_parse(uint8_t *data, int len, frame802154_t *pf)
     p += 1;
 
     if(pf->aux_hdr.security_control.frame_counter_suppression == 0) {
+      REQUIRE_BYTES(4);
       memcpy(pf->aux_hdr.frame_counter.u8, p, 4);
       p += 4;
       if(pf->aux_hdr.security_control.frame_counter_size == 1) {
+        REQUIRE_BYTES(1);
         p ++;
       }
     }
@@ -652,6 +675,7 @@ frame802154_parse(uint8_t *data, int len, frame802154_t *pf)
     key_id_mode = pf->aux_hdr.security_control.key_id_mode;
     if(key_id_mode) {
       c = (key_id_mode - 1) * 4;
+      REQUIRE_BYTES(c + 1);
       memcpy(pf->aux_hdr.key_source.u8, p, c);
       p += c;
       pf->aux_hdr.key_index = p[0];
@@ -671,4 +695,5 @@ frame802154_parse(uint8_t *data, int len, frame802154_t *pf)
   /* return header length if successful */
   return c > len ? 0 : c;
 }
+#undef REQUIRE_BYTES
 /** \}   */
