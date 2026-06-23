@@ -1035,6 +1035,23 @@ newdata(void)
         }
       }
       if(i == RESOLV_ENTRIES) {
+        /*
+         * The name is not cached yet. We need a free (or expired) slot to
+         * store it in; bail out before touching names[] if there is none,
+         * since available_i is then still RESOLV_ENTRIES (one past the end).
+         */
+        if(available_i == RESOLV_ENTRIES) {
+          LOG_DBG("Not enough room to keep track of unsolicited MDNS answer\n");
+
+          if(dns_name_isequal(queryptr, resolv_hostname, uip_appdata,
+                              uip_datalen())) {
+            /* Oh snap, they say they are us! We had better report them... */
+            resolv_found(resolv_hostname, (uip_ipaddr_t *)ans->ipaddr);
+          }
+          namemapptr = NULL;
+          goto skip_to_next_answer;
+        }
+
         LOG_DBG("Unsolicited MDNS response\n");
         i = available_i;
         namemapptr = &names[i];
@@ -1044,17 +1061,6 @@ newdata(void)
           namemapptr = NULL;
           goto skip_to_next_answer;
         }
-      }
-      if(i == RESOLV_ENTRIES) {
-        LOG_DBG("Not enough room to keep track of unsolicited MDNS answer\n");
-
-        if(dns_name_isequal(queryptr, resolv_hostname, uip_appdata,
-                            uip_datalen())) {
-          /* Oh snap, they say they are us! We had better report them... */
-          resolv_found(resolv_hostname, (uip_ipaddr_t *)ans->ipaddr);
-        }
-        namemapptr = NULL;
-        goto skip_to_next_answer;
       }
       namemapptr = &names[i];
     } else
