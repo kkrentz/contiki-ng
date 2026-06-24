@@ -83,7 +83,7 @@ schedule_next_tick(void)
    * has a race when the requested deadline is very close to "now":
    * cc_channel_prepare() inside nrfx clears CCEN, the CCADD write is
    * supposed to re-enable it, but on nRF54L15 LUMOS CCEN occasionally
-   * stays Disable — the channel then never fires and the kernel tick
+   * stays Disabled — the channel then never fires and the kernel tick
    * stops. Absolute scheduling computes the deadline in code, writes
    * CCADD directly with an absolute target, and avoids the
    * prepare-then-add window entirely.
