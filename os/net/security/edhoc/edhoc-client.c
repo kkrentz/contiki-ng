@@ -268,7 +268,7 @@ client_response_handler(coap_callback_request_state_t *callback_state)
   client_block2_handler(callback_state->state.response,
                         rx_ptr, &rx_sz, EDHOC_MAX_PAYLOAD_LEN);
   if(!callback_state->state.more) {
-    edhoc_ctx->buffers.rx_sz = (uint8_t)rx_sz;
+    edhoc_ctx->buffers.rx_sz = rx_sz;
     edhoc_state.val = EVT_BLOCKING;
     process_post(PROCESS_BROADCAST, edhoc_event, &edhoc_state);
   }
