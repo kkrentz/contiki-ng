@@ -240,7 +240,7 @@ edhoc_handler_msg_1(edhoc_context_t *ctx, uint8_t *payload,
   /* Check if the rx msg is an msg_err */
   edhoc_error_t error_status = edhoc_check_err_rx_msg(1, payload, payload_size);
   if(error_status != EDHOC_SUCCESS) {
-    return err;
+    return error_status;
   }
 
   LOG_DBG("MSG1 (%d bytes): ", (int)ctx->buffers.rx_sz - 1);
