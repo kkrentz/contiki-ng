@@ -46,7 +46,6 @@ static volatile uint32_t schedule_failure_count;
 static nrfx_err_t init_error_code;
 volatile uint8_t tick_channel_id;
 static volatile uint32_t grtc_irq_count;
-static volatile uint32_t ccen_fix_count;
 static volatile uint64_t last_tick_syscounter;
 static volatile uint32_t recover_count;
 
@@ -80,17 +79,20 @@ static void
 schedule_next_tick(void)
 {
   /* Use absolute scheduling rather than relative. The relative form
-   * has a race when the requested deadline is very close to "now":
-   * cc_channel_prepare() inside nrfx clears CCEN, the CCADD write is
-   * supposed to re-enable it, but on nRF54L15 LUMOS CCEN occasionally
-   * stays Disabled — the channel then never fires and the kernel tick
-   * stops. Absolute scheduling computes the deadline in code, writes
-   * CCADD directly with an absolute target, and avoids the
-   * prepare-then-add window entirely.
+   * (nrfx_grtc_syscounter_cc_relative_set) writes CCADD, which on
+   * nRF54L15 LUMOS occasionally leaves CCEN Disabled when the deadline
+   * is very close to "now" — the channel then never fires and the
+   * kernel tick stops. Here we compute the deadline in code and write
+   * an absolute CC value instead.
    *
-   * We also write CCEN unconditionally below — cheaper than the
-   * read-check-write pattern the defensive workaround used, and gives
-   * the same guarantee.
+   * NOTE: the unconditional CCEN write at the end of this function is
+   * functionally required to start the channel — it only looks like a
+   * redundant sanity check. nrfx_grtc_syscounter_cc_absolute_set() calls
+   * cc_channel_prepare() (which disables CCEN) and then writes only
+   * CCL/CCH via nrf_grtc_sys_counter_cc_set(); it never re-enables CCEN.
+   * So on return from that call CCEN is Disabled, and without the write
+   * below the channel stays disabled and no tick ever fires. Do not
+   * remove it.
    */
   uint64_t deadline = clock_arch_get_syscounter() + tick_interval_us;
   nrfx_err_t err = nrfx_grtc_syscounter_cc_absolute_set(&tick_channel,
@@ -110,12 +112,12 @@ schedule_next_tick(void)
     schedule_failure_count++;
   }
 
-  /* Always force CCEN active — don't trust nrfx defaults. This was the
-   * root cause of the "GRTC won't wake from WFI after soft-reset"
-   * workaround in arch/platform/nrf/lpm.h: CCEN ended up Disabled,
-   * the IRQ never fired, WFI slept forever. With absolute scheduling
-   * + unconditional CCEN write the lpm.h spin loop becomes
-   * unnecessary; remove it in a follow-up patch. */
+  /* Force CCEN active (see NOTE above — this is mandatory). CCEN ending
+   * up Disabled was the root cause of the "GRTC won't wake from WFI after
+   * soft-reset" hang that the arch/platform/nrf/lpm.h spin loop worked
+   * around: the IRQ never fired, so WFI slept forever. With absolute
+   * scheduling and this write that workaround is no longer needed, and
+   * this PR removes it. */
   NRF_GRTC->CC[tick_channel_id].CCEN =
     (GRTC_CC_CCEN_ACTIVE_Enable << GRTC_CC_CCEN_ACTIVE_Pos);
 }
@@ -271,12 +273,6 @@ clock_arch_get_syscounter(void)
     lo = NRF_GRTC->SYSCOUNTER[1].SYSCOUNTERL;
   } while(hi != NRF_GRTC->SYSCOUNTER[1].SYSCOUNTERH);
   return ((uint64_t)(hi & 0x001FFFFFUL) << 32) | lo;
-}
-/*---------------------------------------------------------------------------*/
-uint32_t
-clock_arch_get_ccen_fix_count(void)
-{
-  return ccen_fix_count;
 }
 /*---------------------------------------------------------------------------*/
 uint32_t
