@@ -1,6 +1,18 @@
-### Toolchain: Zephyr SDK riscv64-zephyr-elf for nRF VPR (RV32E coprocessor)
-ZSDK_RISCV ?= $(HOME)/zephyr-toolchain-riscv
-TOOLCHAIN_BIN = $(ZSDK_RISCV)/bin/riscv64-zephyr-elf-
+### RISC-V toolchain for the nRF VPR (RV32E coprocessor).
+###
+### The toolchain MUST provide an rv32e/ilp32e multilib (libgcc soft mul/div —
+### the FLPR has no M extension) and freestanding+hosted headers (e.g. newlib;
+### the kernel pulls in <inttypes.h>). Known-good options: the prebuilt SDK at
+### the default path below, or xPack riscv-none-elf (set RISCV_PREFIX=riscv-none-elf).
+### A plain compiler-only GCC (e.g. Homebrew riscv64-elf-gcc, no newlib / no
+### rv32e multilib) will NOT link this.
+###
+### Override RISCV_PATH (install dir) and RISCV_PREFIX (tool prefix), or set
+### TOOLCHAIN_BIN directly. ZSDK_RISCV is still honored as the path for
+### backward compatibility.
+RISCV_PATH    ?= $(or $(ZSDK_RISCV),$(HOME)/zephyr-toolchain-riscv)
+RISCV_PREFIX  ?= riscv64-zephyr-elf
+TOOLCHAIN_BIN ?= $(RISCV_PATH)/bin/$(RISCV_PREFIX)-
 
 CC      = $(TOOLCHAIN_BIN)gcc
 LD      = $(TOOLCHAIN_BIN)gcc

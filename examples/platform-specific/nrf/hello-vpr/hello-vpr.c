@@ -6,9 +6,26 @@
 /* Shared counter location for M33 polling. */
 #define SHARED_COUNTER  (*(volatile uint32_t *)0x2003F000UL)
 
-/* LED0 on nRF54L15-DK = gpio2 pin 9, active high. */
-#define LED0_PIN        9
+/* User LED, on GPIO port 2. Pin and polarity are board-dependent; flpr-host
+ * forwards the right values per BOARD:
+ *   XIAO nRF54L15 user LED = P2.00, active low  (default)
+ *   nRF54L15-DK    LED0    = P2.09, active high  (LED0_PIN=9 LED0_ACTIVE_LOW=0)
+ * Override LED0_PIN / LED0_ACTIVE_LOW from the make command line for another board. */
+#ifndef LED0_PIN
+#define LED0_PIN        0
+#endif
+#ifndef LED0_ACTIVE_LOW
+#define LED0_ACTIVE_LOW 1
+#endif
 #define LED0_BIT        (1u << LED0_PIN)
+
+#if LED0_ACTIVE_LOW
+#define LED0_ON()       (NRF_P2_S->OUTCLR = LED0_BIT)   /* drive low to light */
+#define LED0_OFF()      (NRF_P2_S->OUTSET = LED0_BIT)
+#else
+#define LED0_ON()       (NRF_P2_S->OUTSET = LED0_BIT)
+#define LED0_OFF()      (NRF_P2_S->OUTCLR = LED0_BIT)
+#endif
 
 PROCESS(hello_vpr_process, "hello-vpr");
 AUTOSTART_PROCESSES(&hello_vpr_process);
@@ -27,9 +44,9 @@ PROCESS_THREAD(hello_vpr_process, ev, data)
   while(1) {
     SHARED_COUNTER = tick;
     if(tick & 1) {
-      NRF_P2_S->OUTSET = LED0_BIT;
+      LED0_ON();
     } else {
-      NRF_P2_S->OUTCLR = LED0_BIT;
+      LED0_OFF();
     }
     etimer_set(&et, CLOCK_SECOND / 2);
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));

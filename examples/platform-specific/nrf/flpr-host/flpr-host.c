@@ -1,11 +1,11 @@
-/* M33-side FLPR launcher — replicates Zephyr's nordic_vpr_launcher
- * boot dance exactly:
+/* M33-side FLPR launcher — releases the FLPR (RV32E VPR coprocessor) from
+ * reset with the boot sequence the nRF54L15 requires:
  *   1. memcpy blob to execution memory
- *   2. (if enable-secure DT prop) nrf_spu_periph_perm_secattr_set(SECATTR=Secure)
- *   3. nrf_vpr_initpc_set(exec_addr)
- *   4. nrf_vpr_cpurun_set(true)
- * Per nrf54l_05_10_15_cpuapp.dtsi the VPR has enable-secure;, so we MUST
- * do step 2 from the Secure address.
+ *   2. mark the VPR peripheral Secure in the SPU (SECATTR=Secure)
+ *   3. set the VPR start PC (INITPC)
+ *   4. set VPR CPURUN to launch
+ * On this SoC the VPR is gated as a Secure peripheral, so step 2 must be done
+ * from the Secure address view.
  */
 
 #include "contiki.h"
@@ -34,11 +34,16 @@
 #define PERM_SECATTR_BIT   (1u << 4)
 
 PROCESS(flpr_host_process, "flpr-host");
+
+#ifdef FLPR_HOST_M33_LED
 PROCESS(m33_led_process, "m33-led");
 AUTOSTART_PROCESSES(&flpr_host_process, &m33_led_process);
 
-/* M33-side LED1 blinker (gpio1 pin 10) at 2 Hz toggle, distinct from
- * FLPR's LED0 (gpio2 pin 9) at 1 Hz. */
+/* M33-side LED1 blinker (gpio1.10 on the nRF54L15-DK) at 2 Hz toggle, distinct
+ * from the FLPR's 1 Hz LED0. Enabled via FLPR_HOST_M33_LED, which the Makefile
+ * sets for boards that have a second LED. The XIAO nRF54L15 has only one user
+ * LED (gpio2.0, driven by the FLPR), so this is compiled out there and M33
+ * liveness is observed via the serial "[FLPR] tick" logs instead. */
 PROCESS_THREAD(m33_led_process, ev, data)
 {
   static struct etimer led_et;
@@ -61,6 +66,9 @@ PROCESS_THREAD(m33_led_process, ev, data)
 
   PROCESS_END();
 }
+#else
+AUTOSTART_PROCESSES(&flpr_host_process);
+#endif /* FLPR_HOST_M33_LED */
 
 PROCESS_THREAD(flpr_host_process, ev, data)
 {
@@ -75,7 +83,7 @@ PROCESS_THREAD(flpr_host_process, ev, data)
   memcpy((void *)FLPR_BLOB_LOAD_ADDR, flpr_blob, flpr_blob_len);
   LOG_INFO("Blob memcpy'd to 0x%08lx\n", (unsigned long)FLPR_BLOB_LOAD_ADDR);
 
-  /* Step 2: ensure VPR is marked Secure in SPU (Zephyr's enable_secure path).
+  /* Step 2: ensure VPR is marked Secure in the SPU.
    * If our M33 is in NS, this will HardFault. If it succeeds, we're in S. */
   FLPR_SHARED_COUNTER = 0;
 
