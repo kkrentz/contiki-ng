@@ -6,6 +6,10 @@
 SEARCH_DIR(.)
 GROUP(-lgcc)
 
+/* ORIGIN below mirrors FLPR_EXEC_BASE in arch/cpu/nrf-vpr/shared/flpr-shared.h (a .ld
+ * script cannot include the C header); keep them in sync. The 0x2003F000..
+ * 0x20040000 tail of the 96 KB partition is left for the FLPR<->M33 shared
+ * words (FLPR_SHARED_COUNTER_ADDR), so RAM stops at 0x2003F000. */
 MEMORY
 {
   FLASH (rx) : ORIGIN = 0x20028000, LENGTH = 0x8000   /* 32 KB code/.rodata */

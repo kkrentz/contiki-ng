@@ -57,6 +57,9 @@ NRFX_ROOT = $(CONTIKI)/arch/cpu/nrf/lib/nrfx
 CFLAGS   += -I$(NRFX_ROOT)/mdk -I$(NRFX_ROOT)
 LDFLAGS  += -L$(NRFX_ROOT)/mdk
 
+# FLPR<->M33 shared memory map (flpr-shared.h), also used by the M33 loader.
+CFLAGS   += -I$(CONTIKI_CPU)/shared
+
 LDSCRIPT ?= $(CONTIKI_CPU)/nrf-vpr-sram.ld
 LDFLAGS  += -T$(LDSCRIPT)
 CFLAGS   += -mcmodel=medany

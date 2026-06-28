@@ -1,3 +1,4 @@
+#include "flpr-shared.h"
 #include <stddef.h>
 
 /* Minimal mem-routines (no libc available). */
@@ -40,15 +41,18 @@ void SystemInit(void) { }
 extern int main(void);
 
 /* Override the spinning Trap_Handler from nrfx startup. Read mcause + mepc
- * so we know what kind of exception fired and at what PC. */
+ * so we know what kind of exception fired and at what PC. The literal
+ * addresses/markers below mirror flpr-shared.h (a naked asm body cannot use the
+ * C macros): 0x2003F000 = FLPR_SHARED_COUNTER_ADDR (+4 = FLPR_FAULT_PC_ADDR),
+ * 0xFA110000 = FLPR_MARK_FAULT_BASE. */
 __attribute__((naked,aligned(8)))
 void my_trap_handler(void)
 {
   __asm__ volatile (
     "csrr  t0, mcause           \n"
     "csrr  t1, mepc             \n"
-    "li    t2, 0x2003F000       \n"
-    "li    a4, 0xFA110000       \n"
+    "li    t2, 0x2003F000       \n"   /* FLPR_SHARED_COUNTER_ADDR   */
+    "li    a4, 0xFA110000       \n"   /* FLPR_MARK_FAULT_BASE       */
     "andi  t0, t0, 0xFF         \n"
     "or    a4, a4, t0           \n"
     "sw    a4, 0(t2)            \n"   /* counter = 0xFA1100|cause   */
@@ -60,9 +64,9 @@ void my_trap_handler(void)
 void _start(void) {
   /* Reroute mtvec from the silent-spin Trap_Handler to ours. */
   __asm__ volatile ("csrw mtvec, %0" :: "r"(my_trap_handler));
-  *(volatile unsigned int *)0x2003F000UL = 0xA0000001U;
+  FLPR_SHARED_COUNTER = FLPR_MARK_BOOT;
   main();
-  *(volatile unsigned int *)0x2003F000UL = 0xA000FFFFU;
+  FLPR_SHARED_COUNTER = FLPR_MARK_EXIT;
   for(;;);
 }
 

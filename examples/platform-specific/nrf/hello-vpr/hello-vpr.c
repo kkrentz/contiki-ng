@@ -1,10 +1,8 @@
 #include "contiki.h"
 #include "sys/etimer.h"
 #include "nrf.h"
+#include "flpr-shared.h"
 #include <stdint.h>
-
-/* Shared counter location for M33 polling. */
-#define SHARED_COUNTER  (*(volatile uint32_t *)0x2003F000UL)
 
 /* User LED, on GPIO port 2. Pin and polarity are board-dependent; flpr-host
  * forwards the right values per BOARD:
@@ -42,7 +40,7 @@ PROCESS_THREAD(hello_vpr_process, ev, data)
   NRF_P2_S->DIRSET = LED0_BIT;
 
   while(1) {
-    SHARED_COUNTER = tick;
+    FLPR_SHARED_COUNTER = tick;
     if(tick & 1) {
       LED0_ON();
     } else {

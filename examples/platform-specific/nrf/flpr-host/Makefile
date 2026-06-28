@@ -5,6 +5,11 @@ CONTIKI = ../../../..
 TARGET ?= nrf
 BOARD ?= nrf54l15/dk
 
+# The M33 loader shares the FLPR memory map (flpr-shared.h). Point only at the
+# dedicated shared/ dir — NOT the whole FLPR CPU dir, which would shadow the
+# M33's own headers (e.g. rtimer-arch.h).
+CFLAGS += -I$(CONTIKI)/arch/cpu/nrf-vpr/shared
+
 # Board-dependent LED wiring:
 #  - The FLPR drives the user LED on GPIO port 2; the pin differs per board and
 #    is passed through to the FLPR sub-make below as LED0_PIN.

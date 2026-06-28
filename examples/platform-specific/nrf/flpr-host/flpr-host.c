@@ -13,10 +13,16 @@
 #include "sys/etimer.h"
 #include "nrf.h"
 
+#include "flpr-shared.h"
 #include "flpr-blob.h"
 
 #include <stdint.h>
 #include <string.h>
+
+/* The blob is copied to FLPR_EXEC_BASE; it must not reach the shared-counter
+ * region (or it would clobber it / overrun into M33 SRAM). */
+_Static_assert(sizeof(flpr_blob) <= FLPR_SHARED_COUNTER_ADDR - FLPR_EXEC_BASE,
+               "FLPR blob would overrun its SRAM partition");
 
 #define LOG_MODULE "flpr-host"
 #define LOG_LEVEL  LOG_LEVEL_INFO
@@ -80,8 +86,8 @@ PROCESS_THREAD(flpr_host_process, ev, data)
   LOG_INFO("M33 boot complete, blob=%u bytes\n", (unsigned)flpr_blob_len);
 
   /* Step 1: copy blob into FLPR execution memory. */
-  memcpy((void *)FLPR_BLOB_LOAD_ADDR, flpr_blob, flpr_blob_len);
-  LOG_INFO("Blob memcpy'd to 0x%08lx\n", (unsigned long)FLPR_BLOB_LOAD_ADDR);
+  memcpy((void *)FLPR_EXEC_BASE, flpr_blob, flpr_blob_len);
+  LOG_INFO("Blob memcpy'd to 0x%08lx\n", (unsigned long)FLPR_EXEC_BASE);
 
   /* Step 2: ensure VPR is marked Secure in the SPU.
    * If our M33 is in NS, this will HardFault. If it succeeds, we're in S. */
@@ -104,7 +110,7 @@ PROCESS_THREAD(flpr_host_process, ev, data)
            (unsigned long)mode_marker);
 
   /* Step 3+4: set INITPC and CPURUN via the SAME view (S, matching our access). */
-  VPR_S->INITPC = FLPR_BLOB_ENTRY_PC;
+  VPR_S->INITPC = FLPR_EXEC_BASE;
   VPR_S->CPURUN = 1u;
 
   LOG_INFO("VPR_S after launch: INITPC=0x%08lx CPURUN=0x%lx\n",
@@ -118,7 +124,7 @@ PROCESS_THREAD(flpr_host_process, ev, data)
       LOG_INFO("[FLPR] tick %u\n", (unsigned)now);
       last_tick = now;
     } else {
-      uint32_t mepc = *(volatile uint32_t *)0x2003F004UL;
+      uint32_t mepc = *(volatile uint32_t *)FLPR_FAULT_PC_ADDR;
       LOG_INFO("[FLPR] counter 0x%08lx mepc=0x%08lx CPURUN=0x%lx\n",
                (unsigned long)now, (unsigned long)mepc, (unsigned long)VPR_S->CPURUN);
     }
