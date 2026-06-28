@@ -30,7 +30,6 @@ VPR_MARCH = rv32emc_zicsr
 VPR_MABI  = ilp32e
 
 CFLAGS  += -march=$(VPR_MARCH) -mabi=$(VPR_MABI)
-# (Switched to medany via earlier line)
 
 CFLAGS  += -ffunction-sections -fdata-sections
 CFLAGS  += -fshort-enums -fomit-frame-pointer
