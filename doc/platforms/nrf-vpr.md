@@ -2,7 +2,8 @@
 
 This guide describes the Contiki-NG port for the **FLPR** (Fast Lightweight Peripheral Processor) — the RISC-V VPR coprocessor on the nRF54L15. The FLPR is an RV32E core (16 GP registers, no F/D extensions) with its own tightly-coupled SRAM/RRAM partitions. It does not run by itself; the Cortex-M33 application core loads its firmware into SRAM and releases it from reset at run time.
 
-Hardware-validated on the nRF54L15-DK (PCA10156).
+Hardware-validated on both the nRF54L15-DK (PCA10156) and the Seeed XIAO
+nRF54L15 (`BOARD=nrf54l15/xiao`; see *Boards* below).
 
 ## Port Features
 
@@ -10,8 +11,8 @@ The following features are implemented:
 
 * Contiki-NG process scheduler, etimer, ctimer running on the FLPR
 * `clock_time()` driven by GRTC SYSCOUNTER — 1 ms resolution at real wall-clock rate
-* GPIO write access from the FLPR (LED demo: gpio2 pin 9 toggles at 1 Hz)
-* M33-side companion app that embeds the FLPR blob, performs the SPU + VPR boot dance, polls a shared counter, and blinks a second LED
+* GPIO write access from the FLPR (LED demo: the user LED on GPIO port 2 toggles at 1 Hz; pin is board-dependent)
+* M33-side companion app that embeds the FLPR blob, performs the SPU + VPR boot dance, polls a shared counter, and (on boards with a second LED) blinks it
 * Resulting FLPR firmware is ~8 KB (kernel + one process)
 
 Not yet implemented:
@@ -34,15 +35,32 @@ Same as the existing `nrf` port:
 
 ### FLPR side
 
-* Zephyr SDK RISC-V toolchain (`riscv64-zephyr-elf-gcc 14.3+` — includes the RV32E multilib):
+* A bare-metal RISC-V GCC toolchain that ships **both** an `rv32e`/`ilp32e`
+  multilib (libgcc — the FLPR has no M extension, so integer multiply/divide
+  are soft routines) **and** a C library (newlib — the kernel includes
+  `<inttypes.h>`). GCC 12+ is needed for the `zicsr`/`zifencei` extension
+  strings (14.3+ recommended).
 
-      ZSDK_VER=v1.0.1
-      curl -L -o /tmp/zsdk-riscv.tar.xz \
-          https://github.com/zephyrproject-rtos/sdk-ng/releases/download/$ZSDK_VER/toolchain_gnu_macos-aarch64_riscv64-zephyr-elf.tar.xz
-      mkdir -p ~/zephyr-toolchain-riscv
-      tar -xJf /tmp/zsdk-riscv.tar.xz -C ~/zephyr-toolchain-riscv --strip-components=1
+  > A compiler-only GCC without newlib or the `rv32e` multilib (for example
+  > Homebrew's `riscv64-elf-gcc`) will compile but fail to link/headers. Verify a
+  > candidate with `<prefix>-gcc -print-multi-lib | grep ilp32e` (must print an
+  > rv32e variant) and `<prefix>-gcc -print-file-name=libc.a` (must be a real path).
 
-  The FLPR build looks for it at `~/zephyr-toolchain-riscv` by default; override with `ZSDK_RISCV=...`.
+  Two known-good options:
+
+  * **xPack `riscv-none-elf-gcc`** — prebuilt, includes the rv32e multilib and
+    newlib. Install via `npm i -g @xpack-dev-tools/riscv-none-elf-gcc` or the
+    release tarball, then build with `RISCV_PREFIX=riscv-none-elf RISCV_PATH=<dir>`.
+  * **Prebuilt SDK** at `riscv64-zephyr-elf` layout:
+
+        ZSDK_VER=v1.0.1
+        curl -L -o /tmp/zsdk-riscv.tar.xz \
+            https://github.com/zephyrproject-rtos/sdk-ng/releases/download/$ZSDK_VER/toolchain_gnu_macos-aarch64_riscv64-zephyr-elf.tar.xz
+        mkdir -p ~/zephyr-toolchain-riscv
+        tar -xJf /tmp/zsdk-riscv.tar.xz -C ~/zephyr-toolchain-riscv --strip-components=1
+
+  The FLPR build defaults to `RISCV_PATH=~/zephyr-toolchain-riscv` and
+  `RISCV_PREFIX=riscv64-zephyr-elf`; override either (see *Compilation Options*).
 
 * Python 3 for the blob-embedding script (`tools/flpr-blob-gen.py`).
 
@@ -52,17 +70,22 @@ End-to-end on an nRF54L15-DK (PCA10156). One `flpr-host` build produces a
 single M33 image with the FLPR firmware embedded in it — you flash one image.
 
 **1. Install the toolchains** (see *Prerequisites and Setup* above): the
-   `arm-none-eabi` toolchain for the M33 and the Zephyr SDK
-   `riscv64-zephyr-elf` toolchain for the FLPR (default location
-   `~/zephyr-toolchain-riscv`, override with `ZSDK_RISCV=...`).
+   `arm-none-eabi` toolchain for the M33 and an rv32e-capable RISC-V GCC for the
+   FLPR (default `RISCV_PREFIX=riscv64-zephyr-elf` at `~/zephyr-toolchain-riscv`;
+   select another with `RISCV_PREFIX=`/`RISCV_PATH=`).
 
-**2. Build and flash** — a single command from `examples/flpr-host`:
+**2. Build and flash** — a single command from `examples/platform-specific/nrf/flpr-host`:
 
-    cd examples/flpr-host
+    cd examples/platform-specific/nrf/flpr-host
     gmake TARGET=nrf BOARD=nrf54l15/dk WERROR=0 flpr-host.flash
 
+   For the Seeed XIAO nRF54L15, use `BOARD=nrf54l15/xiao` instead. The
+   Makefile selects the correct FLPR LED pin per board and only blinks the
+   M33's second LED on boards that have one (the DK).
+
    The `flpr-host` Makefile transparently rebuilds the FLPR firmware
-   (`../hello-vpr/build/nrf-vpr/hello-vpr.bin`) with the RISC-V toolchain and
+   (`../hello-vpr/build/nrf-vpr/hello-vpr.bin`) with the RISC-V toolchain (and
+   the board-appropriate FLPR LED pin) and
    regenerates the embedded blob header (`flpr-blob.h`) before the M33 build
    runs, so you never invoke the FLPR build by hand for the demo.
 
@@ -74,8 +97,8 @@ single M33 image with the FLPR firmware embedded in it — you flash one image.
 
 **4. Verify** — you should see:
 
-* **LED0** (green, gpio2.9) blinking at **1 Hz** — driven by the FLPR
-* **LED1** (green, gpio1.10) blinking at **2 Hz** — driven by the M33
+* The FLPR-driven user LED on GPIO port 2 blinking at **1 Hz** (DK: LED0 = gpio2.9; XIAO: user LED = gpio2.0)
+* On the DK only, **LED1** (gpio1.10) blinking at **2 Hz** — driven by the M33 (the XIAO has a single user LED, so the M33 has no separate LED there)
 * On the serial console (`make ... PORT=/dev/cu.usbmodem* login`):
 
       [INFO: flpr-host ] M33 boot complete, blob=8252 bytes
@@ -93,31 +116,53 @@ single M33 image with the FLPR firmware embedded in it — you flash one image.
 
 | Example                    | Target              | Purpose                                                                                                                                                             |
 | -------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `examples/hello-vpr`       | `nrf-vpr`           | Smallest possible Contiki-NG running on the FLPR: one process, etimer, LED blink, tick counter in shared SRAM. Build output is the FLPR firmware blob.              |
-| `examples/flpr-host`       | `nrf` (`nrf54l15/dk`) | M33-side companion. Embeds the FLPR blob, runs the SPU + VPR boot dance, polls the shared counter, blinks a second LED, prints over UART.                           |
+| `examples/platform-specific/nrf/hello-vpr` | `nrf-vpr`           | Smallest possible Contiki-NG running on the FLPR: one process, etimer, LED blink, tick counter in shared SRAM. Build output is the FLPR firmware blob.              |
+| `examples/platform-specific/nrf/flpr-host` | `nrf` (`nrf54l15/dk` or `nrf54l15/xiao`) | M33-side companion. Embeds the FLPR blob, runs the SPU + VPR boot dance, polls the shared counter, blinks a second LED (DK only), prints over UART.   |
 
 ## Compilation Targets
 
-The FLPR side uses TARGET `nrf-vpr`. There is no BOARD selector — the only nRF54L15 board family supported today is the DK; pin-level differences live in the M33-side board config.
+The FLPR side uses TARGET `nrf-vpr` and has no BOARD selector of its own; its
+only board dependency is the user-LED pin, passed in as `LED0_PIN` (default
+P2.00; the DK uses P2.09). The M33 side selects the board with `BOARD` as usual,
+and `flpr-host` forwards the matching `LED0_PIN` to the FLPR sub-make
+automatically (see *Boards* below).
 
-    # FLPR firmware
+    # FLPR firmware (default LED pin = P2.00; pass LED0_PIN=9 for the DK)
     gmake TARGET=nrf-vpr WERROR=0
+    gmake TARGET=nrf-vpr LED0_PIN=9 WERROR=0
 
     # M33 firmware (uses existing nrf port)
     gmake TARGET=nrf BOARD=nrf54l15/dk WERROR=0 <project>.flash
+    gmake TARGET=nrf BOARD=nrf54l15/xiao WERROR=0 <project>.flash
     gmake TARGET=nrf BOARD=nrf54l15/dk WERROR=0 PORT=/dev/cu.usbmodem* login
+
+## Boards
+
+| Board | `BOARD` | FLPR LED (1 Hz) | M33 LED (2 Hz) |
+| ----- | ------- | --------------- | -------------- |
+| nRF54L15-DK (PCA10156) | `nrf54l15/dk`   | LED0 = P2.09 | LED1 = P1.10 |
+| Seeed XIAO nRF54L15    | `nrf54l15/xiao` | user LED = P2.00 | none (single user LED) |
+
+The XIAO exposes a single user LED (P2.00), which the FLPR drives. There is no
+second LED for the M33, so its blinker is compiled out there
+(`FLPR_HOST_M33_LED` is set by the Makefile only for the DK); the M33 remains
+observable through its serial `[FLPR] tick` logging.
 
 ## Compilation Options
 
-* `ZSDK_RISCV=<path>` — override the RISC-V toolchain location (default: `~/zephyr-toolchain-riscv`).
+* `RISCV_PATH=<dir>` — RISC-V toolchain install directory (default: `~/zephyr-toolchain-riscv`).
+* `RISCV_PREFIX=<prefix>` — tool prefix (default: `riscv64-zephyr-elf`). For example, `RISCV_PREFIX=riscv-none-elf` selects an xPack toolchain.
+* `TOOLCHAIN_BIN=<dir>/bin/<prefix>-` — set the full tool path/prefix directly, bypassing the two above.
+* `ZSDK_RISCV=<path>` — backward-compatible alias for `RISCV_PATH`.
+  The toolchain must ship an `rv32e`/`ilp32e` multilib (libgcc) and a C library (newlib); a compiler-only GCC without those will not link the FLPR.
 * `WERROR=0` — currently required for the M33 build because of an RWX-segment warning from nrfx's M33 linker script. The FLPR build sets `-Wl,--no-warn-rwx-segments` directly so `WERROR` does not need to be relaxed.
 
 ## How it boots
 
-The M33 launches the FLPR with the same sequence used by Zephyr's `nordic_vpr_launcher` driver:
+The M33 launches the FLPR with the boot sequence the nRF54L15 requires:
 
     /* 1. Copy the FLPR binary into its execution memory (start of the   */
-    /*    96 KB SRAM block the FLPR owns, per Zephyr cpuflpr DTS). */
+    /*    96 KB SRAM block the FLPR owns). */
     memcpy((void *)0x20028000, flpr_blob, flpr_blob_len);
 
     /* 2. Set VPR00's SPU PERIPHACCESS.SECATTR=Secure.                  */
@@ -159,7 +204,7 @@ The nrfx-provided `Trap_Handler` is a silent infinite loop. `arch/cpu/nrf-vpr/st
 
 ### Bringing up a new board
 
-When porting to a board other than the DK, confirm the M33-side boot dance
+When porting to a board other than the DK or XIAO, confirm the M33-side boot dance
 actually starts the VPR *before* debugging the full kernel. Replace the FLPR
 blob with this five-instruction RV32E "stamp" — it writes a known marker to the
 shared counter and spins:

@@ -1,6 +1,19 @@
-### Toolchain: Zephyr SDK riscv64-zephyr-elf for nRF VPR (RV32E coprocessor)
-ZSDK_RISCV ?= $(HOME)/zephyr-toolchain-riscv
-TOOLCHAIN_BIN = $(ZSDK_RISCV)/bin/riscv64-zephyr-elf-
+### RISC-V toolchain for the nRF VPR (RV32E coprocessor).
+###
+### The toolchain MUST provide an rv32emc/ilp32e multilib and freestanding+hosted
+### headers (e.g. newlib; the kernel pulls in <inttypes.h>). The FLPR has the M
+### extension (hardware 32-bit mul/div), but libgcc is still needed for 64-bit
+### division (__udivdi3 in clock_time()). Known-good options: the prebuilt SDK at
+### the default path below, or xPack riscv-none-elf (set RISCV_PREFIX=riscv-none-elf).
+### A plain compiler-only GCC (e.g. Homebrew riscv64-elf-gcc, no newlib / no
+### rv32e* multilib) will NOT link this.
+###
+### Override RISCV_PATH (install dir) and RISCV_PREFIX (tool prefix), or set
+### TOOLCHAIN_BIN directly. ZSDK_RISCV is still honored as the path for
+### backward compatibility.
+RISCV_PATH    ?= $(or $(ZSDK_RISCV),$(HOME)/zephyr-toolchain-riscv)
+RISCV_PREFIX  ?= riscv64-zephyr-elf
+TOOLCHAIN_BIN ?= $(RISCV_PATH)/bin/$(RISCV_PREFIX)-
 
 CC      = $(TOOLCHAIN_BIN)gcc
 LD      = $(TOOLCHAIN_BIN)gcc
@@ -11,11 +24,12 @@ OBJCOPY = $(TOOLCHAIN_BIN)objcopy
 OBJDUMP = $(TOOLCHAIN_BIN)objdump
 SIZE    = $(TOOLCHAIN_BIN)size
 
-VPR_MARCH = rv32e_zicsr_zifencei
+# Matches the nRF54L15 FLPR ISA (RV32E + M + C + Zicsr). M gives hardware
+# 32-bit mul/div; C gives compressed (smaller) code.
+VPR_MARCH = rv32emc_zicsr
 VPR_MABI  = ilp32e
 
 CFLAGS  += -march=$(VPR_MARCH) -mabi=$(VPR_MABI)
-# (Switched to medany via earlier line)
 
 CFLAGS  += -ffunction-sections -fdata-sections
 CFLAGS  += -fshort-enums -fomit-frame-pointer
@@ -44,6 +58,9 @@ LDFLAGS += -Wl,--defsym=_stack_origin=__StackTop
 NRFX_ROOT = $(CONTIKI)/arch/cpu/nrf/lib/nrfx
 CFLAGS   += -I$(NRFX_ROOT)/mdk -I$(NRFX_ROOT)
 LDFLAGS  += -L$(NRFX_ROOT)/mdk
+
+# FLPR<->M33 shared memory map (flpr-shared.h), also used by the M33 loader.
+CFLAGS   += -I$(CONTIKI_CPU)/shared
 
 LDSCRIPT ?= $(CONTIKI_CPU)/nrf-vpr-sram.ld
 LDFLAGS  += -T$(LDSCRIPT)
