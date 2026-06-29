@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026, RISE Research Institutes of Sweden AB
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 #ifndef CONTIKI_CONF_H_
 #define CONTIKI_CONF_H_
 

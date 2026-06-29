@@ -31,7 +31,13 @@ Same as the existing `nrf` port:
 
 * `arm-none-eabi-gcc` (Homebrew `gcc-arm-embedded` or system package)
 * `gmake` (GNU Make 4+ — Apple's bundled make 3.81 is too old)
-* OpenOCD with nRF54L15 support, or J-Link tools
+* For flashing: OpenOCD 0.12.0+ (Homebrew `openocd` or system package), or
+  J-Link tools (`nrfjprog`/`JLinkExe`). The Seeed XIAO flashes over its onboard
+  CMSIS-DAP via OpenOCD with no extra setup — stock OpenOCD works because the
+  board config writes RRAM with `load_image` and never invokes an OpenOCD flash
+  driver, so no nRF54L15 flash-driver patch is required. The DK has an onboard
+  SEGGER J-Link and is flashed with the J-Link tools (no OpenOCD config ships
+  for it in-tree).
 
 ### FLPR side
 

@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026, RISE Research Institutes of Sweden AB
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 /* M33-side FLPR launcher — releases the FLPR (RV32E VPR coprocessor) from
  * reset with the boot sequence the nRF54L15 requires:
  *   1. memcpy blob to execution memory

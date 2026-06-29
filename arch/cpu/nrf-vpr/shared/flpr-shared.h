@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2026, RISE Research Institutes of Sweden AB
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 #ifndef FLPR_SHARED_H_
 #define FLPR_SHARED_H_
 
