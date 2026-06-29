@@ -2,7 +2,7 @@
 
 This guide's aim is to help you with using Contiki-NG for Nordic Semiconductor's nRF5340 and nRF52840 SoCs (using nRF MDK). 
 
-This port supports the PCA10095 (nRF5340-DK), PCA10059 (nRF52840-DONGLE) and PCA10056 (nRF52840-DK) boards.
+This port supports the PCA10095 (nRF5340-DK), PCA10059 (nRF52840-DONGLE) and PCA10056 (nRF52840-DK) boards. It also provides the M33 application-core side of the nRF54L15 (PCA10156 DK and Seeed XIAO nRF54L15); see the [nRF54L15](#nrf54l15) section below.
 
 ## Port Features
 
@@ -218,6 +218,55 @@ Once the application core contains this example, a Contiki-NG application can be
     make TARGET=nrf BOARD=nrf5340/dk/network hello-world.upload
 
 The `start-network-core` example forwards UART, buttons, and LEDs. If extra GPIOs are needed on the network core, they must be forwarded in `start-network-core`.
+
+### nRF54L15
+
+The nRF54L15 is an ARM Cortex-M33 SoC (128 MHz, 1536 KB RRAM, 256 KB RAM) with
+a 2.4 GHz radio supporting 802.15.4 and Bluetooth LE 5.4. As with the other
+boards in this port, its application core runs the **full Contiki-NG networking
+stack** — 802.15.4, 6LoWPAN/IPv6, RPL, and CSMA — so the standard IPv6 examples
+build and run on it. (As elsewhere in this port, BLE is not supported.) The SoC
+also carries a RISC-V coprocessor, the FLPR, with its own Contiki-NG port; see
+*FLPR coprocessor* below.
+
+Two boards are supported, selected with `BOARD`:
+
+* `nrf54l15/dk` — nRF54L15-DK (PCA10156)
+* `nrf54l15/xiao` — Seeed XIAO nRF54L15
+
+Build and flash any standard example as usual:
+
+    make TARGET=nrf BOARD=nrf54l15/xiao hello-world.flash
+
+**Radio submodule.** The 802.15.4 driver wraps Nordic's `nrf_802154` library,
+which ships in the `sdk-nrfxlib` git submodule. Initialise submodules before
+building or the link fails with missing networking symbols:
+
+    git submodule update --init --recursive
+
+**Flashing.** Unlike the nRF5340/nRF52840 DKs (which use nrfjprog/J-Link), the
+two nRF54L15 boards are flashed with the `.flash` target:
+
+* `nrf54l15/xiao` — over its onboard CMSIS-DAP using **stock OpenOCD 0.12.0+**.
+  No nRF54L15-specific OpenOCD flash driver is required: the board config writes
+  RRAM with `load_image` and never invokes an OpenOCD flash driver. The
+  board-specific `openocd.cfg` is selected automatically by the Makefile.
+* `nrf54l15/dk` — over its onboard SEGGER J-Link.
+
+**Current limitations.** Low-power modes, the watchdog driver, and the
+temperature sensor are not yet supported on the nRF54L15.
+
+#### FLPR coprocessor
+
+The **FLPR** (Fast Lightweight Peripheral Processor) is a RISC-V VPR coprocessor
+(RV32EMC) on the nRF54L15. It has its own Contiki-NG port, built with a separate
+`nrf-vpr` target: the M33 image embeds and launches a small FLPR kernel (process
+scheduler, etimer/ctimer, GRTC-driven `clock_time()`, GPIO output) while the
+802.15.4 radio stays on the M33.
+
+For the full guide — toolchain setup (the FLPR needs an RV32EMC RISC-V GCC),
+build/deploy steps, the boot sequence, and the `hello-vpr` / `flpr-host`
+examples — see the [nrf-vpr platform documentation](nrf-vpr.md).
 
 ## Support
 
