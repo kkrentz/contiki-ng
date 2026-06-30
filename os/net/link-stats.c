@@ -105,8 +105,9 @@ int
 link_stats_is_fresh(const struct link_stats *stats)
 {
   return (stats != NULL)
-      && clock_time() - stats->last_tx_time < FRESHNESS_EXPIRATION_TIME
-      && stats->freshness >= FRESHNESS_TARGET;
+         && CLOCK_LT(clock_time(),
+                     stats->last_tx_time + FRESHNESS_EXPIRATION_TIME)
+         && stats->freshness >= FRESHNESS_TARGET;
 }
 /*---------------------------------------------------------------------------*/
 #if LINK_STATS_INIT_ETX_FROM_RSSI
