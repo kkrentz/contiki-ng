@@ -46,6 +46,10 @@
 #include "net/mac/framer/frame802154.h"
 #include "net/mac/llsec802154.h"
 #include "net/packetbuf.h"
+#ifdef SMOR
+#include "smor-db.h"
+#include "smor-trickle.h"
+#endif /* SMOR */
 #include "sys/mutex.h"
 #include <string.h>
 
@@ -312,6 +316,11 @@ deletion_callback(nbr_table_item_t *item)
   /* since we lock tentative neighbors and delete empty entries */
   assert(!entry->tentative);
   assert(entry->permanent);
+
+#ifdef SMOR
+  smor_trickle_on_neighbor_lost(entry);
+  smor_db_on_neighbor_lost(entry);
+#endif /* SMOR */
 
   akes_nbr_delete(entry, AKES_NBR_PERMANENT);
 }
