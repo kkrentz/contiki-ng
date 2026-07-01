@@ -44,6 +44,7 @@
 #include "lib/assert.h"
 #include "lib/list.h"
 #include "lib/memb.h"
+#include "net/link-stats.h"
 #if MAC_CONF_WITH_CSL
 #include "net/mac/csl/csl-nbr.h"
 #endif /* MAC_CONF_WITH_CSL */
@@ -58,6 +59,7 @@
 #include "smor-trickle.h"
 #endif /* SMOR */
 #include "sys/mutex.h"
+#include <inttypes.h>
 #include <string.h>
 
 /* Log configuration */
@@ -243,6 +245,62 @@ delete_nbr_with_lock(akes_nbr_entry_t *entry, akes_nbr_status_t status)
   on_entry_change(entry);
 }
 /*---------------------------------------------------------------------------*/
+const linkaddr_t *
+akes_nbr_gc_get_worst(const linkaddr_t *lladdr1, const linkaddr_t *lladdr2)
+{
+  assert(lladdr1);
+  assert(lladdr2);
+  assert(!linkaddr_cmp(lladdr1, &linkaddr_null));
+  assert(!linkaddr_cmp(lladdr2, &linkaddr_null));
+
+  const struct link_stats *link_stats1 = link_stats_from_lladdr(lladdr1);
+  if(!link_stats1 || (link_stats1->rssi == LINK_STATS_RSSI_UNKNOWN)) {
+    return lladdr1;
+  }
+
+  const struct link_stats *link_stats2 = link_stats_from_lladdr(lladdr2);
+  if(!link_stats2 || (link_stats2->rssi == LINK_STATS_RSSI_UNKNOWN)) {
+    return lladdr2;
+  }
+
+  /* prefer stronger RSSIs for the time being */
+  /* TODO coverage and/or topology control */
+  return link_stats1->rssi < link_stats2->rssi ? lladdr1 : lladdr2;
+}
+/*---------------------------------------------------------------------------*/
+bool
+akes_nbr_can_accept_new(const linkaddr_t *new_linkaddr,
+                        const linkaddr_t *candidate_for_removal,
+                        nbr_table_reason_t reason,
+                        const void *data)
+{
+  assert(!linkaddr_cmp(new_linkaddr, &linkaddr_null));
+
+  if(!candidate_for_removal) {
+    /* no need to remove a neighbor or neighbor exists already */
+    return true;
+  }
+
+  /* neighbors should only be added during session key establishment */
+  if(reason != NBR_TABLE_REASON_LLSEC) {
+    LOG_WARN("attempt to create neighbor before establishing session keys\n");
+    return false;
+  }
+
+  /* look up stats of the candidate */
+  const struct link_stats *link_stats =
+      link_stats_from_lladdr(candidate_for_removal);
+  if(!link_stats || (link_stats->rssi == LINK_STATS_RSSI_UNKNOWN)) {
+    return true;
+  }
+
+  /* RSSI should have been passed along with the request */
+  assert(data);
+  const int16_t *rssi = (const int16_t *)data;
+  LOG_DBG("RSSI of new neighbor: %" PRIi16 "\n", *rssi);
+  return *rssi - 5 /* dB hysteresis */ > link_stats->rssi;
+}
+/*---------------------------------------------------------------------------*/
 akes_nbr_entry_t *
 akes_nbr_new(akes_nbr_status_t status)
 {
@@ -254,10 +312,11 @@ akes_nbr_new(akes_nbr_status_t status)
 
   akes_nbr_entry_t *entry = akes_nbr_get_sender_entry();
   if(!entry) {
+    int16_t rssi = packetbuf_attr(PACKETBUF_ATTR_RSSI);
     entry = nbr_table_add_lladdr(entries_table,
                                  packetbuf_addr(PACKETBUF_ADDR_SENDER),
                                  NBR_TABLE_REASON_LLSEC,
-                                 NULL);
+                                 &rssi);
     if(!entry) {
       LOG_WARN("nbr-table is full\n");
       return NULL;

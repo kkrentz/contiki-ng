@@ -41,5 +41,7 @@
 #define CSPRNG_CONF_ENABLED 1
 #define NETSTACK_CONF_MAC akes_mac_driver
 #define AKES_MAC_CONF_ENABLED 1
+#define NBR_TABLE_CONF_GC_GET_WORST akes_nbr_gc_get_worst
+#define NBR_TABLE_CONF_CAN_ACCEPT_NEW akes_nbr_can_accept_new
 
 /** @} */
