@@ -38,11 +38,18 @@
  *         Konrad Krentz <konrad.krentz@gmail.com>
  */
 
+#include "contiki.h"
 #include "akes/akes-nbr.h"
 #include "akes/akes.h"
 #include "lib/assert.h"
 #include "lib/list.h"
 #include "lib/memb.h"
+#if MAC_CONF_WITH_CSL
+#include "net/mac/csl/csl-nbr.h"
+#endif /* MAC_CONF_WITH_CSL */
+#if MAC_CONF_WITH_CONTIKIMAC
+#include "net/mac/contikimac/contikimac-nbr.h"
+#endif /* MAC_CONF_WITH_CONTIKIMAC */
 #include "net/mac/framer/frame802154.h"
 #include "net/mac/llsec802154.h"
 #include "net/packetbuf.h"
@@ -210,9 +217,27 @@ delete_nbr_with_lock(akes_nbr_entry_t *entry, akes_nbr_status_t status)
 {
   assert(entry);
   if(status) {
+#if MAC_CONF_WITH_CSL
+    csl_nbr_tentative_t *csl_nbr_tentative =
+        csl_nbr_get_tentative(entry->refs[status]->meta);
+    memset(csl_nbr_tentative, 0, sizeof(*csl_nbr_tentative));
+#endif /* MAC_CONF_WITH_CSL */
+#if MAC_CONF_WITH_CONTIKIMAC
+    contikimac_nbr_tentative_t *contikimac_nbr_tentative =
+        contikimac_nbr_get_tentative(entry->refs[status]->meta);
+    memset(contikimac_nbr_tentative, 0, sizeof(*contikimac_nbr_tentative));
+#endif /* MAC_CONF_WITH_CONTIKIMAC */
     akes_nbr_free_tentative_metadata(entry->refs[status]->meta);
     nbr_table_unlock(entries_table, entry);
   }
+#if MAC_CONF_WITH_CSL
+  csl_nbr_t *csl_nbr = csl_nbr_get(entry->refs[status]);
+  memset(csl_nbr, 0, sizeof(*csl_nbr));
+#endif /* MAC_CONF_WITH_CSL */
+#if MAC_CONF_WITH_CONTIKIMAC
+  contikimac_nbr_t *contikimac_nbr = contikimac_nbr_get(entry->refs[status]);
+  memset(contikimac_nbr, 0, sizeof(*contikimac_nbr));
+#endif /* MAC_CONF_WITH_CONTIKIMAC */
   memb_free(&nbrs_memb, entry->refs[status]);
   entry->refs[status] = NULL;
   on_entry_change(entry);
