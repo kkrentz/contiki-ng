@@ -207,6 +207,7 @@ delete_nbr_with_lock(akes_nbr_entry_t *entry, akes_nbr_status_t status)
   assert(entry);
   if(status) {
     akes_nbr_free_tentative_metadata(entry->refs[status]->meta);
+    nbr_table_unlock(entries_table, entry);
   }
   memb_free(&nbrs_memb, entry->refs[status]);
   entry->refs[status] = NULL;
@@ -244,11 +245,11 @@ akes_nbr_new(akes_nbr_status_t status)
     release_lock();
     return NULL;
   }
-  nbr_table_lock(entries_table, entry);
 #if LLSEC802154_USES_FRAME_COUNTER
   anti_replay_init_info(&entry->refs[status]->anti_replay_info);
 #endif /* LLSEC802154_USES_FRAME_COUNTER */
   if(status) {
+    nbr_table_lock(entries_table, entry);
     entry->refs[status]->meta = memb_alloc(&tentatives_memb);
     if(!entry->refs[status]->meta) {
       LOG_WARN("tentatives_memb full\n");
@@ -302,11 +303,24 @@ akes_nbr_delete(akes_nbr_entry_t *entry, akes_nbr_status_t status)
   release_lock();
 }
 /*---------------------------------------------------------------------------*/
+static void
+deletion_callback(nbr_table_item_t *item)
+{
+  assert(item);
+  akes_nbr_entry_t *entry = (akes_nbr_entry_t *)item;
+
+  /* since we lock tentative neighbors and delete empty entries */
+  assert(!entry->tentative);
+  assert(entry->permanent);
+
+  akes_nbr_delete(entry, AKES_NBR_PERMANENT);
+}
+/*---------------------------------------------------------------------------*/
 void
 akes_nbr_init(void)
 {
   memb_init(&nbrs_memb);
-  nbr_table_register(entries_table, NULL);
+  nbr_table_register(entries_table, deletion_callback);
   memb_init(&tentatives_memb);
 }
 /*---------------------------------------------------------------------------*/
