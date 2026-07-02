@@ -9,7 +9,8 @@ NRFX_C_SRCS += $(NRFX_ROOT)/mdk/system_nrf5340_network.c
 
 EXTERNALDIRS += $(NRFX_ROOT)/mdk/
 
-NRFJPROG_OPTIONS=-f NRF53 --coprocessor CP_NETWORK 
+NRF_DEVICE_FAMILY = nrf53
+NRFUTIL_CORE = --core network
 
 CFLAGS += -DCPU_CONF_PATH=\"nrf5340-network-conf.h\"
 CFLAGS += -DCPU_DEF_PATH=\"nrf5340-network-def.h\"

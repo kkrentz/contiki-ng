@@ -42,17 +42,28 @@ If you use the docker image or the vagrant image, this will be pre-installed for
 
 * GNU make
 
-* nrfjprog for programming the nRF5340 DK, nRF52840 DK
+* nrfutil for programming the nRF5340 DK, nRF52840 DK and nRF52840 Dongle
 
-nrfjprog is supplied as part of the nRF Command Line Tools and can be downloaded from the following link:
+nrfutil (the Rust-based binary, which replaces the end-of-life nrfjprog and
+the deprecated Python nrfutil from PyPI) can be downloaded from:
 
-https://www.nordicsemi.com/Software-and-tools/Development-Tools/nRF-Command-Line-Tools
+https://www.nordicsemi.com/Products/Development-tools/nRF-Util
 
-* nrfutil for programming the nRF52840 Dongle
+After downloading the binary, install the required subcommands:
 
-nrfutil is available on PyPy: https://pypi.org/project/nrfutil/
+    nrfutil install device
 
-A typical way to install this would be using pip: `pip3 install nrfutil`
+For flashing the nRF52840 Dongle, the nRF5 SDK tools are also needed:
+
+    nrfutil install nrf5sdk-tools
+
+* jq
+
+The `.upload` targets use [jq](https://jqlang.org/) to select the attached
+device to program: filtering devkits by device family and looking up a
+device by `PORT=<serial port>` both require it. Without jq, uploads that
+need such a lookup fail with an error asking for an explicit
+`NRF_UPLOAD_SN=<serial number>`.
 
 ## Getting Started
 
@@ -84,13 +95,37 @@ set on the compilation command line:
 
 * `NRF_UPLOAD_SN=<serial number>`  
   Allows to choose a particular DK by its serial number (printed on the label).  
-  This is useful if you have more than one DK connected to your
-  PC and wish to flash a particular device using the `.upload` target. 
+  This is optional when exactly one DK of the targeted device family is
+  attached (devices of other families are ignored). With more than one
+  matching device connected, the `.upload` target refuses to program and
+  lists the attached serial numbers; select one with
+  `NRF_UPLOAD_SN=<serial number>` or use the `.upload-all` target to flash
+  all attached devices of the targeted family. The same applies to the
+  nRF52840 Dongle: with several dongles attached, select one with
+  `NRF_UPLOAD_SN` (the dongle keeps its USB serial number in both firmware
+  and bootloader mode).
+
+* `NRF_RECOVER=1`  
+  Runs `nrfutil device recover` on the selected device immediately before
+  programming. Use this to unlock a device that has enabled access port
+  protection (e.g. locked itself). **Warning: recovery performs a full chip
+  erase of the selected core.** It is therefore never done by default and
+  only when `NRF_RECOVER=1` is explicitly given on the make command line.
+  Works with both the `.upload` and `.upload-all` targets.
+
+* `PORT=<serial port>`  
+  Selects the device to program by one of its serial ports (as listed by
+  `tools/motelist` or `make motelist-all`), when `NRF_UPLOAD_SN` is not
+  given. Works for both DKs and dongles. Since `PORT` is also used by the
+  `login` target, the same variable selects the node for both programming
+  and serial output. Only a `PORT` given on the make command line selects
+  the device to program; a `PORT` from the environment is ignored for
+  device selection (but still used by `login`).
 
 * `BOARD={nrf5340/dk/application|nrf5340/dk/network|nrf52840/dk|nrf52840/dongle}`  
   Allows to specify if the which board and core (nrf5340 exclusive) is used.
   The default board is `nrf5340/dk/application`
-  Dongle images are built with a bootloader-specific linker file and should be flashed using the `.dfu-upload` target.
+  Dongle images are built with a bootloader-specific linker file and are flashed via the Nordic open bootloader (DFU) by the regular `.upload` target.
 
 * `NRF_NATIVE_USB=<0,1>`  
   Enables or disables the native USB support on boards that have USB support. 
@@ -114,13 +149,20 @@ as make target, e.g.:
 
     make TARGET=nrf hello-world.upload-all
 
-In order to flash the application binary to a single nRF52840 Dongle use `<application>.dfu-upload`
-as make target, e.g.: 
+The `.upload-all` target also works for nRF52840 Dongles: it triggers DFU
+mode on and flashes all attached dongles, e.g.:
 
-    make TARGET=nrf BOARD=nrf52840/dongle hello-world.dfu-upload PORT=/dev/ttyACM0
+    make TARGET=nrf BOARD=nrf52840/dongle hello-world.upload-all
 
-Where `PORT` is the name of the USB CDC-ACM port that the dongle is on.  
-The bootloader can be activated by pressing the RESET button once, until the red LED begins to pulse.
+Flashing a single nRF52840 Dongle uses the regular `.upload` target, e.g.:
+
+    make TARGET=nrf BOARD=nrf52840/dongle hello-world.upload
+
+The upload automatically triggers the DFU bootloader on a dongle running
+Contiki-NG firmware. For a dongle running other firmware, the bootloader
+can be activated manually by pressing the RESET button once, until the red
+LED begins to pulse. With more than one dongle attached, select one with
+`NRF_UPLOAD_SN=<serial number>` or `PORT=<serial port>`.
 
 Notes when using the nRF dongle: 
 * The serial output from the dongle can be accessed by attaching a USB to Serial converter to the pins described on the back of the board.
