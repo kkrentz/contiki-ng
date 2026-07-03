@@ -456,6 +456,19 @@ sync_process(uint64_t now)
 void
 LP_RTC_IRQHandler(void)
 {
+  uint32_t primask = irq_lock_local();
+
+  /*
+   * Bookkeep the 24-bit counter wrap. The OVRFLW interrupt guarantees that
+   * timer_time_get_locked() runs at least once per wrap period (~512 s),
+   * which its single-wrap detection requires; without it, an idle radio
+   * would silently lose whole wrap periods of absolute time.
+   */
+  if(nrf_rtc_event_check(LP_RTC, NRF_RTC_EVENT_OVERFLOW)) {
+    nrf_rtc_event_clear(LP_RTC, NRF_RTC_EVENT_OVERFLOW);
+    (void)timer_time_get_locked();
+  }
+
   bool alarm_forced = (force_isr_mask & FORCE_MASK_ALARM) != 0U;
   bool sync_forced = (force_isr_mask & FORCE_MASK_SYNC) != 0U;
   bool alarm_event = rtc_event_check_cc(ALARM_CC);
@@ -468,7 +481,17 @@ LP_RTC_IRQHandler(void)
     rtc_event_clear_cc(SYNC_CC);
   }
 
-  force_isr_mask &= ~(FORCE_MASK_ALARM | FORCE_MASK_SYNC);
+  /*
+   * Clear only the bits captured above, and do it under the IRQ lock: a
+   * higher-priority interrupt (e.g. RADIO, priority 0) can preempt this
+   * handler and schedule a new past-deadline alarm, and a blanket unlocked
+   * clear would silently discard that force request while this invocation
+   * has already decided not to process it.
+   */
+  force_isr_mask &= ~((alarm_forced ? FORCE_MASK_ALARM : 0U) |
+                      (sync_forced ? FORCE_MASK_SYNC : 0U));
+
+  irq_unlock_local(primask);
 
   if(alarm_forced || alarm_event) {
     alarm_process();
@@ -510,6 +533,10 @@ nrf_802154_platform_sl_lp_timer_init(void)
     rtc_compare_int_disable(ALARM_CC);
     rtc_compare_int_disable(SYNC_CC);
     rtc_compare_int_disable(HW_TASK_CC);
+    /* The OVRFLW interrupt keeps the 64-bit lptick time base correct while
+     * the timer is otherwise unused; see LP_RTC_IRQHandler(). */
+    nrf_rtc_event_clear(LP_RTC, NRF_RTC_EVENT_OVERFLOW);
+    nrf_rtc_int_enable(LP_RTC, NRF_RTC_INT_OVERFLOW_MASK);
     nrf_rtc_task_trigger(LP_RTC, NRF_RTC_TASK_START);
 
     NVIC_SetPriority(LP_RTC_IRQn, LP_RTC_IRQ_PRIORITY);
@@ -538,6 +565,8 @@ nrf_802154_platform_sl_lp_timer_deinit(void)
   if(timer_initialized) {
     rtc_compare_int_disable(ALARM_CC);
     rtc_compare_int_disable(SYNC_CC);
+    nrf_rtc_int_disable(LP_RTC, NRF_RTC_INT_OVERFLOW_MASK);
+    nrf_rtc_event_clear(LP_RTC, NRF_RTC_EVENT_OVERFLOW);
     rtc_event_clear_cc(ALARM_CC);
     rtc_event_clear_cc(SYNC_CC);
     rtc_event_clear_cc(HW_TASK_CC);
@@ -572,6 +601,14 @@ nrf_802154_platform_sl_lptimer_lpticks_to_us_convert(uint64_t lpticks)
   return (lpticks * US_NUM) / US_DEN;
 }
 /*---------------------------------------------------------------------------*/
+/*
+ * NOTE: nrf_802154_platform_sl_lptimer_schedule_at() and
+ * nrf_802154_platform_sl_lptimer_disable() are unused in this port: their
+ * only caller in the open-source SL, nrf_802154_sl_timer.c, is excluded
+ * from the build (nrf802154.mk) because this file provides the SL timer
+ * service directly on top of the same RTC compare channel. They are kept
+ * for platform API completeness.
+ */
 void
 nrf_802154_platform_sl_lptimer_schedule_at(uint64_t fire_lpticks)
 {
