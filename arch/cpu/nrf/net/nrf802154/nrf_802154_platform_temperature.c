@@ -90,9 +90,10 @@ temperature_measure(void)
   nrf_temp_event_clear(NRF_TEMP, NRF_TEMP_EVENT_DATARDY);
   nrf_temp_task_trigger(NRF_TEMP, NRF_TEMP_TASK_STOP);
 
-  /* The result register holds the temperature in 0.25 degree C steps. */
+  /* The result register holds the temperature in 0.25 degree C steps.
+   * Round to the nearest degree instead of truncating toward zero. */
   raw = nrf_temp_result_get(NRF_TEMP);
-  return (int8_t)(raw / 4);
+  return (int8_t)((raw >= 0 ? raw + 2 : raw - 2) / 4);
 }
 /*---------------------------------------------------------------------------*/
 static void

@@ -48,6 +48,19 @@
 
 #include <stdbool.h>
 
+/*
+ * Keep the HFXO running even while the library asks for it to be stopped
+ * (default). The library may call nrf_802154_clock_hfclk_start() from a
+ * critical section, where the ~360 us blocking HFXO startup would stall
+ * interrupt handling; keeping it running makes start a fast no-op. Set to
+ * 0 to actually stop the HFXO for lower idle power at the cost of that
+ * blocking restart (safe for the RTCs, which run off LFCLK). A proper
+ * async start via the CLOCK IRQ would remove the trade-off.
+ */
+#ifndef NRF_802154_PLATFORM_HFXO_ALWAYS_ON
+#define NRF_802154_PLATFORM_HFXO_ALWAYS_ON 1
+#endif
+
 static volatile bool hfclk_running;
 static volatile bool lfclk_running;
 /*---------------------------------------------------------------------------*/
@@ -111,13 +124,14 @@ nrf_802154_clock_hfclk_start(void)
 void
 nrf_802154_clock_hfclk_stop(void)
 {
-  /*
-   * Keep the HFXO running so hfclk_start() never has to busy-wait inside a
-   * critical section. Only drop the constant-latency request. (A future
-   * optimization could actually stop the HFXO for lower idle power; on the
-   * nRF5340 that is safe for the RTC, which runs off LFCLK.)
-   */
   set_constant_latency(false);
+#if !NRF_802154_PLATFORM_HFXO_ALWAYS_ON
+  nrf_clock_task_trigger(NRF_CLOCK, NRF_CLOCK_TASK_HFCLKSTOP);
+  hfclk_running = false;
+#endif
+  /* With NRF_802154_PLATFORM_HFXO_ALWAYS_ON, the HFXO stays running so
+   * hfclk_start() never has to busy-wait inside a critical section; see
+   * the comment at the definition. */
 }
 /*---------------------------------------------------------------------------*/
 bool
