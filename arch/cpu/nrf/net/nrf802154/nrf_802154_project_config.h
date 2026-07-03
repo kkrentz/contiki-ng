@@ -27,7 +27,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  *
- * DRAFT nrf_802154 library configuration for a Contiki-NG nRF5340
+ * nrf_802154 library configuration for the Contiki-NG nRF5340
  * network-core radio port. Adapted from the nRF54L15 port
  * (arch/cpu/nrf/nrf54l15/nrf_802154_project_config.h).
  *
@@ -62,10 +62,10 @@
  * (Build must NOT enable NRFX_RTC1 so this file owns RTC1_IRQHandler.) */
 #define NRF_802154_RTC_INSTANCE_NO                  1
 
-/* EGU0 (library default) is unused by Contiki-NG on the net core. Verify
- * the DPPIC channels (4-8,10,14,...) are free once the legacy
- * nrf-ieee-driver-arch.c (which used nrfx_gppi) is removed from the
- * net-core build. */
+/* EGU0 (library default) is unused by Contiki-NG on the net core. The
+ * library's DPPIC channels are likewise free: the only other nrfx_gppi
+ * user on this core, the legacy nrf-ieee-driver-arch.c, is excluded from
+ * the build when NRF_802154=1 (see nrf802154.mk). */
 
 /* ---- IRQ ownership ---------------------------------------------------- */
 

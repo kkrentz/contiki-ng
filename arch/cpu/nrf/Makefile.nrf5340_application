@@ -22,8 +22,20 @@ CFLAGS += -DCPU_CONF_PATH=\"nrf5340-application-conf.h\"
 CFLAGS += -DCPU_DEF_PATH=\"nrf5340-application-def.h\"
 CFLAGS += -DNRFX_USBREG_ENABLED
 
-CFLAGS += -mfloat-abi=hard 
+CFLAGS += -mfloat-abi=hard
 CFLAGS += -mfpu=fpv5-sp-d16
+
+## nrf_802154 net-core pairing.
+##
+## Build with NRF_802154=1 when the network core runs the IPC radio
+## service built with NRF_802154=1 (nrf_802154 library radio). That radio
+## acknowledges received frames in hardware and reports the transmit
+## verdict (RADIO_TX_OK/RADIO_TX_NOACK) over IPC, so CSMA must trust the
+## verdict instead of polling for ACK frames, which the net core never
+## forwards. Both firmwares must be built with the same setting.
+ifeq ($(NRF_802154),1)
+CFLAGS += -DCSMA_CONF_USE_RADIO_ACK=1
+endif
 
 ## TrustZone convenience flag.
 ##
