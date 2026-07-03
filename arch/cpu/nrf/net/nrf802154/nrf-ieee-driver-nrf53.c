@@ -84,9 +84,22 @@
 /* TX buffer in nrf_802154 raw format: [PHR (length incl. FCS)] [PSDU ...]. */
 static uint8_t tx_buf[1 + MAX_PAYLOAD_LEN + 2];
 
-/* Software RX ring, sized to the driver's advertised buffer count so bursts
- * are not dropped while the upper layer drains them outside ISR context. */
-#define RX_BUF_COUNT NRF_802154_RX_BUFFERS
+/*
+ * Software RX ring. The head/tail indices are free-running uint8_t values,
+ * so the ring size must be a power of two for the index mapping to stay
+ * consistent across their 256-wrap. It must also be at least as large as
+ * the library's RX buffer pool: the library can never have more frames
+ * outstanding than it has buffers, so enqueue can then never overwrite an
+ * unread slot.
+ */
+#define RX_BUF_COUNT 32
+#define RX_BUF_MASK  (RX_BUF_COUNT - 1)
+#if (RX_BUF_COUNT & RX_BUF_MASK) != 0
+#error RX_BUF_COUNT must be a power of two
+#endif
+#if RX_BUF_COUNT < NRF_802154_RX_BUFFERS
+#error RX_BUF_COUNT must be >= NRF_802154_RX_BUFFERS
+#endif
 static uint8_t *rx_bufs[RX_BUF_COUNT];
 static int8_t rx_rssi[RX_BUF_COUNT];
 static uint8_t rx_lqi[RX_BUF_COUNT];
@@ -101,11 +114,19 @@ static volatile bool cca_done;
 static volatile bool cca_free;
 
 static volatile uint32_t rx_fail_count;
+static volatile uint32_t rx_drop_count;
 static volatile uint32_t tx_fail_count;
 
 static uint8_t current_channel = DEFAULT_CHANNEL;
 static int8_t current_tx_power = DEFAULT_TX_POWER;
 static bool radio_is_on;
+
+/* Reflects the hardware configuration applied in init(): frame filtering
+ * enabled, auto-ACK enabled. Poll mode is not supported (RX is
+ * interrupt-driven), so it is never present in rx_mode. */
+static radio_value_t rx_mode =
+  RADIO_RX_MODE_ADDRESS_FILTER | RADIO_RX_MODE_AUTOACK;
+static radio_value_t tx_mode;
 /*---------------------------------------------------------------------------*/
 PROCESS(nrf53_radio_process, "nRF53 radio driver");
 /*---------------------------------------------------------------------------*/
@@ -153,9 +174,16 @@ recover_to_receive_state(void)
     return;
   }
 
-  if(nrf_802154_sleep()) {
-    (void)wait_for_flag(&tx_done, TX_ABORT_TIMEOUT_US);
-  }
+  /*
+   * Request sleep to abort any operation still in progress. An aborted
+   * transmission reports through nrf_802154_transmit_failed(), which sets
+   * tx_done; waiting for it here keeps a late TX completion callback from
+   * leaking into the next transmit()'s freshly cleared flags. When no TX is
+   * pending (e.g. the CCA timeout path), tx_done is still set from the last
+   * completed transmission and the wait returns immediately.
+   */
+  nrf_802154_sleep();
+  (void)wait_for_flag(&tx_done, TX_ABORT_TIMEOUT_US);
 
   if(!nrf_802154_receive()) {
     LOG_WARN("Failed to restore receive state\n");
@@ -180,6 +208,15 @@ init(void)
   nrf_802154_auto_ack_set(true);
   nrf_802154_rx_on_when_idle_set(true);
 
+  /*
+   * Seed the PAN ID and addresses from this (net) core's configuration and
+   * FICR-derived link-layer address as a fallback. The application core's
+   * link-layer address differs (each core derives it from its own FICR
+   * DEVICEID), so the app core pushes its authoritative addresses over IPC
+   * right after radio init (see ipc_radio_init() in nrf-ipc-radio.c); those
+   * arrive through set_object() below and override this seeding. Hardware
+   * frame filtering and auto-ACK operate on whatever is programmed last.
+   */
   pan_id[0] = (uint8_t)(IEEE802154_PANID & 0xFF);
   pan_id[1] = (uint8_t)(IEEE802154_PANID >> 8);
   nrf_802154_pan_id_set(pan_id);
@@ -198,6 +235,9 @@ init(void)
   rx_head = 0;
   rx_tail = 0;
   radio_is_on = false;
+  /* No transmission is in flight, so the TX completion state is settled;
+   * recover_to_receive_state() relies on this. */
+  tx_done = true;
 
   process_start(&nrf53_radio_process, NULL);
 
@@ -257,7 +297,7 @@ transmit(unsigned short transmit_len)
 {
   nrf_802154_transmit_metadata_t metadata = {
     .frame_props = NRF_802154_TRANSMITTED_FRAME_PROPS_DEFAULT_INIT,
-    .cca = false,
+    .cca = (tx_mode & RADIO_TX_MODE_SEND_ON_CCA) != 0,
     .tx_power = { .use_metadata_value = false },
     .tx_channel = { .use_metadata_value = false },
   };
@@ -297,6 +337,10 @@ transmit(unsigned short transmit_len)
   if(!wait_for_flag(&tx_done, TX_DONE_TIMEOUT_US)) {
     LOG_WARN("TX timeout\n");
     ENERGEST_SWITCH(ENERGEST_TYPE_TRANSMIT, ENERGEST_TYPE_LISTEN);
+    /* Abort the stuck transmission and let the completion flags settle
+     * before returning, so a late TX callback cannot corrupt the result of
+     * the next transmit(). */
+    recover_to_receive_state();
     return RADIO_TX_ERR;
   }
 
@@ -320,7 +364,10 @@ transmit(unsigned short transmit_len)
 static int
 send(const void *payload, unsigned short payload_len)
 {
-  prepare(payload, payload_len);
+  if(prepare(payload, payload_len) != 0) {
+    /* Transmitting anyway would send the stale contents of tx_buf. */
+    return RADIO_TX_ERR;
+  }
   return transmit(payload_len);
 }
 /*---------------------------------------------------------------------------*/
@@ -335,10 +382,19 @@ radio_read(void *buf, unsigned short buf_len)
     return 0;
   }
 
-  idx = rx_tail % RX_BUF_COUNT;
+  idx = rx_tail & RX_BUF_MASK;
   p_data = rx_bufs[idx];
 
   if(p_data == NULL) {
+    rx_tail++;
+    return 0;
+  }
+
+  if(p_data[0] < 2) {
+    /* Malformed PHR; cannot happen for CRC-checked frames, but guard the
+     * unsigned underflow below. */
+    nrf_802154_buffer_free_raw(p_data);
+    rx_bufs[idx] = NULL;
     rx_tail++;
     return 0;
   }
@@ -408,10 +464,10 @@ get_value(radio_param_t param, radio_value_t *value)
     *value = (radio_value_t)nrf_802154_channel_get();
     return RADIO_RESULT_OK;
   case RADIO_PARAM_RX_MODE:
-    *value = 0;
+    *value = rx_mode;
     return RADIO_RESULT_OK;
   case RADIO_PARAM_TX_MODE:
-    *value = 0;
+    *value = tx_mode;
     return RADIO_RESULT_OK;
   case RADIO_PARAM_TXPOWER:
     *value = (radio_value_t)nrf_802154_tx_power_get();
@@ -426,10 +482,11 @@ get_value(radio_param_t param, radio_value_t *value)
     *value = 26;
     return RADIO_RESULT_OK;
   case RADIO_CONST_TXPOWER_MIN:
-    *value = -20;
+    /* nRF5340 radio output power range is -40..+3 dBm. */
+    *value = -40;
     return RADIO_RESULT_OK;
   case RADIO_CONST_TXPOWER_MAX:
-    *value = 8;
+    *value = 3;
     return RADIO_RESULT_OK;
   case RADIO_CONST_MAX_PAYLOAD_LEN:
     *value = MAX_PAYLOAD_LEN;
@@ -458,11 +515,28 @@ set_value(radio_param_t param, radio_value_t value)
     nrf_802154_channel_set(current_channel);
     return RADIO_RESULT_OK;
   case RADIO_PARAM_TXPOWER:
+    if(value < -40 || value > 3) {
+      return RADIO_RESULT_INVALID_VALUE;
+    }
     current_tx_power = (int8_t)value;
     nrf_802154_tx_power_set(current_tx_power);
     return RADIO_RESULT_OK;
   case RADIO_PARAM_RX_MODE:
+    if((value & ~(radio_value_t)(RADIO_RX_MODE_ADDRESS_FILTER |
+                                 RADIO_RX_MODE_AUTOACK)) != 0) {
+      /* Poll mode is not supported: reception is interrupt-driven and
+       * frames are forwarded to the app core by the IPC MAC. */
+      return RADIO_RESULT_NOT_SUPPORTED;
+    }
+    nrf_802154_promiscuous_set((value & RADIO_RX_MODE_ADDRESS_FILTER) == 0);
+    nrf_802154_auto_ack_set((value & RADIO_RX_MODE_AUTOACK) != 0);
+    rx_mode = value;
+    return RADIO_RESULT_OK;
   case RADIO_PARAM_TX_MODE:
+    if((value & ~(radio_value_t)RADIO_TX_MODE_SEND_ON_CCA) != 0) {
+      return RADIO_RESULT_NOT_SUPPORTED;
+    }
+    tx_mode = value;
     return RADIO_RESULT_OK;
   default:
     return RADIO_RESULT_NOT_SUPPORTED;
@@ -524,16 +598,21 @@ nrf_802154_received_timestamp_raw(uint8_t *p_data, int8_t power,
   (void)time;
 
   if(((uint8_t)(rx_head - rx_tail)) >= RX_BUF_COUNT) {
-    /* Ring full -- drop the oldest frame. */
-    uint8_t oldest = rx_tail % RX_BUF_COUNT;
-    if(rx_bufs[oldest] != NULL) {
-      nrf_802154_buffer_free_raw(rx_bufs[oldest]);
-      rx_bufs[oldest] = NULL;
-    }
-    rx_tail++;
+    /*
+     * Ring full -- drop the incoming frame. Only the consumer
+     * (radio_read(), process context) may advance rx_tail or free queued
+     * buffers; freeing the oldest entry from this ISR would race a read in
+     * progress. Unreachable as long as RX_BUF_COUNT >=
+     * NRF_802154_RX_BUFFERS, since the library cannot have more frames
+     * outstanding than its buffer pool.
+     */
+    nrf_802154_buffer_free_raw(p_data);
+    rx_drop_count++;
+    process_poll(&nrf53_radio_process);
+    return;
   }
 
-  idx = rx_head % RX_BUF_COUNT;
+  idx = rx_head & RX_BUF_MASK;
   rx_bufs[idx] = p_data;
   rx_rssi[idx] = power;
   rx_lqi[idx] = lqi;
@@ -630,6 +709,10 @@ PROCESS_THREAD(nrf53_radio_process, ev, data)
         LOG_WARN("RX failed %" PRIu32 " times\n", rx_fail_count);
       }
       rx_fail_count = 0;
+    }
+    if(rx_drop_count > 0) {
+      LOG_WARN("RX ring full, dropped %" PRIu32 " frames\n", rx_drop_count);
+      rx_drop_count = 0;
     }
     if(tx_fail_count > 0) {
       LOG_WARN("TX failed %" PRIu32 " times\n", tx_fail_count);
