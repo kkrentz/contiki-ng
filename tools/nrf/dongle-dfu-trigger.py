@@ -201,5 +201,8 @@ except usb.core.USBError as e:
         print(f"error: cannot send DFU detach request: {e}", file=sys.stderr)
         sys.exit(1)
 
-print("DFU detach triggered.")
-sys.exit(0)
+print("DFU detach triggered.", flush=True)
+# The dongle has just dropped off the bus, and libusb (notably its macOS
+# IOKit backend) can hang while closing the vanished device handle
+# during interpreter teardown. Exit without running any finalizers.
+os._exit(0)
