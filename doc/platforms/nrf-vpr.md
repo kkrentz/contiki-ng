@@ -1,6 +1,6 @@
-# nrf-vpr: Nordic Semiconductor nRF54L15 FLPR (RV32E coprocessor)
+# nrf-vpr: Nordic Semiconductor nRF54L15 FLPR (RV32EMC coprocessor)
 
-This guide describes the Contiki-NG port for the **FLPR** (Fast Lightweight Peripheral Processor) — the RISC-V VPR coprocessor on the nRF54L15. The FLPR is an RV32E core (16 GP registers, no F/D extensions) with its own tightly-coupled SRAM/RRAM partitions. It does not run by itself; the Cortex-M33 application core loads its firmware into SRAM and releases it from reset at run time.
+This guide describes the Contiki-NG port for the **FLPR** (Fast Lightweight Peripheral Processor) — the RISC-V VPR coprocessor on the nRF54L15. The FLPR is an RV32EMC core — the RV32E base (16 GP registers, no F/D extensions) plus the M (hardware 32-bit multiply/divide) and C (compressed-instruction) extensions — with its own tightly-coupled SRAM/RRAM partitions. It does not run by itself; the Cortex-M33 application core loads its firmware into SRAM and releases it from reset at run time.
 
 Hardware-validated on both the nRF54L15-DK (PCA10156) and the Seeed XIAO
 nRF54L15 (`BOARD=nrf54l15/xiao`; see *Boards* below).
@@ -41,20 +41,21 @@ Same as the existing `nrf` port:
 
 ### FLPR side
 
-* A bare-metal RISC-V GCC toolchain that ships **both** an `rv32e`/`ilp32e`
-  multilib (libgcc — the FLPR has no M extension, so integer multiply/divide
-  are soft routines) **and** a C library (newlib — the kernel includes
-  `<inttypes.h>`). GCC 12+ is needed for the `zicsr`/`zifencei` extension
-  strings (14.3+ recommended).
+* A bare-metal RISC-V GCC toolchain that ships **both** an `rv32emc`/`ilp32e`
+  multilib (libgcc — the FLPR has the M extension for hardware 32-bit
+  multiply/divide, but libgcc is still needed for 64-bit division, e.g.
+  `__udivdi3` in `clock_time()`) **and** a C library (newlib — the kernel
+  includes `<inttypes.h>`). GCC 12+ is needed for the `zicsr`/`zifencei`
+  extension strings (14.3+ recommended).
 
-  > A compiler-only GCC without newlib or the `rv32e` multilib (for example
+  > A compiler-only GCC without newlib or the `rv32emc` multilib (for example
   > Homebrew's `riscv64-elf-gcc`) will compile but fail to link/headers. Verify a
   > candidate with `<prefix>-gcc -print-multi-lib | grep ilp32e` (must print an
-  > rv32e variant) and `<prefix>-gcc -print-file-name=libc.a` (must be a real path).
+  > rv32e-family variant such as `rv32emc`) and `<prefix>-gcc -print-file-name=libc.a` (must be a real path).
 
   Two known-good options:
 
-  * **xPack `riscv-none-elf-gcc`** — prebuilt, includes the rv32e multilib and
+  * **xPack `riscv-none-elf-gcc`** — prebuilt, includes the rv32emc multilib and
     newlib. Install via `npm i -g @xpack-dev-tools/riscv-none-elf-gcc` or the
     release tarball, then build with `RISCV_PREFIX=riscv-none-elf RISCV_PATH=<dir>`.
   * **Prebuilt SDK** at `riscv64-zephyr-elf` layout:
@@ -76,7 +77,7 @@ End-to-end on an nRF54L15-DK (PCA10156). One `flpr-host` build produces a
 single M33 image with the FLPR firmware embedded in it — you flash one image.
 
 **1. Install the toolchains** (see *Prerequisites and Setup* above): the
-   `arm-none-eabi` toolchain for the M33 and an rv32e-capable RISC-V GCC for the
+   `arm-none-eabi` toolchain for the M33 and an rv32emc-capable RISC-V GCC for the
    FLPR (default `RISCV_PREFIX=riscv64-zephyr-elf` at `~/zephyr-toolchain-riscv`;
    select another with `RISCV_PREFIX=`/`RISCV_PATH=`).
 
@@ -160,7 +161,7 @@ observable through its serial `[FLPR] tick` logging.
 * `RISCV_PREFIX=<prefix>` — tool prefix (default: `riscv64-zephyr-elf`). For example, `RISCV_PREFIX=riscv-none-elf` selects an xPack toolchain.
 * `TOOLCHAIN_BIN=<dir>/bin/<prefix>-` — set the full tool path/prefix directly, bypassing the two above.
 * `ZSDK_RISCV=<path>` — backward-compatible alias for `RISCV_PATH`.
-  The toolchain must ship an `rv32e`/`ilp32e` multilib (libgcc) and a C library (newlib); a compiler-only GCC without those will not link the FLPR.
+  The toolchain must ship an `rv32emc`/`ilp32e` multilib (libgcc) and a C library (newlib); a compiler-only GCC without those will not link the FLPR.
 * `WERROR=0` — currently required for the M33 build because of an RWX-segment warning from nrfx's M33 linker script. The FLPR build sets `-Wl,--no-warn-rwx-segments` directly so `WERROR` does not need to be relaxed.
 
 ## How it boots
@@ -208,11 +209,25 @@ The nRF54L15 802.15.4 backend uses TIMER20 and TIMER10 (`nrf_802154_platform_sl_
 
 The nrfx-provided `Trap_Handler` is a silent infinite loop. `arch/cpu/nrf-vpr/startup-stubs.c` reroutes `mtvec` to a handler that writes `0xFA1100 | mcause` to `0x2003F000` and `mepc` to `0x2003F004` before spinning, so any CPU exception is visible from the M33-side console instead of silently hanging the FLPR.
 
+When `flpr-host` prints `[FLPR] counter 0xFA1100XX mepc=0xYYYYYYYY` instead of an
+advancing `tick`, the FLPR took an exception: `XX` is the RISC-V `mcause` and
+`mepc` is the faulting PC. Common causes:
+
+| `mcause` | Meaning |
+| -------- | ------------------- |
+| `2`      | Illegal instruction |
+| `5`      | Load access fault   |
+| `7`      | Store access fault  |
+
+A load/store access fault (5/7) most often means a peripheral was accessed
+through its Non-Secure alias — see *GRTC must be read via the Secure address*
+above.
+
 ### Bringing up a new board
 
 When porting to a board other than the DK or XIAO, confirm the M33-side boot dance
 actually starts the VPR *before* debugging the full kernel. Replace the FLPR
-blob with this five-instruction RV32E "stamp" — it writes a known marker to the
+blob with this five-instruction RISC-V "stamp" — it writes a known marker to the
 shared counter and spins:
 
     .section .startup, "ax"
@@ -224,7 +239,7 @@ shared counter and spins:
         sw   t1, 0(t0)          /* [0x2003F000] = 0xCAFEBABE */
     1:  j    1b
 
-Assemble it with the RISC-V toolchain (`-march=rv32e -mabi=ilp32e`), point
+Assemble it with the RISC-V toolchain (`-march=rv32emc -mabi=ilp32e`), point
 `tools/flpr-blob-gen.py` at the resulting `.bin`, and flash `flpr-host`. If the
 M33 reads back `0xCAFEBABE` from `0x2003F000`, INITPC/CPURUN and the SPU
 SECATTR step are correct and you can move on to the real firmware. If it stays
