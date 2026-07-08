@@ -83,10 +83,16 @@
 #define NAT64_TCP_SEGMENT_SIZE 76
 #endif
 
-/* Per-session buffer for paced server-to-IoT delivery.  Must hold at
- * least one recv() worth of data from the IPv4 socket. */
+/* The native socket backend reads up to 1500 bytes at a time.  The
+ * splice proxy does not have a second staging buffer, so this buffer
+ * must be large enough to retain every byte already consumed from the
+ * IPv4 socket. */
 #ifndef NAT64_TCP_RXBUF_SIZE
 #define NAT64_TCP_RXBUF_SIZE 1500
+#endif
+
+#if NAT64_TCP_RXBUF_SIZE < 1500
+#error "NAT64_TCP_RXBUF_SIZE must be at least 1500 bytes"
 #endif
 
 /* Retransmit timeout for an injected paced segment that has not been
@@ -193,7 +199,17 @@ tcp6_checksum(const struct v6hdr *ip6, const void *tcp, uint16_t tcp_len)
 }
 
 /*---------------------------------------------------------------------------*/
-/* Per-session TCP sequence number state.                                    */
+/* Per-session TCP sequence number state.
+ *
+ * The proxy terminates TCP on both sides, so the numbers here describe
+ * only the synthetic IoT-facing stream.  our_seq is the next sequence
+ * number to send to the IoT node; peer_next is the next sequence number
+ * expected from it.  Buffered server data is stop-and-wait: while
+ * in_flight is non-zero, rxbuf_offset and our_seq still point at the
+ * retransmittable bytes and advance only after the IoT ACK covers them.
+ * initial_our_seq is kept separately so a retransmitted SYN can get the
+ * same SYN-ACK even after our_seq has advanced past the SYN.
+ */
 /*---------------------------------------------------------------------------*/
 
 struct tcp_seqstate {
@@ -202,9 +218,10 @@ struct tcp_seqstate {
   bool peer_fin_received;
   bool server_fin_pending;
   struct nat64_session *session;
+  uint32_t initial_our_seq;
   uint32_t our_seq;
   uint32_t peer_next;
-  /* Paced delivery buffer for server→IoT data. */
+  /* Paced delivery buffer for server-to-IoT data. */
   uint8_t rxbuf[NAT64_TCP_RXBUF_SIZE];
   uint16_t rxbuf_len;
   uint16_t rxbuf_offset;
@@ -287,6 +304,7 @@ alloc_seqstate(struct nat64_session *s, uint32_t peer_isn)
       tcp_seq[i].server_fin_pending = false;
       tcp_seq[i].session = s;
       tcp_seq[i].our_seq = generate_isn(s);
+      tcp_seq[i].initial_our_seq = tcp_seq[i].our_seq;
       tcp_seq[i].peer_next = peer_isn + 1;
       tcp_seq[i].rxbuf_len = 0;
       tcp_seq[i].rxbuf_offset = 0;
@@ -411,8 +429,8 @@ nat64_tcp_output(const uint8_t *pkt, uint16_t len)
 
   tcp = (const struct tcphdr *)(pkt + IPV6_HDRLEN);
   data_offset = ((tcp->offset >> 4) & 0x0f) * 4;
-  if(data_offset > payload_len) {
-    LOG_WARN("tcp_output: data offset %u exceeds payload %u\n",
+  if(data_offset < TCP_HDRLEN || data_offset > payload_len) {
+    LOG_WARN("tcp_output: invalid data offset %u for payload %u\n",
              data_offset, payload_len);
     return 0;
   }
@@ -423,6 +441,19 @@ nat64_tcp_output(const uint8_t *pkt, uint16_t len)
            tcp->flags, data_len, (unsigned long)seq);
 
   if(tcp->flags & TCP_SYN) {
+    struct tcp_seqstate *ts = find_seqstate_by_addrs(
+      &ip6->src, uip_ntohs(tcp->sport),
+      &dst4, uip_ntohs(tcp->dport));
+    if(ts != NULL) {
+      uint32_t saved_seq = ts->our_seq;
+
+      LOG_INFO("TCP duplicate SYN: retransmitting SYN-ACK\n");
+      ts->our_seq = ts->initial_our_seq;
+      inject_tcp(ts->session, ts, TCP_SYN | TCP_ACK, NULL, 0);
+      ts->our_seq = saved_seq;
+      return 1;
+    }
+
     LOG_INFO("TCP SYN: port %u -> %u.%u.%u.%u:%u\n",
              uip_ntohs(tcp->sport),
              dst4.u8[0], dst4.u8[1], dst4.u8[2], dst4.u8[3],
@@ -467,8 +498,8 @@ nat64_tcp_output(const uint8_t *pkt, uint16_t len)
         nat64_tcp_ack_confirmed(ts);
       }
     } else if(ts->rxbuf_len > ts->rxbuf_offset) {
-      /* No segment in flight but data is buffered (e.g., recovery
-       * after retransmit-limit teardown of a sibling state). */
+      /* Make progress if the previous sender stopped after clearing
+       * in_flight but before queuing the next buffered segment. */
       nat64_tcp_send_pending(ts);
     }
   }
@@ -673,8 +704,8 @@ nat64_tcp_established(struct nat64_session *s)
 {
   struct tcp_seqstate *ts = alloc_seqstate(s, s->peer_isn);
   if(ts == NULL) {
-    LOG_ERR("TCP seqstate table full, closing connection\n");
-    nat64_platform_tcp_close(s);
+    LOG_ERR("TCP seqstate table full, aborting connection\n");
+    nat64_platform_tcp_abort(s);
     return;
   }
 
@@ -706,8 +737,8 @@ nat64_tcp_data_in(struct nat64_session *s,
   ts->rxbuf_len = len;
   ts->rxbuf_offset = 0;
 
-  /* Send the first chunk immediately; the rest will be paced by
-   * nat64_tcp_send_pending() as ACKs arrive from the IoT node. */
+  /* ACK pacing starts immediately; later chunks are sent only after
+   * the IoT node confirms the previous one. */
   nat64_tcp_send_pending(ts);
 }
 /*---------------------------------------------------------------------------*/

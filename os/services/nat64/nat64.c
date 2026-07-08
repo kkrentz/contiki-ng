@@ -485,8 +485,6 @@ handle_icmp6_output(const uint8_t *pkt, const struct v6hdr *ip6,
 
   icmp = pkt + IPV6_HDRLEN;
 
-  /* Only Echo Request is forwarded.  Other ICMPv6 types (Neighbor
-   * Discovery, MLD, ...) are link-local and never traverse NAT64. */
   if(icmp[0] != ICMP6_ECHO_REQUEST) {
     LOG_DBG("icmp6_output: ignoring ICMPv6 type %u\n", icmp[0]);
     return 0;
@@ -498,8 +496,6 @@ handle_icmp6_output(const uint8_t *pkt, const struct v6hdr *ip6,
     return 0;
   }
 
-  /* Translate to ICMPv4 Echo Request: rewrite type and recompute the
-   * checksum (which has no IPv4 pseudo-header). */
   memcpy(icmp_buf, icmp, payload_len);
   icmp_buf[0] = ICMP4_ECHO_REQUEST;
   icmp_buf[2] = 0;

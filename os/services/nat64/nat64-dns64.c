@@ -75,16 +75,16 @@
 #define DNS_QTAIL_QCLASS    2
 #define DNS_QTAIL_SIZE      4
 
-/* Read a big-endian uint16 from a byte buffer. */
-#define RD16(p) (((uint16_t)(p)[0] << 8) | (p)[1])
-/* Write a big-endian uint16 into a byte buffer. */
-#define WR16(p, v) do { (p)[0] = (uint8_t)((v) >> 8); \
-                        (p)[1] = (uint8_t)(v); } while(0)
+/* Read a big-endian uint16 from a DNS packet buffer. */
+#define RD16(bytes) (((uint16_t)(bytes)[0] << 8) | (bytes)[1])
+/* Write a big-endian uint16 into a DNS packet buffer. */
+#define WR16(bytes, value) do { (bytes)[0] = (uint8_t)((value) >> 8); \
+                                (bytes)[1] = (uint8_t)(value); } while(0)
 /*---------------------------------------------------------------------------*/
 /*
- * Skip over a DNS name in a packet (handling label sequences and
- * compressed pointers per RFC 1035 Section 4.1.4).
- * Returns a pointer past the name, or NULL on error.
+ * DNS names can be either inline label chains or two-byte compression
+ * pointers. Callers only need the byte range occupied by the encoded
+ * name; pointer targets are never dereferenced here.
  */
 static const uint8_t *
 skip_dns_name(const uint8_t *p, const uint8_t *end)
@@ -123,7 +123,8 @@ nat64_dns64_6to4(uint8_t *data, uint16_t len)
   LOG_DBG("DNS64 6to4: id=0x%04x, %u questions\n",
           RD16(&data[DNS_HDR_ID]), qdcount);
 
-  /* Walk each question and change AAAA queries to A. */
+  /* Ask the upstream IPv4 resolver for A records on behalf of each
+   * IoT-side AAAA question. */
   for(uint16_t i = 0; i < qdcount; i++) {
     const uint8_t *after_name = skip_dns_name(p, end);
     if(after_name == NULL || after_name + DNS_QTAIL_SIZE > end) {
@@ -164,8 +165,8 @@ nat64_dns64_4to6(const uint8_t *ipv4data, uint16_t ipv4len,
   LOG_DBG("DNS64 4to6: id=0x%04x, %u answers\n",
           RD16(&ipv4data[DNS_HDR_ID]), ancount);
 
-  /* Skip past the question section in both src and dst buffers.
-   * Also patch QTYPE from A back to AAAA in the output. */
+  /* The response should still look like an answer to the IoT node's
+   * original AAAA question, even though the upstream query was A. */
   for(uint16_t i = 0; i < qdcount; i++) {
     const uint8_t *after_name = skip_dns_name(src, src_end);
     if(after_name == NULL || after_name + DNS_QTAIL_SIZE > src_end) {
@@ -181,12 +182,9 @@ nat64_dns64_4to6(const uint8_t *ipv4data, uint16_t ipv4len,
     dst = ipv6data + (src - ipv4data);
   }
 
-  /* Now process each answer RR.  A (4-byte RDATA) records are expanded
-   * to AAAA (16 bytes), shifting all subsequent data by +12 per record.
-   * After the answer section we truncate authority and additional
-   * sections rather than attempting to relocate them — their data would
-   * be at wrong offsets after expansion, and IoT resolvers do not need
-   * them. */
+  /* Expanding A records shifts every later byte in the DNS message.
+   * We rewrite complete answers only, then drop authority/additional
+   * sections whose compressed names may point at offsets that moved. */
   uint16_t emitted_ancount = 0;
   /* Marks the start of the current answer's output bytes.  On a
    * mid-RR truncate, dst is rewound to this point so the message
@@ -195,7 +193,6 @@ nat64_dns64_4to6(const uint8_t *ipv4data, uint16_t ipv4len,
   for(uint16_t i = 0; i < ancount; i++) {
     rr_start = dst;
 
-    /* Copy/skip the name in the answer. */
     const uint8_t *name_end = skip_dns_name(src, src_end);
     if(name_end == NULL) {
       goto truncate;
@@ -209,7 +206,6 @@ nat64_dns64_4to6(const uint8_t *ipv4data, uint16_t ipv4len,
     src += name_len;
     dst += name_len;
 
-    /* We need at least 10 bytes for TYPE(2)+CLASS(2)+TTL(4)+RDLENGTH(2). */
     if(src + 10 > src_end) {
       goto truncate;
     }
