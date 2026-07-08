@@ -1,4 +1,4 @@
 ### Platform source files
 CONTIKI_TARGET_SOURCEFILES += gpio-hal-arch.c buttons.c
 
-include $(CONTIKI_NG_RELOC_PLATFORM_DIR)/msp430fr5969/Makefile.common
+include $(CONTIKI_NG_RELOC_PLATFORM_DIR)/msp-exp430fr5969/Makefile.common

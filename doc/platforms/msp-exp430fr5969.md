@@ -1,4 +1,4 @@
-# msp430fr5969: TI MSP-EXP430FR5969 LaunchPad
+# msp-exp430fr5969: TI MSP-EXP430FR5969 LaunchPad
 
 This guide describes the Contiki-NG port for the Texas Instruments
 MSP-EXP430FR5969 LaunchPad development kit featuring the MSP430FR5969
@@ -38,7 +38,7 @@ The following features have been implemented:
 * Low-power modes (LPM3 when idle)
 
 The port is organized as follows:
-* Platform-specific files are in `arch/platform/msp430fr5969/`
+* Platform-specific files are in `arch/platform/msp-exp430fr5969/`
 * MSP430 CPU files are in `arch/cpu/msp430/`
 * Platform uses the FR5xxx-specific Clock System (CS) module
 
@@ -96,7 +96,7 @@ To compile the hello-world example:
 
 ```bash
 cd examples/hello-world
-make TARGET=msp430fr5969
+make TARGET=msp-exp430fr5969
 ```
 
 ### Programming
@@ -104,13 +104,13 @@ make TARGET=msp430fr5969
 Upload the firmware using mspdebug:
 
 ```bash
-make TARGET=msp430fr5969 hello-world.upload
+make TARGET=msp-exp430fr5969 hello-world.upload
 ```
 
 Or program directly:
 
 ```bash
-mspdebug tilib "prog build/msp430fr5969/hello-world.msp430fr5969"
+mspdebug tilib "prog build/msp-exp430fr5969/hello-world.msp-exp430fr5969"
 ```
 
 ### Reset
@@ -118,7 +118,7 @@ mspdebug tilib "prog build/msp430fr5969/hello-world.msp430fr5969"
 Reset the device without reprogramming:
 
 ```bash
-make TARGET=msp430fr5969 reset
+make TARGET=msp-exp430fr5969 reset
 ```
 
 ### Serial Output
@@ -127,7 +127,7 @@ Connect to the backchannel UART at 115200 baud. The LaunchPad appears as
 two USB serial ports: `/dev/ttyACM0` (debug) and `/dev/ttyACM1` (application UART).
 
 ```bash
-make TARGET=msp430fr5969 PORT=/dev/ttyACM1 login
+make TARGET=msp-exp430fr5969 PORT=/dev/ttyACM1 login
 ```
 
 Or use any serial terminal:
@@ -142,10 +142,10 @@ passthrough mode.
 
 ## Compilation Options
 
-The TARGET name for this port is `msp430fr5969`:
+The TARGET name for this port is `msp-exp430fr5969`:
 
 ```bash
-make TARGET=msp430fr5969
+make TARGET=msp-exp430fr5969
 ```
 
 ### Compilation Targets

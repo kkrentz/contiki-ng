@@ -32,8 +32,8 @@
  *         Hardware definitions for MSP-EXP430FR5969 LaunchPad
  */
 
-#ifndef MSP430FR5969_DEF_H_
-#define MSP430FR5969_DEF_H_
+#ifndef MSP_EXP430FR5969_DEF_H_
+#define MSP_EXP430FR5969_DEF_H_
 
 /*---------------------------------------------------------------------------*/
 /* Platform features */
@@ -110,4 +110,4 @@
 /*---------------------------------------------------------------------------*/
 #define WATCHDOG_CONF_TIMER_A  1
 
-#endif /* MSP430FR5969_DEF_H_ */
+#endif /* MSP_EXP430FR5969_DEF_H_ */
