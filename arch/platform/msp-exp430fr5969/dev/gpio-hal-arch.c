@@ -41,15 +41,29 @@
 
 #include "contiki.h"
 #include "dev/gpio-hal.h"
+#include "sys/process.h"
+#include "sys/etimer.h"
 #include "isr_compat.h"
 #include <msp430.h>
 
 /*---------------------------------------------------------------------------*/
+/* MSP430 port interrupts fire on a single configured edge only. Rather than
+ * emulate a both-edge interrupt in software (which is racy against contact
+ * bounce), we arm the falling edge to catch a press, then poll the pin to
+ * detect the release. Polling runs only while a pin is held, so the idle path
+ * stays in interrupt-driven sleep -- important for low power and intermittent
+ * operation. */
+#define RELEASE_POLL_INTERVAL (CLOCK_SECOND / 16)
+/* Pins awaiting a release, indexed by port (1..4). Set in the ISR, cleared in
+ * the poll process. */
+static volatile uint8_t release_poll_mask[5];
+
+PROCESS(gpio_hal_release_poll_process, "GPIO HAL release poll");
+/*---------------------------------------------------------------------------*/
 void
 gpio_hal_arch_init(void)
 {
-  /* msp430_cpu_init() already clears LOCKLPM5 and drives the GPIOs to
-   * known states, so there is nothing FR5969-specific to do here. */
+  process_start(&gpio_hal_release_poll_process, NULL);
 }
 /*---------------------------------------------------------------------------*/
 void
@@ -73,8 +87,9 @@ gpio_hal_arch_port_pin_cfg_set(gpio_hal_port_t port, gpio_hal_pin_t pin,
       if(pull == GPIO_HAL_PIN_CFG_PULL_UP) { P1OUT |= m; }
       else                                 { P1OUT &= nm; }
     }
-    /* Edge: IES=1 selects high-to-low. EDGE_BOTH is not supported by the
-     * hardware; the closest match (falling) is used. */
+    /* Edge: IES=1 selects high-to-low. The hardware supports one edge per pin;
+     * for EDGE_BOTH we arm the falling edge and detect the rising (release)
+     * transition by polling (see gpio_hal_release_poll_process). */
     if(edge == GPIO_HAL_PIN_CFG_EDGE_RISING) { P1IES &= nm; }
     else                                     { P1IES |= m; }
     P1IFG &= nm;
@@ -185,6 +200,81 @@ piv_to_mask(uint16_t iv)
   return (gpio_hal_pin_mask_t)1 << ((iv - 2) >> 1);
 }
 /*---------------------------------------------------------------------------*/
+static uint8_t
+port_in(uint8_t port)
+{
+  switch(port) {
+  case 1: return P1IN;
+  case 2: return P2IN;
+  case 3: return P3IN;
+  case 4: return P4IN;
+  }
+  return 0;
+}
+/*---------------------------------------------------------------------------*/
+/* Clear stale flags and re-enable the (falling-edge) press interrupt. */
+static void
+rearm_press(uint8_t port, uint8_t mask)
+{
+  switch(port) {
+  case 1: P1IFG &= (uint8_t)~mask; P1IE |= mask; break;
+  case 2: P2IFG &= (uint8_t)~mask; P2IE |= mask; break;
+  case 3: P3IFG &= (uint8_t)~mask; P3IE |= mask; break;
+  case 4: P4IFG &= (uint8_t)~mask; P4IE |= mask; break;
+  }
+}
+/*---------------------------------------------------------------------------*/
+/* Called from a port ISR on a press (falling) edge: disable the pin's
+ * interrupt, record it for release polling and wake the poll process. */
+static void
+start_release_poll(uint8_t port, uint8_t mask)
+{
+  switch(port) {
+  case 1: P1IE &= (uint8_t)~mask; break;
+  case 2: P2IE &= (uint8_t)~mask; break;
+  case 3: P3IE &= (uint8_t)~mask; break;
+  case 4: P4IE &= (uint8_t)~mask; break;
+  }
+  release_poll_mask[port] |= mask;
+  process_poll(&gpio_hal_release_poll_process);
+}
+/*---------------------------------------------------------------------------*/
+PROCESS_THREAD(gpio_hal_release_poll_process, ev, data)
+{
+  static struct etimer et;
+  uint8_t port, released, active;
+
+  PROCESS_BEGIN();
+
+  while(1) {
+    PROCESS_WAIT_EVENT();
+
+    active = 0;
+    for(port = 1; port <= 4; port++) {
+      if(release_poll_mask[port] == 0) {
+        continue;
+      }
+      /* A pull-up pin reading high again has been released. */
+      released = (uint8_t)(release_poll_mask[port] & port_in(port));
+      if(released) {
+        int s = splhigh();
+        release_poll_mask[port] &= (uint8_t)~released;
+        splx(s);
+        rearm_press(port, released);
+        gpio_hal_event_handler(port, released);
+      }
+      if(release_poll_mask[port]) {
+        active = 1;
+      }
+    }
+    if(active) {
+      etimer_set(&et, RELEASE_POLL_INTERVAL);
+    }
+  }
+
+  PROCESS_END();
+}
+/*---------------------------------------------------------------------------*/
 ISR(PORT1, port1_isr)
 {
   gpio_hal_pin_mask_t pins = 0;
@@ -193,7 +283,11 @@ ISR(PORT1, port1_isr)
     pins |= piv_to_mask(iv);
   }
   if(pins) {
+    start_release_poll(1, (uint8_t)pins);
     gpio_hal_event_handler(1, pins);
+    /* Wake the main loop so the posted events are processed instead of the
+     * CPU falling straight back into LPM. */
+    LPM4_EXIT;
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -205,7 +299,9 @@ ISR(PORT2, port2_isr)
     pins |= piv_to_mask(iv);
   }
   if(pins) {
+    start_release_poll(2, (uint8_t)pins);
     gpio_hal_event_handler(2, pins);
+    LPM4_EXIT;
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -217,7 +313,9 @@ ISR(PORT3, port3_isr)
     pins |= piv_to_mask(iv);
   }
   if(pins) {
+    start_release_poll(3, (uint8_t)pins);
     gpio_hal_event_handler(3, pins);
+    LPM4_EXIT;
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -229,7 +327,9 @@ ISR(PORT4, port4_isr)
     pins |= piv_to_mask(iv);
   }
   if(pins) {
+    start_release_poll(4, (uint8_t)pins);
     gpio_hal_event_handler(4, pins);
+    LPM4_EXIT;
   }
 }
 /*---------------------------------------------------------------------------*/

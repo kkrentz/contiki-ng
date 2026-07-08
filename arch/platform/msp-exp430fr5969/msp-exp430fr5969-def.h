@@ -89,6 +89,12 @@
 #define BUTTON_S2_PORT   1
 #define BUTTON_S2_PIN    1
 
+/* The two buttons are on separate GPIO ports (S1 on P4, S2 on P1). With
+ * port-pin numbering the button HAL allocates one event handler per port,
+ * so it needs room for both ports; the default of 1 would leave the second
+ * button's handler unregistered. */
+#define BUTTON_HAL_CONF_PORT_COUNT 2
+
 /*---------------------------------------------------------------------------*/
 /* FRAM memory configuration (non-volatile) */
 /*---------------------------------------------------------------------------*/

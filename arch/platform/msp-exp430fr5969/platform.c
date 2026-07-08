@@ -37,6 +37,7 @@
 #include "contiki.h"
 #include "sys/energest.h"
 #include "dev/button-hal.h"
+#include "dev/gpio-hal.h"
 #include "dev/leds.h"
 #include "dev/serial-line.h"
 #include "dev/uart0.h"
@@ -160,6 +161,9 @@ platform_init_stage_two(void)
 void
 platform_init_stage_three(void)
 {
+  /* Starts the GPIO HAL release-poll process; must run before the button HAL
+   * configures and enables the button interrupts. */
+  gpio_hal_init();
   button_hal_init();
 
   LOG_INFO("Node ID: %u\n", node_id);
