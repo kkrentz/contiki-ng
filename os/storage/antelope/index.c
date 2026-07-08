@@ -134,10 +134,12 @@ index_create(index_type_t index_type, relation_t *rel, attribute_t *attr)
 
   if(index->descriptor_file[0] != '\0' &&
      DB_ERROR(storage_put_index(index))) {
-    api->destroy(index);
-    memb_free(&index_memb, index);
     PRINTF("DB: Failed to store index data in file \"%s\"\n",
            index->descriptor_file);
+    api->destroy(index);
+    attr->index = NULL;
+    list_remove(indices, index);
+    memb_free(&index_memb, index);
     return DB_INDEX_ERROR;
   }
 
