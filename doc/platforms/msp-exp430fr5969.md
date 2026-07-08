@@ -48,15 +48,16 @@ To compile for the MSP430FR5969 you'll need:
 
 ### MSP430 Toolchain
 
-Install the MSP430 GCC toolchain from TI or your package manager:
+This platform builds with the mspgcc toolchain (the `msp430-gcc` command,
+GCC 4.7.x) — the same toolchain used for the other MSP430 platforms (Z1, Sky)
+and for the MSPSim emulator in Cooja. Install it by following
+[Toolchain installation on Linux](../getting-started/Toolchain-installation-on-Linux.md)
+(or the macOS guide).
 
-```bash
-# Ubuntu/Debian
-sudo apt-get install gcc-msp430 msp430-libc msp430mcu
-
-# Or download from TI:
-# https://www.ti.com/tool/MSP430-GCC-OPENSOURCE
-```
+Two platform-specific notes: the `gcc-msp430` package in the Ubuntu/Debian
+repositories is too old to support the MSP430X memory model the FR5969 uses,
+and TI's MSP430-GCC-OPENSOURCE toolchain provides a different command
+(`msp430-elf-gcc`) that this build system does not use.
 
 ### mspdebug
 
