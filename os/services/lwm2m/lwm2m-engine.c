@@ -1155,6 +1155,12 @@ perform_multi_resource_write_op(lwm2m_object_t *object,
 
     while(tlvpos < insize) {
       len = lwm2m_tlv_read(&tlv, &inbuf[tlvpos], insize - tlvpos);
+      if(len == 0) {
+        /* Malformed or truncated TLV - stop parsing to avoid a stuck loop. */
+        LOG_WARN("Failed to read TLV at offset %d/%d\n",
+                 (int)tlvpos, (int)insize);
+        return LWM2M_STATUS_BAD_REQUEST;
+      }
       LOG_DBG("Got TLV format First is: type:%d id:%d len:%d (p:%d len:%d/%d)\n",
              tlv.type, tlv.id, (int) tlv.length,
              (int) tlvpos, (int) len, (int) insize);

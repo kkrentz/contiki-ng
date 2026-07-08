@@ -74,9 +74,24 @@ lwm2m_tlv_read(lwm2m_tlv_t *tlv, const uint8_t *buffer, size_t len)
   uint8_t len_pos = 1;
   size_t tlv_len;
 
+  /* A TLV needs at least the type byte and a single ID byte. */
+  if(len < 2) {
+    LOG_WARN("Truncated TLV header (%u bytes available).\n", (unsigned)len);
+    return 0;
+  }
+
   tlv->type = (buffer[0] >> 6) & 3;
   len_type = (buffer[0] >> 3) & 3;
   len_pos = 1 + (((buffer[0] & (1 << 5)) != 0) ? 2 : 1);
+
+  /* len_pos is the offset of the length field (== header size when there
+     is no separate length field). Ensure the ID bytes and any length
+     bytes are within the buffer before reading them. */
+  if(len < (size_t)len_pos + len_type) {
+    LOG_WARN("Truncated TLV header (need %u bytes, have %u).\n",
+             (unsigned)(len_pos + len_type), (unsigned)len);
+    return 0;
+  }
 
   tlv->id = buffer[1];
   /* if len_pos is larger than two it means that there is more ID to read */
@@ -94,6 +109,15 @@ lwm2m_tlv_read(lwm2m_tlv_t *tlv, const uint8_t *buffer, size_t len)
       len_type--;
     }
   }
+
+  /* Ensure the value fits within the remaining buffer. len_pos now points
+     to the first value byte and is guaranteed to be <= len. */
+  if(tlv_len > len - len_pos) {
+    LOG_WARN("Truncated TLV value (need %u bytes, have %u).\n",
+             (unsigned)tlv_len, (unsigned)(len - len_pos));
+    return 0;
+  }
+
   /* and read out the data??? */
   tlv->length = tlv_len;
   tlv->value = &buffer[len_pos];
