@@ -1076,7 +1076,7 @@ perform_multi_resource_write_op(lwm2m_object_t *object,
       }
       LOG_DBG_("'\n");
 
-      if(json.name[0] == 'n') {
+      if(json.name != NULL && json.name_len > 0 && json.name[0] == 'n') {
         i = parse_path((const char *) json.value, json.value_len, &oid, &iid, &rid);
         if(i > 0) {
           if(ctx->level == 1) {
@@ -1143,8 +1143,12 @@ perform_multi_resource_write_op(lwm2m_object_t *object,
       LOG_DBG("Last TLV ID:%d final:%d\n", last_tlv_id,
               lwm2m_object_is_final_incoming(ctx));
       if(offset > 0) {
+        /* The BLOCK1 size is derived from the option's SZX field and is
+           independent of the actual payload length. Clamp it to the bytes
+           actually present so the resource callback cannot read past the
+           payload buffer. */
         status = process_tlv_write(ctx, object, last_tlv_id,
-                                   inbuf, size);
+                                   inbuf, MIN(size, insize));
         return status;
       }
     }

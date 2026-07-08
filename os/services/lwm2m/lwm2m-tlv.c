@@ -183,6 +183,12 @@ lwm2m_tlv_get_int32(const lwm2m_tlv_t *tlv)
   int i;
   int32_t value = 0;
 
+  /* A zero-length integer represents the value 0. Returning here also
+     avoids reading tlv->value[0] below when there is no value at all. */
+  if(tlv->length == 0) {
+    return 0;
+  }
+
   for(i = 0; i < tlv->length; i++) {
     value = (value << 8) | tlv->value[i];
   }
@@ -289,7 +295,16 @@ lwm2m_tlv_float32_to_fix(const lwm2m_tlv_t *tlv, int32_t *value, int bits)
   /* TLV needs to be 4 bytes */
   int e, i;
   int32_t val;
-  int sign = (tlv->value[0] & 0x80) != 0;
+  int sign;
+
+  /* The IEEE 754 single-precision representation requires exactly 4 bytes.
+     Reject anything shorter to avoid reading past the value. */
+  if(tlv->length < 4) {
+    *value = 0;
+    return 0;
+  }
+
+  sign = (tlv->value[0] & 0x80) != 0;
   e = ((tlv->value[0] << 1) & 0xff) | (tlv->value[1] >> 7);
   val = (((long)tlv->value[1] & 0x7f) << 16) | (tlv->value[2] << 8) | tlv->value[3];
 
