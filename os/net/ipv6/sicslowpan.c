@@ -384,8 +384,13 @@ add_fragment(uint16_t tag, uint16_t frag_size, uint8_t offset)
       return -1;
     }
 
-    /* Found a free fragment info to store data in */
+    /* Found a free fragment info to store data in. Reset the running
+       reassembly state so that stale values from a previous session on
+       a reused context cannot survive if this FRAG1 later fails to
+       decompress and is never overwritten. */
     frag_info[found].len = frag_size;
+    frag_info[found].reassembled_len = 0;
+    frag_info[found].first_frag_len = 0;
     frag_info[found].tag = tag;
     linkaddr_copy(&frag_info[found].sender,
                   packetbuf_addr(PACKETBUF_ADDR_SENDER));
