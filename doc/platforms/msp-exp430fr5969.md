@@ -20,7 +20,7 @@ Key hardware features:
 * 12-bit ADC with internal reference
 * 2 LEDs (Red on P1.0, Green on P4.6)
 * 2 push buttons (S1 on P4.5, S2 on P1.1)
-* On-board XDS110 debugger with backchannel UART
+* On-board eZ-FET debugger with backchannel UART
 * EnergyTrace++ for power profiling
 
 This platform has **no radio**, so networking features are disabled by default.
@@ -34,7 +34,8 @@ The following features have been implemented:
 * UART driver (115200 baud via backchannel)
 * Watchdog driver
 * LED driver (Red and Green LEDs)
-* Button sensor driver
+* GPIO HAL (pin configuration and port interrupts)
+* Button HAL (both buttons, with press, release, periodic and long-press events)
 * Low-power modes (LPM3 when idle)
 
 The port is organized as follows:
@@ -100,6 +101,9 @@ cd examples/hello-world
 make TARGET=msp-exp430fr5969
 ```
 
+Besides `hello-world`, the `dev/leds`, `dev/gpio-hal`, `dev/button-hal`,
+`libs/shell` and `libs/timers` examples also build and run on this platform.
+
 ### Programming
 
 Upload the firmware using mspdebug:
@@ -138,7 +142,7 @@ picocom -b 115200 /dev/ttyACM1
 ```
 
 **Note:** After a debugger reset, there is a ~250ms delay before serial output
-begins. This allows the XDS110 debug probe to switch from debug mode to UART
+begins. This allows the eZ-FET debug probe to switch from debug mode to UART
 passthrough mode.
 
 ## Compilation Options
@@ -170,19 +174,23 @@ make TARGET=msp-exp430fr5969
 
 ### Buttons
 
-| Button | Port.Pin | Description |
-|--------|----------|-------------|
-| S1 | P4.5 | Active low, directly to ground |
-| S2 | P1.1 | Active low, directly to ground |
+| Button | Port.Pin | Button HAL ID |
+|--------|----------|---------------|
+| S1 | P4.5 | `BUTTON_HAL_ID_BUTTON_ZERO` |
+| S2 | P1.1 | `BUTTON_HAL_ID_BUTTON_ONE` |
+
+Both buttons short to ground when pressed and use the MSP430 internal
+pull-ups (active low). They are exposed through the Button HAL; see the
+`examples/dev/button-hal` example.
 
 ### UART (Backchannel)
 
-| Signal | Port.Pin | XDS110 Connection |
+| Signal | Port.Pin | eZ-FET Connection |
 |--------|----------|-------------------|
 | TXD | P2.0 | Application UART TX |
 | RXD | P2.1 | Application UART RX |
 
-The backchannel UART is directly connected to the XDS110 debug probe and
+The backchannel UART is directly connected to the eZ-FET debug probe and
 appears as a USB CDC device on the host.
 
 ## Limitations
@@ -218,7 +226,7 @@ header for the FR5969 is available.
 * [MSP-EXP430FR5969 LaunchPad User's Guide](https://www.ti.com/lit/ug/slau535d/slau535d.pdf)
 * [MSP430FR5969 Datasheet](https://www.ti.com/lit/ds/symlink/msp430fr5969.pdf)
 * [MSP430FR5xx/6xx Family User's Guide](https://www.ti.com/lit/ug/slau367p/slau367p.pdf)
-* [MSP430 GCC Toolchain](https://www.ti.com/tool/MSP430-GCC-OPENSOURCE)
+* [MSP430-GCC-OPENSOURCE](https://www.ti.com/tool/MSP430-GCC-OPENSOURCE) — TI's `msp430-elf-gcc` toolchain (for reference; this port uses mspgcc `msp430-gcc`, see the toolchain note above)
 
 ## License
 

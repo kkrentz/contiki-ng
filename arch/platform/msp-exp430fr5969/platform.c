@@ -139,7 +139,7 @@ platform_init_stage_two(void)
   uart0_init(0);
 
   /*
-   * Delay to allow the XDS110 debug probe to fully disconnect and switch
+   * Delay to allow the eZ-FET debug probe to fully disconnect and switch
    * to UART passthrough mode. The debug probe buffers UART data while a
    * debug session is active. This delay ensures serial output occurs after
    * the debugger has released the device. Experimentally, 200ms is the
