@@ -37,19 +37,20 @@ make TARGET=simplelink BOARD=sensortag/cc1352r1
 
 ### Installation
 
-The tools are packaged with a standard `pyproject.toml`. The recommended way to
-run them is with [uv](https://docs.astral.sh/uv/), which creates the virtual
-environment and installs the dependencies (pyserial, cbor2, websockets)
-automatically:
+The Python tools live in the `host/` subdirectory, packaged with a standard
+`pyproject.toml`. The recommended way to run them is with
+[uv](https://docs.astral.sh/uv/), which creates the virtual environment and
+installs the dependencies (pyserial, cbor2, websockets) automatically:
 
 ```bash
-# From examples/serialradio/ (uv reads pyproject.toml)
+cd host              # from examples/serialradio/
 uv run serial-radio /dev/ttyACM0
 ```
 
 Alternatively, install the dependencies into your own environment with pip:
 
 ```bash
+cd host
 pip install pyserial cbor2 websockets
 python -m tools.cli /dev/ttyACM0
 ```
@@ -57,6 +58,7 @@ python -m tools.cli /dev/ttyACM0
 ### CLI Usage
 
 ```bash
+# from examples/serialradio/host/
 uv run serial-radio /dev/ttyACM0   # or: python -m tools.cli /dev/ttyACM0
 ```
 
@@ -79,9 +81,9 @@ CLI Commands:
 
 ### Web Interface
 
-Start the web server:
+Start the web server (from `examples/serialradio/host/`):
 ```bash
-python -m tools.cli /dev/ttyACM0
+uv run serial-radio /dev/ttyACM0   # or: python -m tools.cli /dev/ttyACM0
 > webserver
 ```
 
@@ -93,6 +95,8 @@ Features:
 - **Packet Sniffer Tab**: Live packet capture with hex display
 
 ### Python API
+
+Run from `examples/serialradio/host/` (e.g. `uv run python your_script.py`):
 
 ```python
 from tools import SerialRadio, RadioParam
@@ -129,21 +133,27 @@ radio.disconnect()
 
 ```
 serialradio/
-├── serial-radio.c          # Main C implementation
-├── serial-radio.h          # Protocol definitions
+├── serial-radio.c          # Firmware: main C implementation
+├── serial-radio.h          # Firmware: protocol definitions
+├── serial-radio-main.c     # Firmware: main / autostart
+├── sniffer-mac.c           # Firmware: MAC driver for sniffing
 ├── Makefile
 ├── project-conf.h
-└── tools/
-    ├── __init__.py
-    ├── cli.py              # Interactive CLI
-    ├── serial_radio.py     # Python API
-    ├── webserver.py        # Web interface server
-    ├── protocol.py         # Protocol constants
-    ├── slip.py             # SLIP encoder/decoder
-    ├── crc16.py            # CRC16 implementation
-    └── www/
-        ├── index.html      # Web UI
-        └── spectrum.js     # Visualization
+└── host/                   # Python host tools (run on your PC)
+    ├── pyproject.toml      # Packaging (uv)
+    ├── uv.lock             # Locked dependencies
+    ├── serialradio.py      # Launcher
+    └── tools/              # The 'tools' Python package
+        ├── __init__.py
+        ├── cli.py          # Interactive CLI
+        ├── serial_radio.py # Python API
+        ├── webserver.py    # Web interface server
+        ├── protocol.py     # Protocol constants
+        ├── slip.py         # SLIP encoder/decoder
+        ├── crc16.py        # CRC16 implementation
+        └── www/
+            ├── index.html  # Web UI
+            └── spectrum.js # Visualization
 ```
 
 ## Use as a border-router radio
