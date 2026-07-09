@@ -202,7 +202,7 @@ test_print_report(const unit_test_t *utp)
   if(utp->passed == false) {
     printf("FAILED   - %s (exit at %u)\n", utp->descr, utp->exit_line);
   } else {
-    printf("SUCEEDED - %s\n", utp->descr);
+    printf("SUCCEEDED - %s\n", utp->descr);
   }
 }
 
