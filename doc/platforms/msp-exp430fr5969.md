@@ -195,10 +195,14 @@ appears as a USB CDC device on the host.
 
 ## Limitations
 
-* **No radio**: This LaunchPad has no wireless transceiver. Networking is
-  disabled by default (nullnet/nullrouting).
+* **No radio / no IP networking**: This LaunchPad has no wireless
+  transceiver, so the platform uses NullNet/NullRouting and keeps IPv6 and
+  IPv4 disabled. The IP stacks also do not fit the 2 KB SRAM. Building an
+  example that enables `NETSTACK_CONF_WITH_IPV6` or `NETSTACK_CONF_WITH_IPV4`
+  fails at compile time with an explicit `#error` from `contiki-conf.h`
+  rather than an obscure error; such examples (e.g. `rpl-udp`, `coap`) are
+  not supported on this board.
 * **Limited SRAM**: Only 2KB of SRAM limits the complexity of applications.
-  The full networking stack does not fit.
 * **No external sensors**: The base LaunchPad has no external sensors.
   BoosterPacks can add sensor capabilities.
 

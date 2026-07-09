@@ -91,6 +91,18 @@
 #define NETSTACK_CONF_WITH_IPV4 0
 #endif
 
+/*
+ * This board has no radio and only 2 KB of SRAM, so the IPv6/IPv4 network
+ * stacks cannot fit and would never have a link anyway. Fail early with a
+ * clear message if an example or project-conf.h turns them on, instead of
+ * the confusing errors this otherwise produces (undeclared IPv6 helpers at
+ * compile time, or a RAM overflow at link time).
+ */
+#if NETSTACK_CONF_WITH_IPV6 || NETSTACK_CONF_WITH_IPV4
+#error "MSP-EXP430FR5969 has no radio and only 2 KB SRAM; IP networking is not \
+supported. Do not enable NETSTACK_CONF_WITH_IPV6 or NETSTACK_CONF_WITH_IPV4."
+#endif
+
 /*---------------------------------------------------------------------------*/
 /* uIP configuration */
 /*---------------------------------------------------------------------------*/
