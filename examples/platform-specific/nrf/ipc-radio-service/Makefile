@@ -6,6 +6,9 @@ all: $(CONTIKI_PROJECT)
 PLATFORMS_ONLY += nrf
 BOARDS_ONLY = nrf5340/dk/network
 
+TARGET ?= nrf
+BOARD ?= nrf5340/dk/network
+
 # The IPC MAC driver forwards received frames to the app core via
 # shared memory. It replaces NULLMAC to enable interrupt-driven
 # frame reception (radio ISR -> radio process -> ipc-mac input).
