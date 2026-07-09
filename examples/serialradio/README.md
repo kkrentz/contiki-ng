@@ -37,15 +37,27 @@ make TARGET=simplelink BOARD=sensortag/cc1352r1
 
 ### Installation
 
+The tools are packaged with a standard `pyproject.toml`. The recommended way to
+run them is with [uv](https://docs.astral.sh/uv/), which creates the virtual
+environment and installs the dependencies (pyserial, cbor2, websockets)
+automatically:
+
 ```bash
-cd tools
+# From examples/serialradio/ (uv reads pyproject.toml)
+uv run serial-radio /dev/ttyACM0
+```
+
+Alternatively, install the dependencies into your own environment with pip:
+
+```bash
 pip install pyserial cbor2 websockets
+python -m tools.cli /dev/ttyACM0
 ```
 
 ### CLI Usage
 
 ```bash
-python -m tools.cli /dev/ttyACM0
+uv run serial-radio /dev/ttyACM0   # or: python -m tools.cli /dev/ttyACM0
 ```
 
 CLI Commands:
