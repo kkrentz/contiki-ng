@@ -54,6 +54,7 @@
 #include "net/netstack.h"
 #include "net/packetbuf.h"
 #include "cmd.h"
+#include "border-router.h"
 #include "border-router-cmds.h"
 #include "border-router-cbor.h"
 
@@ -242,7 +243,7 @@ after_fread:
             printf("\n");
           }
         }
-#if BORDER_ROUTER_CONF_SERIAL_RADIO
+#if BORDER_ROUTER_SERIAL_RADIO
         /* serialradio: a binary SLIP frame is a CBOR message with a trailing
            CRC16.  Verify and dispatch it (RX frames, TX responses, address
            reports, ...). */

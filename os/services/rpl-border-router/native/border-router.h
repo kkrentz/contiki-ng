@@ -66,7 +66,7 @@ void border_router_print_stat(void);
 
 void tun_init(void);
 
-int slip_init(void);
+void slip_init(void);
 int slip_set_fd(int maxfd, fd_set *rset, fd_set *wset);
 void slip_handle_fd(fd_set *rset, fd_set *wset);
 

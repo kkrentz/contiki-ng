@@ -423,6 +423,14 @@ static void handle_tx_frame(uint8_t msg_id, const uint8_t *frame, size_t len,
   int result;
   radio_value_t original_channel = 0;
 
+  /* Bound the attacker-controlled frame length before handing it to the radio
+     driver, rather than relying on each driver to reject an over-length frame
+     before copying it into its fixed-size TX FIFO. */
+  if (len > SERIAL_RADIO_CONF_MAX_FRAME_SIZE) {
+    send_error(msg_id, ERR_BUFFER_OVERFLOW);
+    return;
+  }
+
   /* If a specific channel is requested, save current and switch */
   if (channel >= 0) {
     NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, &original_channel);
@@ -646,12 +654,25 @@ static void do_fast_scan_sweep(void) {
 /* CBOR command parser */
 /*---------------------------------------------------------------------------*/
 
+/*
+ * Maximum CBOR nesting depth cbor_skip_value() will descend into.  The
+ * serialradio protocol only ever wraps scalars and strings in a single flat
+ * map, so a small bound is ample; it caps stack usage when skipping an
+ * unrecognized value from an untrusted frame, whose nesting depth would
+ * otherwise scale with the frame length and overflow the MCU stack.
+ */
+#define CBOR_MAX_SKIP_DEPTH 8
+
 /* Helper to skip a CBOR value - needed since os/lib/cbor doesn't have skip */
-static bool cbor_skip_value(cbor_reader_state_t *reader) {
+static bool cbor_skip_value(cbor_reader_state_t *reader, int depth) {
   cbor_major_type_t type = cbor_peek_next(reader);
   uint64_t uval;
   int64_t ival;
   size_t len;
+
+  if (depth <= 0) {
+    return false;
+  }
 
   switch (type) {
   case CBOR_MAJOR_TYPE_UNSIGNED:
@@ -668,7 +689,7 @@ static bool cbor_skip_value(cbor_reader_state_t *reader) {
       return false;
     }
     for (size_t i = 0; i < len; i++) {
-      if (!cbor_skip_value(reader)) {
+      if (!cbor_skip_value(reader, depth - 1)) {
         return false;
       }
     }
@@ -679,7 +700,8 @@ static bool cbor_skip_value(cbor_reader_state_t *reader) {
       return false;
     }
     for (size_t i = 0; i < len; i++) {
-      if (!cbor_skip_value(reader) || !cbor_skip_value(reader)) {
+      if (!cbor_skip_value(reader, depth - 1) ||
+          !cbor_skip_value(reader, depth - 1)) {
         return false;
       }
     }
@@ -744,7 +766,7 @@ static void handle_command(const uint8_t *data, size_t len) {
     }
 
     if (key_len != 1) {
-      cbor_skip_value(&reader);
+      cbor_skip_value(&reader, CBOR_MAX_SKIP_DEPTH);
       continue;
     }
 
@@ -815,7 +837,7 @@ static void handle_command(const uint8_t *data, size_t len) {
       break;
     }
     default:
-      cbor_skip_value(&reader);
+      cbor_skip_value(&reader, CBOR_MAX_SKIP_DEPTH);
       break;
     }
   }

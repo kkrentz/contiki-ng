@@ -307,6 +307,13 @@ border_router_cbor_input(const uint8_t *data, int len)
   switch(msg_type) {
   case SRADIO_EVT_RX_FRAME:
     if(frame != NULL && frame_len > 0) {
+      if(frame_len > PACKETBUF_SIZE) {
+        /* Would be silently truncated by packetbuf_copyfrom(); drop instead of
+           injecting a mangled frame into the network stack. */
+        LOG_WARN("RX frame too large (%u > %u), dropping\n",
+                 (unsigned)frame_len, (unsigned)PACKETBUF_SIZE);
+        break;
+      }
       packetbuf_copyfrom(frame, frame_len);
       packetbuf_set_attr(PACKETBUF_ATTR_RSSI, rssi);
       packetbuf_set_attr(PACKETBUF_ATTR_LINK_QUALITY, lqi);
