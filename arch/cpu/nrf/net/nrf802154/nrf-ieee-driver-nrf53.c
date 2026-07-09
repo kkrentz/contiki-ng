@@ -661,7 +661,16 @@ nrf_802154_transmit_failed(uint8_t *p_frame,
 {
   (void)p_frame;
   (void)p_metadata;
-  tx_fail_count++;
+  /*
+   * NO_ACK and BUSY_CHANNEL are expected link conditions, not driver faults:
+   * transmit() returns them as RADIO_TX_NOACK / RADIO_TX_COLLISION and the
+   * MAC layer handles retransmission. Only count the genuinely abnormal
+   * errors here so the aggregate "TX failed" warning stays meaningful.
+   */
+  if(error != NRF_802154_TX_ERROR_NO_ACK &&
+     error != NRF_802154_TX_ERROR_BUSY_CHANNEL) {
+    tx_fail_count++;
+  }
   tx_error = error;
   tx_success = false;
   tx_done = true;
