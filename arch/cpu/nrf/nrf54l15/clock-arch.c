@@ -46,7 +46,6 @@ static volatile uint32_t schedule_failure_count;
 static nrfx_err_t init_error_code;
 volatile uint8_t tick_channel_id;
 static volatile uint32_t grtc_irq_count;
-static volatile uint32_t ccen_fix_count;
 static volatile uint64_t last_tick_syscounter;
 static volatile uint32_t recover_count;
 
@@ -74,21 +73,38 @@ grtc_tick_handler(int32_t id, uint64_t cc_value, void *context)
 }
 static void wait_for_lfclk_ready(void);
 static void wait_for_syscounter_ready(void);
+uint64_t clock_arch_get_syscounter(void);
 /*---------------------------------------------------------------------------*/
 static void
 schedule_next_tick(void)
 {
-  nrfx_err_t err = nrfx_grtc_syscounter_cc_relative_set(&tick_channel,
-                                                        tick_interval_us,
-                                                        true,
-                                                        NRFX_GRTC_CC_RELATIVE_SYSCOUNTER);
+  /* Use absolute scheduling rather than relative. The relative form
+   * (nrfx_grtc_syscounter_cc_relative_set) writes CCADD, which on
+   * nRF54L15 LUMOS occasionally leaves CCEN Disabled when the deadline
+   * is very close to "now" — the channel then never fires and the
+   * kernel tick stops. Here we compute the deadline in code and write
+   * an absolute CC value instead.
+   *
+   * NOTE: the unconditional CCEN write at the end of this function is
+   * functionally required to start the channel — it only looks like a
+   * redundant sanity check. nrfx_grtc_syscounter_cc_absolute_set() calls
+   * cc_channel_prepare() (which disables CCEN) and then writes only
+   * CCL/CCH via nrf_grtc_sys_counter_cc_set(); it never re-enables CCEN.
+   * So on return from that call CCEN is Disabled, and without the write
+   * below the channel stays disabled and no tick ever fires. Do not
+   * remove it.
+   */
+  uint64_t deadline = clock_arch_get_syscounter() + tick_interval_us;
+  nrfx_err_t err = nrfx_grtc_syscounter_cc_absolute_set(&tick_channel,
+                                                       deadline,
+                                                       true);
   last_schedule_err = err;
   if(err == NRFX_ERROR_INTERNAL) {
     wait_for_syscounter_ready();
-    err = nrfx_grtc_syscounter_cc_relative_set(&tick_channel,
-                                               tick_interval_us,
-                                               true,
-                                               NRFX_GRTC_CC_RELATIVE_SYSCOUNTER);
+    deadline = clock_arch_get_syscounter() + tick_interval_us;
+    err = nrfx_grtc_syscounter_cc_absolute_set(&tick_channel,
+                                               deadline,
+                                               true);
     last_schedule_err = err;
   }
 
@@ -96,15 +112,14 @@ schedule_next_tick(void)
     schedule_failure_count++;
   }
 
-  /* Defensive: ensure CCEN is active after scheduling.
-   * On nRF54L15, cc_channel_prepare() disables CCEN and the CCADD write
-   * should auto-enable it, but verify and fix if needed. */
-  if(NRF_GRTC->CC[tick_channel_id].CCEN !=
-     (GRTC_CC_CCEN_ACTIVE_Enable << GRTC_CC_CCEN_ACTIVE_Pos)) {
-    NRF_GRTC->CC[tick_channel_id].CCEN =
-      (GRTC_CC_CCEN_ACTIVE_Enable << GRTC_CC_CCEN_ACTIVE_Pos);
-    ccen_fix_count++;
-  }
+  /* Force CCEN active (see NOTE above — this is mandatory). CCEN ending
+   * up Disabled was the root cause of the "GRTC won't wake from WFI after
+   * soft-reset" hang that the arch/platform/nrf/lpm.h spin loop worked
+   * around: the IRQ never fired, so WFI slept forever. With absolute
+   * scheduling and this write that workaround is no longer needed, and
+   * this PR removes it. */
+  NRF_GRTC->CC[tick_channel_id].CCEN =
+    (GRTC_CC_CCEN_ACTIVE_Enable << GRTC_CC_CCEN_ACTIVE_Pos);
 }
 /*---------------------------------------------------------------------------*/
 static void
@@ -258,12 +273,6 @@ clock_arch_get_syscounter(void)
     lo = NRF_GRTC->SYSCOUNTER[1].SYSCOUNTERL;
   } while(hi != NRF_GRTC->SYSCOUNTER[1].SYSCOUNTERH);
   return ((uint64_t)(hi & 0x001FFFFFUL) << 32) | lo;
-}
-/*---------------------------------------------------------------------------*/
-uint32_t
-clock_arch_get_ccen_fix_count(void)
-{
-  return ccen_fix_count;
 }
 /*---------------------------------------------------------------------------*/
 uint32_t
