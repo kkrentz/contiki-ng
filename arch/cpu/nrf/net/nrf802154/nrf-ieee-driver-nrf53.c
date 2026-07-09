@@ -304,8 +304,15 @@ transmit(unsigned short transmit_len)
   nrf_802154_tx_error_t tx_err;
 
   /* The frame to send was stored in tx_buf by prepare(); its length is the
-   * PHR (tx_buf[0]). transmit_len is redundant with that and is unused. */
-  (void)transmit_len;
+   * PHR (tx_buf[0] = PSDU + FCS). Validate the caller's length against the
+   * prepared PHR rather than trusting it: transmit() is a separate radio API
+   * entry point, and callers such as CSMA invoke it without checking that the
+   * preceding prepare() succeeded. Without this check, a skipped or failed
+   * prepare() would make transmit() send the stale contents of tx_buf. */
+  if(transmit_len > MAX_PAYLOAD_LEN || transmit_len + 2 != tx_buf[0]) {
+    LOG_WARN("TX length mismatch: %u vs PHR %u\n", transmit_len, tx_buf[0]);
+    return RADIO_TX_ERR;
+  }
 
   if(!radio_is_on) {
     on();
