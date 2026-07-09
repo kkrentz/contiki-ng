@@ -97,7 +97,8 @@ struct nat64_session {
  * \brief Initialize the platform layer.
  * \return true on success, false on failure.
  *
- * Allocates the session table and calls nat64_activate().
+ * On success, the NAT64 core has been activated and the platform is
+ * ready to create transport sessions for translated packets.
  */
 bool nat64_platform_init(void);
 
@@ -136,8 +137,9 @@ int nat64_platform_udp_send(const uip_ip4addr_t *dst, uint16_t dstport,
  * \param peer_isn The IoT node's initial sequence number.
  * \return The session, or NULL on failure.
  *
- * Uses non-blocking connect().  Calls nat64_tcp_established()
- * asynchronously when the connection completes.
+ * The returned session may still be connecting.  The platform calls
+ * nat64_tcp_established() later, from its event loop, once the IPv4
+ * connection is usable.
  */
 struct nat64_session *nat64_platform_tcp_connect(
   const uip_ip4addr_t *dst, uint16_t dstport,
@@ -150,6 +152,10 @@ struct nat64_session *nat64_platform_tcp_connect(
  * \param data Data to send.
  * \param len  Data length.
  * \return Number of bytes sent, 0 if would block, or -1 on error.
+ *
+ * A zero return means NAT64 did not retain the payload.  The TCP core
+ * must leave its IoT-side acknowledgment point unchanged so the node
+ * retransmits the same bytes.
  */
 int nat64_platform_tcp_send(struct nat64_session *s,
                             const uint8_t *data, uint16_t len);

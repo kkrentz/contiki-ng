@@ -36,7 +36,7 @@ jobs:
         fail-fast: false
         matrix:
             os: [ ubuntu-latest, macos-15-intel ]
-            test: [ documentation, compile-base, compile-arm-ports, rpl-lite, rpl-classic, renode-simulation, simulation-base, ipv6, ieee802154, tun-rpl-br, script-base, native-runs, ipv6-nbr, coap-lwm2m, packet-parsing ]
+            test: [ documentation, compile-base, compile-arm-ports, rpl-lite, rpl-classic, renode-simulation, simulation-base, ipv6, ieee802154, tun-rpl-br, script-base, native-runs, ipv6-nbr, coap-lwm2m, packet-parsing, nat64-standalone ]
             exclude:
               # Renode tests done by Linux (more CI runners available).
               - os: macos-15-intel
@@ -54,6 +54,10 @@ jobs:
               # tests/utils.sh: kill_bg contains ps --ppid (not portable).
               - os: macos-15-intel
                 test: native-runs
+              # Native execution test; matches the native-runs treatment above
+              # to avoid x86 macOS surprises with the background echo server.
+              - os: macos-15-intel
+                test: nat64-standalone
               - os: macos-15-intel
                 test: coap-lwm2m
               # Failed simulations for no obvious reason, Cooja issue?
@@ -69,7 +73,7 @@ jobs:
 
     # Checks out the repo with full history
     - name: Checkout github repo (+ download lfs dependencies)
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
           fetch-depth: 2
           submodules: 'recursive'
@@ -182,7 +186,7 @@ jobs:
     # Keep a cache of the Cooja build files and gradle files. Keyed on Cooja
     # repo commit to ensure clean rebuild when updating Cooja submodule.
     - name: Cache Cooja Artifacts
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: |
           tools/cooja/build

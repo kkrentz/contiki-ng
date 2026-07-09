@@ -81,7 +81,13 @@
 #endif
 
 static struct nat64_session sessions[NAT64_MAX_SESSIONS];
-static bool nat64_enabled;
+
+/* Whether NAT64 is active. Off by default and enabled with --nat64, unless a
+ * build turns it on at compile time (the standalone translator module does). */
+#ifndef NAT64_DEFAULT_ENABLED
+#define NAT64_DEFAULT_ENABLED 0
+#endif
+static bool nat64_enabled = NAT64_DEFAULT_ENABLED;
 
 /*---------------------------------------------------------------------------*/
 /**
@@ -292,8 +298,9 @@ generic_set_fd(fd_set *rset, fd_set *wset)
       FD_SET(s->fd, wset);
     } else if(s->proto == NAT64_PROTO_TCP &&
               nat64_tcp_has_pending_data(s)) {
-      /* Don't read more data while the previous chunk is still being
-       * paced to the IoT node — this provides back-pressure. */
+      /* The TCP proxy owns only one server-to-IoT buffer.  Suppressing
+       * reads here keeps unread bytes in the kernel until the IoT node
+       * ACKs the current chunk. */
     } else {
       FD_SET(s->fd, rset);
     }
@@ -358,8 +365,15 @@ generic_handle_fd(fd_set *rset, fd_set *wset)
       ssize_t n = recv(s->fd, buf, sizeof(buf), 0);
       if(n > 0) {
         nat64_udp_input(s, buf, (uint16_t)n);
+        timer_set(&s->expiry, NAT64_SESSION_TIMEOUT);
       } else if(n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-        LOG_ERR("UDP recvfrom error (fd %d): %s\n", s->fd, strerror(errno));
+        int e = errno;
+
+        LOG_ERR("UDP recvfrom error (fd %d): %s\n", s->fd, strerror(e));
+        nat64_queue_icmp6_unreach_tuple(&s->ip6_peer, s->ip6_peer_port,
+                                        &s->ip4_remote, s->ip4_remote_port,
+                                        IPPROTO_UDP, errno_to_icmp6_code(e));
+        close_session(s);
       }
     } else if(s->proto == NAT64_PROTO_ICMP) {
       uint8_t buf[256];
@@ -529,16 +543,9 @@ nat64_platform_tcp_send(struct nat64_session *s,
   sent = send(s->fd, data, len, 0);
   if(sent < 0) {
     if(errno == EAGAIN || errno == EWOULDBLOCK) {
-      /* Kernel send buffer full.  Returning 0 leaves peer_next un-
-       * advanced in nat64_tcp_output(), so the IoT-side TCP layer
-       * sees no ACK progress and retransmits on its RTO.  We don't
-       * register for write-readiness here because we don't buffer
-       * the IoT-side payload locally — the source of truth for the
-       * unsent bytes is the IoT TCP send queue, not us, so polling
-       * for writability would have nothing to flush.  Sustained
-       * EAGAIN under 6LoWPAN throughput is essentially unreachable
-       * (kernel buffers >>> radio bandwidth); log it and rely on
-       * IoT retransmits for recovery. */
+      /* NAT64 does not own a copy of IoT-to-server bytes.  Returning 0
+       * leaves peer_next unchanged, so the IoT TCP stack remains the
+       * source of truth and retransmits the unsent data on its RTO. */
       LOG_WARN("TCP send would block (fd %d), IoT will retransmit\n",
                s->fd);
       return 0;

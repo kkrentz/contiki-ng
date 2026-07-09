@@ -124,9 +124,9 @@ NAT64-prefixed IPv6 addresses.
 
 | Protocol | Support |
 |----------|---------|
-| UDP | Full — CoAP, DNS, and other UDP-based protocols work transparently. |
-| TCP | Full — the border router runs a TCP splice proxy that handles connection setup, data forwarding, and teardown. |
-| ICMP | Echo Request/Reply (ping) is forwarded via Linux unprivileged ICMP sockets. Destination Unreachable errors are synthesized toward the IoT node when packets cannot be delivered. Other ICMP types are not translated. |
+| UDP | Outbound client-initiated flows. CoAP, DNS, and other UDP payloads are forwarded transparently, except DNS on port 53, which is rewritten by DNS64. UDP payloads are not segmented by NAT64. |
+| TCP | Outbound client-initiated flows. The border router runs a TCP splice proxy that handles connection setup, data forwarding, retransmission toward the IoT node, and teardown. |
+| ICMP | Echo Request/Reply (ping) only, via Linux unprivileged ICMP sockets. Destination Unreachable errors are synthesized toward the IoT node when packets cannot be delivered. Other ICMP types are not translated. |
 
 ### End-to-end security and application protocols
 
@@ -177,7 +177,8 @@ unconditionally:
 ## Example application
 
 The `examples/nat64/` directory contains a demo that performs a DNS
-lookup and sends UDP probes and an HTTP GET request through NAT64:
+lookup, sends UDP probes, and performs one HTTP GET request through
+NAT64:
 
 ```bash
 # In one terminal, start Cooja with the NAT64 simulation:
@@ -228,16 +229,18 @@ headroom to raise `NAT64_TCP_SEGMENT_SIZE` from 76 to ~84 bytes
 (about a 10% TCP throughput improvement) and reduces 6LoWPAN
 fragmentation pressure on UDP responses and DTLS handshakes.
 
-To enable, include the helper header on **both** sides:
+To enable the context on IoT nodes, include the helper header in each
+NAT64-using project:
 
 ```c
 /* In the IoT node's project-conf.h: */
 #include "services/nat64/nat64-6lowpan.h"
 ```
 
-The border router picks up the matching context automatically:
+The native border router picks up the matching context automatically:
 `examples/rpl-border-router/project-conf.h` includes the same
-header when `MAKE_WITH_NAT64=1` is set on the make command line.
+header whenever the border-router build includes the NAT64 module
+(`BUILD_WITH_NAT64` is defined by `os/services/nat64/module-macros.h`).
 
 Both ends MUST agree on the prefix bytes and the context number.
 If only one side is configured, decompression on the other side
@@ -255,6 +258,31 @@ If your deployment uses a non-standard NAT64 prefix configured
 via `ip64_addr_set_prefix()`, override `NAT64_6LOWPAN_PREFIX_BYTES`
 to match before including the header — both ends must use the
 same value.
+
+## Troubleshooting
+
+- **`--nat64` is not accepted by the border router.** Make sure you are
+  running a native border-router build that includes
+  `os/services/nat64/native`. The standard native
+  `examples/rpl-border-router` build does this automatically.
+- **DNS lookups work, but NAT64 packets disappear on the 6LoWPAN side.**
+  Check that the border router and every NAT64-using IoT node agree on
+  the same IPHC context. For the default prefix, include
+  `services/nat64/nat64-6lowpan.h` in the IoT node project; the native
+  border router includes the matching context automatically when NAT64
+  is compiled in.
+- **Ping through NAT64 fails.** ICMP Echo uses Linux unprivileged ICMP
+  sockets. The running user must either have the required capability or
+  be permitted by `net.ipv4.ping_group_range`.
+- **Private, loopback, link-local, or documentation IPv4 addresses do
+  not work.** This is intentional gateway policy. Special-use IPv4
+  ranges are rejected before a host socket is opened. Loopback can be
+  enabled only for tests by building the native border router with
+  `NAT64_ALLOW_LOOPBACK=1`.
+- **Long-lived UDP or TCP sessions stop after being idle.** NAT64
+  reaps idle sessions after `NAT64_SESSION_TIMEOUT` (5 minutes by
+  default). Use application keepalives, or for DTLS use Connection ID
+  or reconnect after idle periods.
 
 ## Standards compliance
 

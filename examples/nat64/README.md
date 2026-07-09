@@ -16,8 +16,9 @@ them from IPv6 to IPv4, and forwards them to 8.8.8.8 via a host UDP
 socket. Responses are translated back with DNS64 synthesis: A records
 (IPv4 addresses) become AAAA records with the `64:ff9b::/96` prefix.
 
-After each successful lookup, the node sends a UDP probe to the resolved
-address to demonstrate end-to-end connectivity to the IPv4 internet.
+After successful lookups, the node exercises both transport paths:
+it sends UDP probes for the non-HTTP hosts and performs one HTTP GET
+to `www.contiki-ng.org` to test the TCP splice proxy end to end.
 
 ## Testing with Cooja (no hardware needed)
 
@@ -51,7 +52,10 @@ NAT64 DNS client starting, waiting for network...
 DNS server set to 64:ff9b::808:808 (8.8.8.8 via NAT64)
 Querying DNS for "www.contiki-ng.org"...
 Resolved "www.contiki-ng.org" -> 64:ff9b::b63c:d8a7
-Sent UDP probe to 64:ff9b::b63c:d8a7 (www.contiki-ng.org)
+Starting HTTP GET http://www.contiki-ng.org/
+HTTP complete: received <n> body bytes
+Resolved "www.example.com" -> 64:ff9b::<ipv4>
+Sent UDP probe to 64:ff9b::<ipv4> (www.example.com)
 ```
 
 ## Running on real hardware
@@ -95,9 +99,9 @@ IoT node                    Border router (native)          Internet
    |<-- DNS response (AAAA) -----|   (DNS64 synthesis)        |
    |   64:ff9b::<ipv4>           |                            |
    |                              |                            |
-   |-- UDP probe (IPv6) -------->|                            |
+   |-- UDP probe or HTTP GET ---->|                            |
    |   to 64:ff9b::<ipv4>        |-- UDP probe (IPv4) ------->|
-   |                              |   to <ipv4>               |
+   |                              |   or TCP connect+HTTP ---->|
 ```
 
 ## Files

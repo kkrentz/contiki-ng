@@ -872,7 +872,7 @@ ext_hdr_options_process(uint8_t *ext_buf)
       *  we want to process the option and not revert to the default case.
       */
       LOG_DBG("Processing MPL option\n");
-      opt_offset += opt_len + opt_len;
+      opt_offset += opt_len;
       break;
 #endif
     default:

@@ -29,16 +29,10 @@
 
 #include "contiki.h"
 #include "lib/random.h"
+#include "sys/cc.h"
 #include "unit-test/unit-test.h"
 #include <stdio.h>
 #include <string.h>
-
-/**
- * \brief       Counts the number of elements of an array.
- * \param array The array.
- * \return      The number of elements of the array.
- */
-#define ARRAY_LENGTH(array) (sizeof(array) / sizeof((array)[0]))
 
 PROCESS(test_random_process, "test");
 AUTOSTART_PROCESSES(&test_random_process);
@@ -60,7 +54,7 @@ UNIT_TEST(sfc32_conformance_1)
   UNIT_TEST_BEGIN();
 
   sfc32_prng.seed(0ULL);
-  for(size_t i = 0; i < ARRAY_LENGTH(oracle_outputs); i++) {
+  for(size_t i = 0; i < CC_ARRAY_LENGTH(oracle_outputs); i++) {
     UNIT_TEST_ASSERT(oracle_outputs[i] == sfc32_prng.rand());
   }
 
@@ -82,7 +76,7 @@ UNIT_TEST(sfc32_conformance_2)
   UNIT_TEST_BEGIN();
 
   sfc32_prng.seed(0x0102030405060708ULL);
-  for(size_t i = 0; i < ARRAY_LENGTH(oracle_outputs); i++) {
+  for(size_t i = 0; i < CC_ARRAY_LENGTH(oracle_outputs); i++) {
     UNIT_TEST_ASSERT(oracle_outputs[i] == sfc32_prng.rand());
   }
 
@@ -104,7 +98,7 @@ UNIT_TEST(sfc16_conformance_1)
   UNIT_TEST_BEGIN();
 
   sfc16_prng.seed(0ULL);
-  for(size_t i = 0; i < ARRAY_LENGTH(oracle_outputs); i++) {
+  for(size_t i = 0; i < CC_ARRAY_LENGTH(oracle_outputs); i++) {
     UNIT_TEST_ASSERT(oracle_outputs[i] == sfc16_prng.rand());
   }
 
@@ -126,7 +120,7 @@ UNIT_TEST(sfc16_conformance_2)
   UNIT_TEST_BEGIN();
 
   sfc16_prng.seed(0x0102030405060708ULL);
-  for(size_t i = 0; i < ARRAY_LENGTH(oracle_outputs); i++) {
+  for(size_t i = 0; i < CC_ARRAY_LENGTH(oracle_outputs); i++) {
     UNIT_TEST_ASSERT(oracle_outputs[i] == sfc16_prng.rand());
   }
 

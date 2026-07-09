@@ -113,9 +113,10 @@ in lossy wireless networks.
 registers the upper 64 bits of the NAT64 prefix as IPHC context 1,
 saving ~8 header bytes per packet.  Both the BR and the IoT nodes
 must include the header at compile time — the BR pulls it in
-automatically when built with `MAKE_WITH_NAT64=1`, and IoT projects
-opt in via `#include "services/nat64/nat64-6lowpan.h"` in their
-`project-conf.h`.  IPHC's SAM modes cap inline-byte counts at
+automatically when the NAT64 module is present in the native
+border-router build, and IoT projects opt in via
+`#include "services/nat64/nat64-6lowpan.h"` in their
+`project-conf.h`. IPHC's SAM modes cap inline-byte counts at
 0/2/8/16, so even a longer (96-bit) context cannot push the
 saving further without a non-standard extension.  Once Contiki-NG
 implements RFC 6775 §4.2 (6CO ND option), the symmetric
@@ -123,7 +124,11 @@ compile-time requirement can be lifted.
 
 ## Usage
 
-Enable NAT64 on the border router with the `--nat64` command-line flag:
+See `doc/getting-started/NAT64-for-Contiki-NG.md` for full build,
+Cooja, hardware, DNS, and troubleshooting instructions.
+
+For the native border router, enable NAT64 at run time with the
+`--nat64` command-line flag:
 
 ```bash
 sudo ./border-router.native --nat64 -s /dev/ttyUSB0

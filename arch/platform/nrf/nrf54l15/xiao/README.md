@@ -45,10 +45,14 @@ The Seeed Studio XIAO nRF54L15 is a compact development board featuring the Nord
    sudo apt-get install gcc-arm-none-eabi
    ```
 
-2. **OpenOCD with nRF54L15 support:**
-   - Standard OpenOCD releases don't include nRF54L15 support yet
-   - You need a version built with nRF54L15 patches
-   - The OpenOCD configuration file is included in this port
+2. **OpenOCD (0.12.0 or newer):**
+   - A stock OpenOCD release works — no nRF54L15-specific OpenOCD flash driver
+     is needed. The board config (`support/openocd.cfg`) write-enables RRAM and
+     programs it with `load_image` (direct memory writes), so it never invokes
+     an OpenOCD flash-bank/`program` command.
+   - macOS: `brew install openocd`; Linux: `apt-get install openocd`.
+   - The configuration file is included in this port and selected automatically
+     by the Makefile.
 
 3. **Contiki-NG:**
    ```bash
@@ -236,7 +240,8 @@ default in `nrf54l15-conf.h`:
 ## Known Limitations
 
 1. **No Low-Power:** Low-power modes not tested/optimized
-2. **OpenOCD Required:** Standard OpenOCD releases lack nRF54L15 support
+2. **OpenOCD for flashing:** The XIAO has no J-Link, so flashing goes through
+   its onboard CMSIS-DAP via OpenOCD (stock 0.12.0+) rather than nrfjprog
 3. **No Watchdog/Temperature Sensor:** Integration pending
 
 ## Development Roadmap

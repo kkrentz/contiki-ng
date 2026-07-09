@@ -39,12 +39,12 @@
 
 #include "dev/leds.h"
 /*---------------------------------------------------------------------------*/
-/* XIAO nRF54L15 has one user LED on P2.0, active high */
+/* XIAO nRF54L15 has one user LED on P2.0, active low */
 const leds_t leds_arch_leds[] = {
   {
     .port = NRF_LED1_PORT,
     .pin = NRF_LED1_PIN,
-    .negative_logic = false
+    .negative_logic = true
   },
 };
 /*---------------------------------------------------------------------------*/
