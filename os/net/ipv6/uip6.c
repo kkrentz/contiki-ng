@@ -634,7 +634,12 @@ uip_listen(uint16_t port)
 
 static uint8_t uip_reassbuf[UIP_REASS_BUFSIZE];
 
-static uint8_t uip_reassbitmap[UIP_REASS_BUFSIZE / (8 * 8)];
+/* One bit per 8 bytes, i.e. one byte per 64 bytes of the reassembly
+   buffer. Round the element count up so the bitmap covers the whole
+   buffer even when UIP_REASS_BUFSIZE is not a multiple of 64; otherwise
+   integer division would truncate the last partial block and let
+   (offset + len) >> 6 index one element past the end. */
+static uint8_t uip_reassbitmap[(UIP_REASS_BUFSIZE + (8 * 8) - 1) / (8 * 8)];
 /*the first byte of an IP fragment is aligned on an 8-byte boundary */
 
 static const uint8_t bitmap_bits[8] = {0xff, 0x7f, 0x3f, 0x1f,
@@ -718,9 +723,14 @@ uip_reass(uint8_t *prev_proto_ptr)
     }
 
     /* If the offset or the offset + fragment length overflows the
-       reassembly buffer, we discard the entire packet. */
+       reassembly buffer, we discard the entire packet. The fragment is
+       copied to FBUF + UIP_IPH_LEN + uip_ext_len + offset, so the
+       unfragmentable part (UIP_IPH_LEN + uip_ext_len) must be included in
+       the bound; otherwise a fragment with offset + len close to
+       UIP_REASS_BUFSIZE would write up to UIP_IPH_LEN + uip_ext_len bytes
+       past the end of uip_reassbuf[]. */
     if(offset > UIP_REASS_BUFSIZE ||
-       offset + len > UIP_REASS_BUFSIZE) {
+       UIP_IPH_LEN + uip_ext_len + offset + len > UIP_REASS_BUFSIZE) {
       uip_reass_on = 0;
       etimer_stop(&uip_reass_timer);
       return 0;
