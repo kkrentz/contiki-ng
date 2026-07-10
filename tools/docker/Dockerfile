@@ -40,6 +40,7 @@ RUN apt-get -qq update && \
     git-lfs \
     gosu \
     iputils-ping \
+    jq \
     less \
     libcanberra-gtk-module \
     libcoap2-bin \
@@ -159,8 +160,10 @@ RUN wget -nv https://sourceforge.net/projects/doxygen/files/rel-1.17.0/doxygen-1
     tar xf ccache-4.10.2-linux-x86_64.tar.xz -C ${HOME}/.local/bin --strip-components=1 ccache-4.10.2-linux-x86_64/ccache && \
     rm ccache-*-linux-x86_64.tar.xz
 
-# Install additional tools for the nRF5 SDK.
-RUN nrfutil install nrf5sdk-tools
+# Install the nrfutil subcommands used for programming Nordic devices:
+# "device" for nrfutil device list/program and "nrf5sdk-tools" for the
+# dongle DFU package generation.
+RUN nrfutil install device nrf5sdk-tools
 
 # By default, we use a Docker bind mount to share the repo with the host,
 # with Docker run option:

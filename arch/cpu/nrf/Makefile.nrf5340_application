@@ -16,7 +16,8 @@ NRFX_C_SRCS += $(CONTIKI_CPU)/nrf5340/legacy-mdk/system_nrf5340_application.c
 EXTERNALDIRS += $(CONTIKI_CPU)/nrf5340/legacy-mdk
 EXTERNALDIRS += $(NRFX_ROOT)/mdk/
 
-NRFJPROG_OPTIONS=-f NRF53 --coprocessor CP_APPLICATION 
+NRF_DEVICE_FAMILY = nrf53
+NRFUTIL_CORE = --core application
 
 CFLAGS += -DCPU_CONF_PATH=\"nrf5340-application-conf.h\"
 CFLAGS += -DCPU_DEF_PATH=\"nrf5340-application-def.h\"
