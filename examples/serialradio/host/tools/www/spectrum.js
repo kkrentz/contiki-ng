@@ -108,6 +108,10 @@ class SpectrumAnalyzer {
             const pwr = document.getElementById('powerInput').value;
             this.sendCliText(`power ${pwr}`);
         });
+        document.getElementById('btnSetPanId').addEventListener('click', () => {
+            const pan = document.getElementById('panIdInput').value;
+            this.sendCliText(`set pan ${pan}`);
+        });
         document.getElementById('btnPing').addEventListener('click', () => {
             this.sendCliText('ping');
         });

@@ -101,6 +101,9 @@ class SerialRadioCLI(cmd.Cmd):
         print(f"\n  Version: {self.radio.version or 'Unknown'}")
         print()
 
+        # Refresh the web UI info panel with the values we just read.
+        self._push_radio_info(info)
+
     def _detect_frequency_band(self, ch_min: Optional[int], ch_max: Optional[int]) -> Optional[str]:
         """Detect frequency band from channel range."""
         if ch_min is None or ch_max is None:
@@ -209,6 +212,7 @@ class SerialRadioCLI(cmd.Cmd):
         if self.radio.set_param(param, value):
             name = PARAM_NAMES.get(param, f"Param {param}")
             print(f"{name} set to {value}")
+            self._push_radio_info()
         else:
             print("Failed to set parameter")
 
@@ -229,6 +233,7 @@ class SerialRadioCLI(cmd.Cmd):
                 ch = int(arg)
                 if self.radio.set_channel(ch):
                     print(f"Channel set to {ch}")
+                    self._push_radio_info()
                 else:
                     print("Failed to set channel")
             except ValueError:
@@ -257,6 +262,7 @@ class SerialRadioCLI(cmd.Cmd):
                 pwr = int(arg)
                 if self.radio.set_tx_power(pwr):
                     print(f"TX power set to {pwr} dBm")
+                    self._push_radio_info()
                 else:
                     print("Failed to set TX power")
             except ValueError:
@@ -832,6 +838,18 @@ class SerialRadioCLI(cmd.Cmd):
     # -------------------------------------------------------------------------
     # Helpers
     # -------------------------------------------------------------------------
+
+    def _push_radio_info(self, info=None):
+        """Broadcast the current radio parameters to any connected web clients
+        so the web UI's info panel (channel, PAN ID, TX power, ...) reflects the
+        latest state. No-op when the web server is not running. Pass an already
+        fetched info dict to avoid re-querying the radio."""
+        if self._webserver is None:
+            return
+        if info is None:
+            info = self.radio.get_radio_info()
+        if info:
+            self._webserver.broadcast_radio_info(info)
 
     def _parse_param(self, arg: str) -> Optional[int]:
         """Parse parameter name or number."""
