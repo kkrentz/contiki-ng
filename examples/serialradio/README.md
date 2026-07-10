@@ -133,9 +133,8 @@ radio.disconnect()
 
 ```
 serialradio/
-├── serial-radio.c          # Firmware: main C implementation
+├── serial-radio.c          # Firmware: main implementation + autostart
 ├── serial-radio.h          # Firmware: protocol definitions
-├── serial-radio-main.c     # Firmware: main / autostart
 ├── sniffer-mac.c           # Firmware: MAC driver for sniffing
 ├── Makefile
 ├── project-conf.h
@@ -170,7 +169,7 @@ router is received and acknowledged.
 ```bash
 # 1. Build + flash the serialradio firmware (2.4 GHz CC2538 on a Zoul Firefly)
 cd examples/serialradio
-make TARGET=zoul BOARD=firefly serial-radio-main.upload PORT=/dev/ttyUSB0
+make TARGET=zoul BOARD=firefly serial-radio.upload PORT=/dev/ttyUSB0
 
 # 2. IMPORTANT: reset the board so it runs the application.
 #    After flashing, cc2538 boards stay in the ROM bootloader (silent) until

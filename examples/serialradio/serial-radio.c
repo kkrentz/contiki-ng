@@ -124,6 +124,7 @@ static bool router_mode;
 /*---------------------------------------------------------------------------*/
 
 PROCESS(serial_radio_process, "Serial Radio");
+AUTOSTART_PROCESSES(&serial_radio_process);
 
 /*---------------------------------------------------------------------------*/
 /* Forward declarations */
@@ -532,9 +533,16 @@ static void handle_router_mode(uint8_t msg_id, bool enable) {
     LOG_INFO("Router mode enabled (address filter + auto-ACK)\n");
     send_param_response(msg_id, RADIO_PARAM_RX_MODE, mode);
   } else {
+    /* Actually clear the hardware RX mode (address filter + auto-ACK), not
+       just the router_mode flag, so disabling router mode really returns the
+       radio to the promiscuous sniffer default. */
+    radio_value_t mode = 0;
+    if(NETSTACK_RADIO.set_value(RADIO_PARAM_RX_MODE, mode) != RADIO_RESULT_OK) {
+      LOG_WARN("Could not disable router RX mode\n");
+    }
     router_mode = false;
     LOG_INFO("Router mode disabled\n");
-    send_param_response(msg_id, RADIO_PARAM_RX_MODE, 0);
+    send_param_response(msg_id, RADIO_PARAM_RX_MODE, mode);
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -966,7 +974,10 @@ static void do_scan_step(void) {
 PROCESS_THREAD(serial_radio_process, ev, data) {
   PROCESS_BEGIN();
 
-  LOG_INFO("Serial Radio started\n");
+  LOG_INFO("=================================\n");
+  LOG_INFO("Serial Radio Control Interface\n");
+  LOG_INFO("=================================\n");
+  LOG_INFO("Platform: " CONTIKI_TARGET_STRING "\n");
   LOG_INFO("Version: %s\n", VERSION_STRING);
 
   /* Initialize variables */
