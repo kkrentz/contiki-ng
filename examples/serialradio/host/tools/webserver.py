@@ -61,6 +61,9 @@ class SerialRadioWebServer:
 
         # Data buffer for spectrum history (for 3D waterfall display)
         self._spectrum_history = []
+        # Last radio info broadcast, replayed to each client on connect so a
+        # freshly loaded page shows the current parameters without a refresh.
+        self._last_radio_info = None
         self._max_history = 100  # Keep last 100 scans
 
         # Get the www directory path
@@ -179,6 +182,14 @@ class SerialRadioWebServer:
                     'data': self._spectrum_history[-50:]  # Last 50 scans
                 }))
 
+            # Bring the newly connected client up to date with the current
+            # radio parameters so its info panel is populated immediately.
+            if self._last_radio_info:
+                await websocket.send(json.dumps({
+                    'type': 'radio_info',
+                    'info': self._last_radio_info
+                }))
+
             # Keep connection alive and handle incoming messages
             async for message in websocket:
                 try:
@@ -276,6 +287,11 @@ class SerialRadioWebServer:
 
     def broadcast_radio_info(self, info: dict):
         """Broadcast radio information to all clients."""
+        # Cache unconditionally (even with no clients connected yet, e.g. the
+        # initial broadcast at server start) so new clients can be brought up
+        # to date on connect.
+        self._last_radio_info = info
+
         data = {
             'type': 'radio_info',
             'info': info
