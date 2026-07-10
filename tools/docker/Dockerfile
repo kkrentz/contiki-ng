@@ -17,7 +17,7 @@ USER root
 # libcanberra-gtk-module: remove warning message from renode.
 # libcoap2-bin: used by regression tests.
 # libgl1-mesa-glx: required by Simplicity Commander
-# libxtst6: required for GraalVM/Java17 to run Cooja in GUI mode.
+# libxtst6: required for GraalVM/Java to run Cooja in GUI mode.
 # mosquitto: used by the regression tests.
 # mtr-tiny: used by the regression tests.
 # net-tools: used by the regression tests.
@@ -70,7 +70,7 @@ RUN apt-get -qq update && \
     > /dev/null && \
   apt-get -qq clean
 
-ARG JAVA_VERSION=21
+ARG JAVA_VERSION=25
 RUN wget -nv https://download.oracle.com/graalvm/${JAVA_VERSION}/latest/graalvm-jdk-${JAVA_VERSION}_linux-x64_bin.tar.gz && \
   tar xf graalvm-jdk-${JAVA_VERSION}_linux-x64_bin.tar.gz -C /usr/local --strip-components=1 --no-same-owner && \
   rm -f graalvm*gz
