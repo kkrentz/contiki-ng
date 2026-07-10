@@ -56,7 +56,6 @@ dev/dht11/native \
 dev/dht11/sky \
 dev/dht11/z1 \
 snmp-server/native \
-snmp-server/sky \
 snmp-server/z1 \
 hello-world/msp-exp430fr5969 \
 
