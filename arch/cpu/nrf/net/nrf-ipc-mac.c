@@ -66,6 +66,19 @@ static uint32_t rx_drop_count;
 #define FCF_ACK_REQUEST_BIT   0x20
 #define FRAME802154_ACKFRAME  0x02
 /*---------------------------------------------------------------------------*/
+/*
+ * Whether the underlying net-core radio acknowledges received frames in
+ * hardware. The nrf_802154 driver does (nrf_802154_auto_ack_set), so the
+ * software ACK below must be disabled to avoid a double ACK. The raw
+ * nrf-ieee-driver-arch.c does not, so it stays enabled by default.
+ */
+#ifdef NRF_IPC_MAC_CONF_HW_AUTOACK
+#define NRF_IPC_MAC_HW_AUTOACK NRF_IPC_MAC_CONF_HW_AUTOACK
+#else
+#define NRF_IPC_MAC_HW_AUTOACK 0
+#endif
+/*---------------------------------------------------------------------------*/
+#if !NRF_IPC_MAC_HW_AUTOACK
 /**
  * Send a software ACK for a received frame if the ACK request bit is set.
  */
@@ -115,6 +128,7 @@ send_ack_if_needed(const uint8_t *frame, int len)
   NETSTACK_RADIO.send(ack, ACK_FRAME_LEN);
   NETSTACK_RADIO.set_value(RADIO_PARAM_TX_MODE, tx_mode);
 }
+#endif /* !NRF_IPC_MAC_HW_AUTOACK */
 /*---------------------------------------------------------------------------*/
 static void
 init(void)
@@ -165,8 +179,11 @@ packet_input(void)
     return;
   }
 
-  /* Send a software ACK for non-ACK frames, before forwarding. */
+#if !NRF_IPC_MAC_HW_AUTOACK
+  /* Send a software ACK for non-ACK frames, before forwarding. The radio
+   * does this in hardware when nrf_802154 is used (see NRF_IPC_MAC_HW_AUTOACK). */
   send_ack_if_needed(frame, len);
+#endif
 
   /* Data frame — goes to the main RX slot. */
   if(shm->rx.pending) {

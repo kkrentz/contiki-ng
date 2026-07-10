@@ -18,6 +18,30 @@ make -C examples/platform-specific/nrf/ipc-radio-service \
      TARGET=nrf BOARD=nrf5340/dk/network ipc-radio-service.upload
 ```
 
+## Optional: nrf_802154 radio with hardware auto-ACK
+
+By default the service uses the raw radio driver
+(`nrf-ieee-driver-arch.c`), which does not acknowledge frames in
+hardware; the IPC MAC sends software ACKs instead, which can be too
+slow for some peers.
+
+Building with `NRF_802154=1` replaces the raw driver with Nordic's
+nrf_802154 library, which performs address filtering and auto-ACK in
+hardware within the 802.15.4 ACK window, and reports the transmit
+verdict (ACK received or not) over IPC.
+
+**Both cores must be built with the same setting.** The application
+core needs `NRF_802154=1` too, so that CSMA trusts the transmit
+verdict instead of polling for ACK frames (which a hardware-ACK net
+core never forwards):
+
+```bash
+make -C examples/platform-specific/nrf/ipc-radio-service \
+     TARGET=nrf BOARD=nrf5340/dk/network NRF_802154=1 ipc-radio-service.upload
+make -C examples/rpl-udp TARGET=nrf BOARD=nrf5340/dk/application \
+     NRF_802154=1 udp-server.upload
+```
+
 ## Design
 
 Frame reception is fully interrupt-driven via the IPC MAC driver:

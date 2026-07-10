@@ -47,6 +47,8 @@
 #include "dev/radio.h"
 #include "net/netstack.h"
 #include "net/packetbuf.h"
+#include "net/linkaddr.h"
+#include "net/mac/framer/frame802154.h"
 #include "nrf-ipc.h"
 #include "nrf.h"
 #include "nrfx.h"
@@ -80,6 +82,9 @@ static bool rx_frame_pending;
 static uint8_t tx_frame_buf[NRF_IPC_MAX_FRAME_LEN];
 /*---------------------------------------------------------------------------*/
 PROCESS(ipc_radio_process, "IPC Radio");
+/*---------------------------------------------------------------------------*/
+static radio_result_t ipc_radio_set_object(radio_param_t param,
+                                           const void *src, size_t size);
 /*---------------------------------------------------------------------------*/
 /**
  * Send a command to the net core and wait for the response.
@@ -245,6 +250,38 @@ ipc_radio_init(void)
   if(send_command(NRF_IPC_CMD_INIT, NULL, 0) != 1) {
     LOG_ERR("Radio init command failed\n");
     return 0;
+  }
+
+  /*
+   * Push this core's link-layer identity to the net core. The net core
+   * seeds the radio from its own FICR-derived link address, which differs
+   * from the app core's (each core has its own FICR DEVICEID). With the
+   * nrf_802154 net-core radio (NRF_802154=1), frames are filtered and
+   * auto-ACKed in hardware against these values, so without this push
+   * unicast frames addressed to this node would be silently dropped. The
+   * legacy raw radio service does not filter and answers NOT_SUPPORTED,
+   * which is harmless.
+   */
+  {
+    uint8_t pan_id[2];
+    uint8_t short_addr[2];
+
+    pan_id[0] = (uint8_t)(IEEE802154_PANID & 0xFF);
+    pan_id[1] = (uint8_t)(IEEE802154_PANID >> 8);
+    if(ipc_radio_set_object(RADIO_PARAM_PAN_ID, pan_id,
+                            sizeof(pan_id)) != RADIO_RESULT_OK) {
+      LOG_INFO("Net core radio does not take addresses (legacy service)\n");
+    } else {
+      short_addr[0] = linkaddr_node_addr.u8[LINKADDR_SIZE - 2];
+      short_addr[1] = linkaddr_node_addr.u8[LINKADDR_SIZE - 1];
+      ipc_radio_set_object(RADIO_PARAM_16BIT_ADDR, short_addr,
+                           sizeof(short_addr));
+#if LINKADDR_SIZE == 8
+      ipc_radio_set_object(RADIO_PARAM_64BIT_ADDR,
+                           linkaddr_node_addr.u8, LINKADDR_SIZE);
+#endif
+      LOG_INFO("Pushed link-layer address to net core\n");
+    }
   }
 
   LOG_INFO("IPC radio operational"
