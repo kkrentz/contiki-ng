@@ -42,11 +42,14 @@
 /* Logging configuration */
 /*---------------------------------------------------------------------------*/
 
-#define LOG_CONF_LEVEL_MAIN LOG_LEVEL_INFO
-#define LOG_CONF_LEVEL_SERIAL_RADIO LOG_LEVEL_DBG
-#define LOG_CONF_LEVEL_NULLNET LOG_LEVEL_DBG
-#define LOG_CONF_LEVEL_MAC LOG_LEVEL_DBG
-#define LOG_CONF_LEVEL_RADIO LOG_LEVEL_DBG
+/* Keep the serial line quiet by default: it carries the binary SLIP/CBOR
+   protocol, so verbose debug text would interleave with the frames. The
+   serialradio module logs at INFO (startup banner and key events); the
+   netstack layers only warn/err. Raise any of these for debugging. */
+#define LOG_CONF_LEVEL_SERIAL_RADIO LOG_LEVEL_INFO
+#define LOG_CONF_LEVEL_NULLNET LOG_LEVEL_WARN
+#define LOG_CONF_LEVEL_MAC LOG_LEVEL_WARN
+#define LOG_CONF_LEVEL_RADIO LOG_LEVEL_WARN
 
 /*---------------------------------------------------------------------------*/
 /* Network stack configuration */
