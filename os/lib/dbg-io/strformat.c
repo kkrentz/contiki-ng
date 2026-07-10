@@ -428,6 +428,7 @@ format_str_v(const strformat_context_t *ctxt, const char *format, va_list ap)
       flags |= CONV_POINTER;
       break;
     case 'n':
+      flags |= CONV_WRITTEN;
       break;
     case '%':
       flags |= CONV_PERCENT;
@@ -688,6 +689,12 @@ format_str_v(const strformat_context_t *ctxt, const char *format, va_list ap)
       written += field_fill;
     }
     break;
+    case CONV_WRITTEN:
+      /* %n is disabled for security reasons. Consume the pointer argument
+         to keep the va_list aligned for subsequent arguments, but never
+         write through it. */
+      (void)va_arg(ap, int *);
+      break;
 #ifdef HAVE_DOUBLE
     case CONV_FLOAT:
       /* Float formatting is not implemented, but consume the argument

@@ -293,6 +293,28 @@ UNIT_TEST(test_percent_n_disabled)
 /*---------------------------------------------------------------------------*/
 
 /*
+ * Bug fix: %n is disabled, but it must still consume its pointer argument
+ * so that subsequent arguments stay aligned in the va_list.
+ */
+UNIT_TEST_REGISTER(test_percent_n_va_list_consumed,
+                   "%%n consumes pointer arg without corrupting va_list");
+UNIT_TEST(test_percent_n_va_list_consumed)
+{
+  int sentinel = 12345;
+
+  UNIT_TEST_BEGIN();
+
+  /* %n writes nothing, but must consume the int* so the trailing %d reads
+     42 rather than misinterpreting the pointer as the integer argument. */
+  UNIT_TEST_ASSERT(test_format("42", "%n%d", &sentinel, 42));
+  /* The pointer target must remain untouched (no write-through). */
+  UNIT_TEST_ASSERT(sentinel == 12345);
+
+  UNIT_TEST_END();
+}
+/*---------------------------------------------------------------------------*/
+
+/*
  * Bug fix: negative dynamic precision via * must be treated as omitted.
  */
 UNIT_TEST_REGISTER(test_negative_star_precision,
@@ -860,6 +882,7 @@ PROCESS_THREAD(run_tests, ev, data)
   UNIT_TEST_RUN(test_negative_star_width);
   UNIT_TEST_RUN(test_char_field_fill);
   UNIT_TEST_RUN(test_percent_n_disabled);
+  UNIT_TEST_RUN(test_percent_n_va_list_consumed);
   UNIT_TEST_RUN(test_negative_star_precision);
   UNIT_TEST_RUN(test_float_va_list_consumed);
   UNIT_TEST_RUN(test_pointer_format);
