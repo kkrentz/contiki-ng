@@ -92,6 +92,20 @@ static rtimer_clock_t sfd_timestamp = 0;
  */
 #define CC1200_WITH_TX_BUF (!MAC_CONF_WITH_TSCH)
 /*
+ * Minimum spacing between two SPI reads of the RX FIFO byte count in
+ * pending_packet(). Tight pollers (e.g. CSMA's RTIMER_BUSYWAIT_UNTIL after a
+ * unicast TX) would otherwise hammer the SPI bus and starve the RX IRQ chain
+ * that needs the same bus to drain the incoming ACK. 300 us is the empirical
+ * minimum that resolves the race on the CC2538 SoC at 32 MHz (the threshold
+ * sits between 200 and 300 us on Zolertia Firefly); other host SoCs / SPI
+ * clocks may need a different value.
+ */
+#ifdef CC1200_CONF_PENDING_POLL_THROTTLE_US
+#define CC1200_PENDING_POLL_THROTTLE_US CC1200_CONF_PENDING_POLL_THROTTLE_US
+#else
+#define CC1200_PENDING_POLL_THROTTLE_US 300
+#endif
+/*
  * Set this parameter to 1 in order to use the MARC_STATE register when
  * polling the chips's status. Else use the status byte returned when sending
  * a NOP strobe.
@@ -1078,27 +1092,33 @@ receiving_packet(void)
 static int
 pending_packet(void)
 {
+  /* Timestamp of the last SPI read of the RX FIFO byte count. Tight pollers
+   * such as CSMA's RTIMER_BUSYWAIT_UNTIL after a unicast TX call this in a
+   * tight loop; doing LOCK_SPI/single_read every iteration starves the RX IRQ
+   * chain that needs the same SPI bus to drain the incoming ACK from the
+   * radio's RX FIFO into rx_pkt[]. Rate-limiting the SPI read (rather than
+   * inserting an unconditional delay) leaves the bus free for the IRQ between
+   * closely-spaced calls, while isolated calls still read immediately and no
+   * caller pays any added latency. */
+  static rtimer_clock_t last_spi_poll;
   int ret;
+
   ret = ((rx_pkt_len != 0) ? 1 : 0);
+  /* rx_pkt_len is set by the RX IRQ, so a delivered ACK is reported above with
+   * no SPI access and no delay. Only fall back to polling the FIFO over SPI,
+   * and only when the previous poll is at least the throttle window old. */
   if(ret == 0 && !SPI_IS_LOCKED()) {
-    LOCK_SPI();
-    ret = (single_read(CC1200_NUM_RXBYTES) > 0);
-    RELEASE_SPI();
+    rtimer_clock_t now = RTIMER_NOW();
+    if(!RTIMER_CLOCK_LT(now, last_spi_poll
+                        + US_TO_RTIMERTICKS(CC1200_PENDING_POLL_THROTTLE_US))) {
+      last_spi_poll = now;
+      LOCK_SPI();
+      ret = (single_read(CC1200_NUM_RXBYTES) > 0);
+      RELEASE_SPI();
+    }
   }
 
   INFO("RF: Pending (%d)\n", ret);
-  /* Throttle: callers (e.g. CSMA's RTIMER_BUSYWAIT_UNTIL after TX) poll
-   * this function very tightly. Unthrottled, the rapid LOCK_SPI /
-   * single_read cycle starves the RX IRQ chain that needs the same SPI
-   * bus to drain the incoming ACK frame from the radio's RX FIFO into
-   * rx_pkt[]. The net effect is that the ACK is received over the air
-   * but never delivered to MAC, so every unicast retransmits to the
-   * MAC retry cap. 300 us is the empirical minimum that resolves this
-   * on the CC2538 SoC at 32 MHz (the race threshold sits between 200
-   * and 300 us). Until DEBUG_LEVEL >= 3 was disabled this was masked
-   * by the printf above, which provided the same throttle as a side
-   * effect of UART blocking. */
-  clock_delay_usec(300);
   return ret;
 
 }
