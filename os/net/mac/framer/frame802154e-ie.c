@@ -89,7 +89,7 @@ enum ieee802154e_ietf_subie_id {
 
 #define WRITE16(buf, val) \
   do { ((uint8_t *)(buf))[0] = (val) & 0xff; \
-       ((uint8_t *)(buf))[1] = ((val) >> 8) & 0xff; } while(0);
+       ((uint8_t *)(buf))[1] = ((val) >> 8) & 0xff; } while(0)
 
 #define READ16(buf, var) \
   (var) = ((uint8_t *)(buf))[0] | ((uint8_t *)(buf))[1] << 8
@@ -490,18 +490,33 @@ frame802154e_parse_mlme_long_ie(const uint8_t *buf, int len,
 {
   switch(sub_id) {
     case MLME_LONG_IE_TSCH_CHANNEL_HOPPING_SEQUENCE:
-      if(len > 0) {
+      /*
+       * Two valid encodings: a one-octet form carrying only the hopping
+       * sequence ID, or the full form whose 10-octet fixed header is followed
+       * by the sequence list and a two-octet "current hop" field, i.e.
+       * len == 12 + sequence_len. Read the sequence-length field (buf[8..9])
+       * only once the full fixed header is known to be present, and reject any
+       * other length rather than over-reading a short IE or leaving
+       * ie_hopping_sequence_len set from an IE we did not actually copy.
+       */
+      if(len == 1) {
         if(ies != NULL) {
           ies->ie_channel_hopping_sequence_id = buf[0];
-          if(len > 1) {
-            READ16(buf+8, ies->ie_hopping_sequence_len); /* sequence len */
-            if(ies->ie_hopping_sequence_len <= sizeof(ies->ie_hopping_sequence_list)
-                && len == 12 + ies->ie_hopping_sequence_len) {
-              memcpy(ies->ie_hopping_sequence_list, buf+10, ies->ie_hopping_sequence_len); /* sequence list */
-            }
-          }
         }
         return len;
+      }
+      if(len >= 12) {
+        uint16_t seq_len;
+        READ16(buf + 8, seq_len); /* sequence len */
+        if(seq_len <= sizeof(ies->ie_hopping_sequence_list)
+            && len == 12 + seq_len) {
+          if(ies != NULL) {
+            ies->ie_channel_hopping_sequence_id = buf[0];
+            ies->ie_hopping_sequence_len = seq_len;
+            memcpy(ies->ie_hopping_sequence_list, buf + 10, seq_len); /* sequence list */
+          }
+          return len;
+        }
       }
       break;
   }
@@ -599,6 +614,18 @@ frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,
             break;
 #if TSCH_WITH_SIXTOP
           case PAYLOAD_IE_IETF:
+            /*
+             * The IETF payload IE carries at least a one-octet Sub-ID field,
+             * and its content must fit within the remaining buffer. Reject
+             * anything shorter or longer to avoid reading past the buffer when
+             * dereferencing the Sub-ID below, underflowing the 6top content
+             * length (len - 1), and underflowing buf_size at the loop tail.
+             */
+            if(len < 1 || len > buf_size) {
+              LOG_ERR("frame802154e: invalid IETF IE len %u (remaining %u)\n",
+                      len, buf_size);
+              return -1;
+            }
             switch(*buf) {
               case IETF_IE_6TOP:
                 /*
@@ -663,6 +690,16 @@ frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,
           parsing_state = PARSING_PAYLOAD_IE;
         }
         break;
+    }
+    /*
+     * Backstop for every IE type: never advance past the end of the buffer.
+     * Each case above is expected to bound len against buf_size, but this
+     * check enforces the invariant in one place and protects buf_size
+     * (uint8_t) from underflowing should a future case forget to.
+     */
+    if(len > buf_size) {
+      LOG_ERR("frame802154e: IE len %u exceeds remaining %u\n", len, buf_size);
+      return -1;
     }
     buf += len;
     buf_size -= len;
