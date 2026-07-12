@@ -48,7 +48,7 @@
  * \param step_name The name of the protocol step (e.g., "message_1", "message_2")
  */
 #define EDHOC_TRACE_STEP(step_name) \
-  LOG_INFO("=== EDHOC %s ===\n", step_name)
+  LOG_DBG("=== EDHOC %s ===\n", step_name)
 
 /**
  * \brief Print cryptographic value in RFC 9529 trace format
@@ -57,12 +57,12 @@
  * \param len Length of the data in bytes
  */
 #define EDHOC_TRACE_VALUE(label, data, len) do { \
-  if(LOG_LEVEL >= LOG_LEVEL_INFO) { \
-    LOG_INFO("%s (%zu bytes): ", label, (size_t)(len)); \
+  if(LOG_LEVEL >= LOG_LEVEL_DBG) { \
+    LOG_DBG("%s (%zu bytes): ", label, (size_t)(len)); \
     if((len) > 0) { \
-      LOG_INFO_BYTES(data, len); \
+      LOG_DBG_BYTES(data, len); \
     } \
-    LOG_INFO_("\n"); \
+    LOG_DBG_("\n"); \
   } \
 } while(0)
 
@@ -72,14 +72,14 @@
  * \param to_state New state
  */
 #define EDHOC_TRACE_STATE(from_state, to_state) \
-  LOG_INFO("State transition: %s -> %s\n", from_state, to_state)
+  LOG_DBG("State transition: %s -> %s\n", from_state, to_state)
 
 /**
  * \brief Print computation step description
  * \param description Brief description of the computation
  */
 #define EDHOC_TRACE_COMPUTE(description) \
-  LOG_INFO("Computing: %s\n", description)
+  LOG_DBG("Computing: %s\n", description)
 
 /**
  * \brief Print detailed debug value (only at DBG level)

@@ -66,8 +66,8 @@ edhoc_trace_ephemeral_key(const char *role_label,
                          const uint8_t *pub_y,
                          const uint8_t *priv)
 {
-  if(LOG_LEVEL >= LOG_LEVEL_INFO) {
-    LOG_INFO("=== %s Ephemeral Key Generation ===\n", role_label);
+  if(LOG_LEVEL >= LOG_LEVEL_DBG) {
+    LOG_DBG("=== %s Ephemeral Key Generation ===\n", role_label);
 
     if(pub_x) {
       EDHOC_TRACE_VALUE("Ephemeral public key (x coordinate)",
@@ -87,7 +87,7 @@ edhoc_trace_ephemeral_key(const char *role_label,
     }
 #else
     if(priv) {
-      LOG_INFO("Ephemeral private key: [hidden for security]\n");
+      LOG_DBG("Ephemeral private key: [hidden for security]\n");
     }
 #endif
   }
@@ -99,8 +99,8 @@ edhoc_trace_transcript_hash(const char *th_label,
                            const uint8_t *input_data,
                            size_t input_len)
 {
-  if(LOG_LEVEL >= LOG_LEVEL_INFO) {
-    LOG_INFO("=== Computing %s ===\n", th_label);
+  if(LOG_LEVEL >= LOG_LEVEL_DBG) {
+    LOG_DBG("=== Computing %s ===\n", th_label);
 
     if(input_data && input_len > 0) {
       EDHOC_TRACE_VALUE("Input to transcript hash (CBOR)",
@@ -119,8 +119,8 @@ edhoc_trace_prk_derivation(const char *prk_label,
                           const uint8_t *salt_data,
                           const uint8_t *ikm_data)
 {
-  if(LOG_LEVEL >= LOG_LEVEL_INFO) {
-    LOG_INFO("=== Deriving %s ===\n", prk_label);
+  if(LOG_LEVEL >= LOG_LEVEL_DBG) {
+    LOG_DBG("=== Deriving %s ===\n", prk_label);
 
     if(salt_data) {
       EDHOC_TRACE_VALUE("Salt", salt_data, HASH_LEN);
@@ -142,8 +142,8 @@ edhoc_trace_mac_computation(const char *mac_label,
                            const uint8_t *context_data,
                            size_t context_len)
 {
-  if(LOG_LEVEL >= LOG_LEVEL_INFO) {
-    LOG_INFO("=== Computing %s ===\n", mac_label);
+  if(LOG_LEVEL >= LOG_LEVEL_DBG) {
+    LOG_DBG("=== Computing %s ===\n", mac_label);
 
     if(context_data && context_len > 0) {
       EDHOC_TRACE_VALUE("MAC computation context", context_data, context_len);
@@ -162,8 +162,8 @@ edhoc_trace_credential(const char *cred_label,
                       const uint8_t *id_cred_data,
                       size_t id_cred_len)
 {
-  if(LOG_LEVEL >= LOG_LEVEL_INFO) {
-    LOG_INFO("=== %s Authentication ===\n", cred_label);
+  if(LOG_LEVEL >= LOG_LEVEL_DBG) {
+    LOG_DBG("=== %s Authentication ===\n", cred_label);
 
     if(id_cred_data && id_cred_len > 0) {
       char id_label[32];
@@ -180,15 +180,15 @@ edhoc_trace_credential(const char *cred_label,
 void
 edhoc_trace_session_summary(const edhoc_context_t *ctx)
 {
-  if(!ctx || LOG_LEVEL < LOG_LEVEL_INFO) {
+  if(!ctx || LOG_LEVEL < LOG_LEVEL_DBG) {
     return;
   }
 
-  LOG_INFO("=== EDHOC Session Summary ===\n");
-  LOG_INFO("Protocol Role: %s\n",
+  LOG_DBG("=== EDHOC Session Summary ===\n");
+  LOG_DBG("Protocol Role: %s\n",
            ctx->config.role == EDHOC_INITIATOR ? "Initiator" : "Responder");
-  LOG_INFO("Method: %d\n", ctx->config.method);
-  LOG_INFO("Cipher Suite: %d\n", ctx->state.suite_selected);
+  LOG_DBG("Method: %d\n", ctx->config.method);
+  LOG_DBG("Cipher Suite: %d\n", ctx->state.suite_selected);
 
   if(ctx->state.cid_len > 0) {
     EDHOC_TRACE_VALUE("Local Connection ID",
@@ -200,8 +200,8 @@ edhoc_trace_session_summary(const edhoc_context_t *ctx)
                       ctx->state.cid_rx, ctx->state.cid_rx_len);
   }
 
-  LOG_INFO("Test Vector Mode: %s\n",
+  LOG_DBG("Test Vector Mode: %s\n",
            EDHOC_TEST == EDHOC_TEST_VECTOR_TRACE_DH ? "RFC 9529" : "Production");
 
-  LOG_INFO("Session Status: Ready for key export\n");
+  LOG_DBG("Session Status: Ready for key export\n");
 }
