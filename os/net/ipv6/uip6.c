@@ -1237,7 +1237,7 @@ uip_process(uint8_t flag)
    * packet header, the packet has been padded, and we set uip_len to
    * the correct value.
    */
-  if(uip_len < uipbuf_get_len_field(UIP_IP_BUF)) {
+  if(uipbuf_get_len_field(UIP_IP_BUF) > uip_len - UIP_IPH_LEN) {
     UIP_STAT(++uip_stat.ip.drop);
     LOG_ERR("packet shorter than reported in IP header\n");
     goto drop;
