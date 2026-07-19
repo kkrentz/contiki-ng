@@ -1,7 +1,7 @@
 CONTIKI_PROJECT = name sink source
 all: $(CONTIKI_PROJECT)
 
-CONTIKI = ../..
+CONTIKI ?= ../..
 include $(CONTIKI)/Makefile.dir-variables
 
 MAKE_WITH_ORCHESTRA ?= 0
