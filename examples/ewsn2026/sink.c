@@ -49,6 +49,10 @@ PROCESS_THREAD(sink_process, ev, data)
 
   PROCESS_BEGIN();
 
+#if CONTIKI_TARGET_COOJA
+  printf("t;name;event;counter;address\n");
+#endif /* CONTIKI_TARGET_COOJA */
+
   etimer_set(&timeout,
              (WAITING_PERIOD + SAMPLING_PERIOD + FINISHING_PERIOD - 10)
              * CLOCK_SECOND);
@@ -83,6 +87,9 @@ PROCESS_THREAD(sink_process, ev, data)
       continue;
     }
     memcpy(&counter, uip_appdata, sizeof(counter));
+#if CONTIKI_TARGET_COOJA
+    printf("%" CLOCK_PRI ";cooja-%" PRIu16 ";", clock_time(), node_id);
+#endif /* CONTIKI_TARGET_COOJA */
     printf("r;%" PRIu32 ";%02x%02x\n",
            counter,
            UIP_IP_BUF->srcipaddr.u8[sizeof(UIP_IP_BUF->srcipaddr.u8) - 2],
@@ -90,6 +97,9 @@ PROCESS_THREAD(sink_process, ev, data)
   }
 
 #if ENERGEST_CONF_ON
+#if CONTIKI_TARGET_COOJA
+  printf("%" CLOCK_PRI ";cooja-%" PRIu16 ";", clock_time(), node_id);
+#endif /* CONTIKI_TARGET_COOJA */
   printf("energy;%02x%02x;%" PRIu64 ";%" PRIu64 ";%" RTIMER_PRI "\n",
          linkaddr_node_addr.u8[LINKADDR_SIZE - 2],
          linkaddr_node_addr.u8[LINKADDR_SIZE - 1],
