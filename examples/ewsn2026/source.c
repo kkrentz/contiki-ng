@@ -78,6 +78,9 @@ PROCESS_THREAD(source_process, ev, data)
       break;
     }
 
+#if CONTIKI_TARGET_COOJA
+    printf("%" CLOCK_PRI ";cooja-%" PRIu16 ";", clock_time(), node_id);
+#endif /* CONTIKI_TARGET_COOJA */
     printf("s;%" PRIu32 ";%02x%02x\n",
            ++counter,
            linkaddr_node_addr.u8[LINKADDR_SIZE - 2],
@@ -113,6 +116,9 @@ PROCESS_THREAD(source_process, ev, data)
   }
 
 #if ENERGEST_CONF_ON
+#if CONTIKI_TARGET_COOJA
+  printf("%" CLOCK_PRI ";cooja-%" PRIu16 ";", clock_time(), node_id);
+#endif /* CONTIKI_TARGET_COOJA */
   printf("energy;%02x%02x;%" PRIu64 ";%" PRIu64 ";%" RTIMER_PRI "\n",
          linkaddr_node_addr.u8[LINKADDR_SIZE - 2],
          linkaddr_node_addr.u8[LINKADDR_SIZE - 1],
