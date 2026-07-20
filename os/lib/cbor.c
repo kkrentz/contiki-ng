@@ -465,5 +465,84 @@ cbor_read_map(cbor_reader_state_t *state)
   return read_array_or_map(state);
 }
 /*---------------------------------------------------------------------------*/
+const uint8_t *
+cbor_get_position(cbor_reader_state_t *state)
+{
+  return state->cbor;
+}
+/*---------------------------------------------------------------------------*/
+size_t
+cbor_get_remaining(cbor_reader_state_t *state)
+{
+  return state->cbor_size;
+}
+/*---------------------------------------------------------------------------*/
+bool
+cbor_skip_next(cbor_reader_state_t *state)
+{
+  uint64_t value;
+  /*
+   * Number of complete data items still to be consumed. Skipping only needs
+   * this running count, not the structure: the elements of an array (or the
+   * keys and values of a map) are simply the next items in the stream, so a
+   * container header just adds its item count here. This keeps the walk
+   * iterative and bounded by the input size, with no recursion depth to cap.
+   */
+  size_t pending = 1;
+
+  while(pending--) {
+    switch(cbor_peek_next(state)) {
+    case CBOR_MAJOR_TYPE_UNSIGNED:
+    case CBOR_MAJOR_TYPE_SIGNED:
+    case CBOR_MAJOR_TYPE_SIMPLE:
+      /*
+       * Integers, simple values (false/true/null/undefined) and
+       * floating-point values consist of the initial byte plus the inline
+       * argument selected by its additional-information bits.
+       * read_unsigned() consumes exactly that regardless of the major type,
+       * so it advances past 1-byte simple values as well as float16/32/64.
+       */
+      if(read_unsigned(state, &value) == CBOR_SIZE_NONE) {
+        return false;
+      }
+      break;
+
+    case CBOR_MAJOR_TYPE_BYTE_STRING:
+    case CBOR_MAJOR_TYPE_TEXT_STRING:
+      /* Skip the length argument, then that many payload bytes. */
+      if(read_unsigned(state, &value) == CBOR_SIZE_NONE
+         || value > state->cbor_size) {
+        return false;
+      }
+      state->cbor += value;
+      state->cbor_size -= value;
+      break;
+
+    case CBOR_MAJOR_TYPE_ARRAY:
+    case CBOR_MAJOR_TYPE_MAP: {
+      /*
+       * A map contributes two items (key and value) per entry. Every pending
+       * item needs at least one byte, so a count larger than the remaining
+       * input is malformed; rejecting it here also keeps the doubling and the
+       * accumulation below within range.
+       */
+      bool is_map = cbor_peek_next(state) == CBOR_MAJOR_TYPE_MAP;
+      if(read_unsigned(state, &value) == CBOR_SIZE_NONE
+         || value > state->cbor_size) {
+        return false;
+      }
+      pending += is_map ? value * 2 : value;
+      break;
+    }
+
+    case CBOR_MAJOR_TYPE_NONE:
+    default:
+      return false;
+    }
+  }
+
+  return true;
+}
+/*---------------------------------------------------------------------------*/
 
 /** @} */
