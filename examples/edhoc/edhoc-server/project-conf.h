@@ -37,7 +37,7 @@
 #define EDHOC_CONF_CID 0x32
 
 /* CoAP configuration */
-#define COAP_MAX_OPEN_TRANSACTIONS   8
+#define COAP_MAX_OPEN_TRANSACTIONS   4
 #define COAP_MAX_OBSERVERS          8
 #define COAP_MAX_CHUNK_SIZE         300
 
