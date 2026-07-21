@@ -37,7 +37,7 @@
 #define EDHOC_CONF_CID 0x37
 
 /* CoAP configuration */
-#define COAP_MAX_OPEN_TRANSACTIONS   8
+#define COAP_MAX_OPEN_TRANSACTIONS   4
 #define COAP_MAX_OBSERVERS          8
 #define COAP_MAX_CHUNK_SIZE         300
 
@@ -63,5 +63,11 @@
 
 /* Server endpoint configuration */
 #define EDHOC_CONF_SERVER_EP "coap://[fd00::202:2:2:2]"
+
+/* Low Power Mode Configuration.
+   Cap the power mode at PM1 so that the whole SRAM is usable on cc2538-based
+   boards (in PM2 only the full-retention SRAM bank is available, which is too
+   small for this example). Matches the EDHOC server configuration. */
+#define LPM_CONF_MAX_PM 1
 
 #endif /* PROJECT_CONF_H_ */
