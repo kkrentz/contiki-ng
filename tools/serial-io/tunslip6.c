@@ -241,7 +241,7 @@ serial_to_tun(FILE *inslip, int outfd)
           /* Prefix info requested */
           struct in6_addr addr;
 	  int i;
-	  char *s = strchr(ipaddr, '/');
+	  char *s = (char *)strchr(ipaddr, '/');
 	  if(s != NULL) {
 	    *s = '\0';
 	  }
