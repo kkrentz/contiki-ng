@@ -1,7 +1,5 @@
 library(svglite)
-library(extrafont)
-font_import(pattern = "Frutiger", prompt = FALSE)
-loadfonts()
+library(systemfonts)
 
 experiments <- c(
   "csl-classic-ml-sleepless",
@@ -20,7 +18,7 @@ runs <- 1:10
 t_value <- qt(0.975, df = length(runs) - 1) # for 2-sided 95% confidence interval
 
 # set colors
-rate_colors <- c("#7C154D", "#BB0056", "#FDB913", "#B2D235", "#179C7D")
+rate_colors <- c("#AE003A", "#FF7221", "#FFDD00", "#4BD697", "#1A754C")
 rate_colors <- rate_colors[1:length(rates)]
 
 # from https://groups.google.com/g/r-help-archive/c/Y2x_YAJUf8Y
@@ -306,7 +304,7 @@ for (rate_index in 1:length(rates)) {
 svglite(file="pdrs.svg", width=6.2, height=length(experiments)+0.2, bg = "transparent")
 par(cex = 1)
 par(las = 1)
-par(mar = c(5.1-1.1, 4.1+0.9, 4.1-4.1, 2.1-2.1), family = "Frutiger")
+par(mar = c(5.1-1.1, 4.1+0.9, 4.1-4.1, 2.1-2.1), family = "Aptos")
 centers <- barplot(delivery_ratios,
                    beside = TRUE,
                    names = experiment_labels,
@@ -393,7 +391,7 @@ for (experiment in experiments) {
 svglite(file="delays.svg", width=6.2, height=length(experiments)+0.2, bg = "transparent")
 par(cex = 1)
 par(las = 1)
-par(mar = c(5.1-1.1, 4.1+0.9, 4.1-4.1, 2.1-2.1), family = "Frutiger")
+par(mar = c(5.1-1.1, 4.1+0.9, 4.1-4.1, 2.1-2.1), family = "Aptos")
 boxplot(delays,
         border = rate_colors,
         xlab = "delay (in s)",
@@ -454,7 +452,7 @@ for (experiment_index in 1:length(experiments)) {
 svglite(file="energy.svg", width=6.2, height=length(experiments)+0.2, bg = "transparent")
 par(cex = 1)
 par(las = 1)
-par(mar = c(5.1-1.1, 4.1+0.9, 4.1-4.1, 2.1-2.1), family = "Frutiger")
+par(mar = c(5.1-1.1, 4.1+0.9, 4.1-4.1, 2.1-2.1), family = "Aptos")
 centers <- mybarplot(e,
                      border = rep(rate_colors, length(experiments)),
                      horiz = TRUE,
