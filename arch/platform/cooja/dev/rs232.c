@@ -35,7 +35,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#define SERIAL_BUF_SIZE 2048
+#define SERIAL_BUF_SIZE (16 * 1024)
 
 // COOJA variables
 char simSerialReceivingData[SERIAL_BUF_SIZE];
